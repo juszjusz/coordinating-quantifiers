@@ -1,4 +1,4 @@
-class Language():
+class Language:
     def pick_word(self, category):
         # TODO
         return None

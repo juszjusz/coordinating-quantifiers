@@ -1,21 +1,26 @@
 from objects.language import Language
 import random
 
-class Player():
+class Population:
+    def __init__(self, population_size: int):
+        self.population = []
+
+
+class Agent:
     def __init__(self, id, language: Language):
         self.language = language
         self.id = id
 
     def _as_speaker(self):
-        return SpeakerRole(self.id, self.language)
+        return SpeakerAgent(self.id, self.language)
 
     def _as_hearer(self):
-        return HearerRole(self.id, self.language)
+        return HearerAgent(self.id, self.language)
 
 
-class SpeakerRole(Player):
+class SpeakerAgent(Agent):
     def __init__(self, id, language: Language):
-        Player.__init__(self, id, language)
+        Agent.__init__(self, id, language)
 
     def get_word(self, category):
         return self.language.pick_word(category)
@@ -26,9 +31,9 @@ class SpeakerRole(Player):
         return None
 
 
-class HearerRole(Player):
+class HearerAgent(Agent):
     def __init__(self, id, language: Language):
-        Player.__init__(self, id, language)
+        Agent.__init__(self, id, language)
 
     def get_discriminative_category(self, word):
         return self.language.pick_category(word)
@@ -39,7 +44,7 @@ class HearerRole(Player):
 
 
 class PlayersPair():
-    def __init__(self, player1: Player, player2: Player):
+    def __init__(self, player1: Agent, player2: Agent):
         self.__players = (player1, player2)
 
     def get_speaker_and_hearer(self):
