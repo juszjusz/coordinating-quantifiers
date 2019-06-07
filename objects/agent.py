@@ -23,7 +23,7 @@ class Population:
 
 
 class Agent:
-    def __init__(self, id, language: Language):
+    def __init__(self, id, language: Language = Language()):
         self.language = language
         self.id = id
 
