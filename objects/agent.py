@@ -4,10 +4,11 @@ import random
 class Population:
     def __init__(self, population_size: int):
         self.population = []
-
+        for id in range(0, population_size):
+            self.population.append(Agent(id, Language()))
 
 class Agent:
-    def __init__(self, id, language: Language):
+    def __init__(self, id, language: Language = Language()):
         self.language = language
         self.id = id
 
