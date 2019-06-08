@@ -1,14 +1,5 @@
-from objects.nature import Nature
-from objects.agent import PlayersPair, Agent, SpeakerAgent, HearerAgent
+from objects.agent import SpeakerAgent, HearerAgent
 from random import choice
-
-def play_game(player1: Agent, player2: Agent, nature: Nature, rounds: int):
-    players_pair = PlayersPair(player1, player2)
-    for round in range(0, rounds):
-        print('playing round', round)
-        speaker, hearer = players_pair.get_speaker_and_hearer()
-        context = nature.emit_context()
-        GuessingGame().play_round(speaker, hearer, context)
 
 class GuessingGame:
     # guessing game

@@ -1,5 +1,3 @@
-import random
-import objects.agent
 from scripts.game_definitions import GuessingGame
 from objects.agent import Population
 
@@ -17,9 +15,8 @@ class Simualtion:
         population = Population(self.parameters["populationSize"])
 
         for step in range(self.parameters["steps"]):
-            population.select_pairs()
-            for j in range(self.parameters["gamesPerRound"]):
-                speaker, hearer = population.get_speaker_and_hearer()#czy tutaj podawac nr gry?
+            selected_pairs = population.select_pairs_per_round(self.parameters["gamesPerRound"])
+            for speaker, hearer in selected_pairs:
                 GuessingGame().play_round(speaker, hearer, None)
 
 
