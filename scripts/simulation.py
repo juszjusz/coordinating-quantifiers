@@ -1,4 +1,4 @@
-from scripts.game_definitions import GuessingGame
+from scripts.guessing_game import GuessingGame
 from objects.agent import Population
 
 class Simualtion:
