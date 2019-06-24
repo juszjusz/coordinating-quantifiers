@@ -24,3 +24,7 @@ class RoundStatistics():
     discriminative_success = 0
     guessing_topic_success = 0
     guessing_word_success = 0
+
+
+s = Simualtion()
+s.run()
