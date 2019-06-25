@@ -26,5 +26,3 @@ class RoundStatistics():
     guessing_word_success = 0
 
 
-s = Simualtion()
-s.run()

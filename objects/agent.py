@@ -1,6 +1,7 @@
 from objects.language import Language
 from random import sample
 
+
 class Population:
 
     def __init__(self, population_size: int):
@@ -10,6 +11,7 @@ class Population:
     def select_pairs_per_round(self, games_per_round: int):
         agents_per_game = sample(self.population, games_per_round * 2)
         return [(agent1._as_hearer(), agent2._as_speaker()) for agent1, agent2 in zip(agents_per_game[::2], agents_per_game[1::2])]
+
 
 class Agent:
     def __init__(self, id, language: Language = Language()):
