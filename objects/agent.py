@@ -1,4 +1,6 @@
 from objects.language import Language
+from objects.perception import Stimulus
+from objects.perception import DiscriminativeCategory
 from random import sample
 
 
@@ -17,6 +19,19 @@ class Agent:
     def __init__(self, id, language: Language = Language()):
         self.language = language
         self.id = id
+
+    def discriminate(self, context, topic):
+        s1 = context[0]
+        s2 = context[1]
+        responses1 = [c.response(s1) for c in self.language.discriminative_categories]
+        responses2 = [c.response(s2) for c in self.language.discriminative_categories]
+        max1 = max(responses1)
+        max2 = max(responses2)
+        max_args1 = [i for i, j in enumerate(responses1) if j == max1]
+        max_args2 = [i for i, j in enumerate(responses2) if j == max2]
+        i = max_args1[0]
+        j = max_args2[0]
+        return None if len(max_args1) != 1 or len(max_args2) != 1 or i != j else i if topic == 0 else j
 
     def _as_speaker(self):
         return SpeakerAgent(self.id, self.language)
