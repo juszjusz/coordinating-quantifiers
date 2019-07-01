@@ -88,9 +88,8 @@ class DiscriminativeCategory:
         which = [i for i, j in enumerate(responses) if j == max_response]
         return which[0] if len(which) == 1 else None
 
-    def update_weights(self):
-        # TODO
-        pass
+    def update_weights(self, factors):
+        self.weights = [weight + factor*weight for weight, factor in zip(self.weights, factors)]
 
     def show(self):
         x = np.linspace(self.x_left, self.x_right, num=100)

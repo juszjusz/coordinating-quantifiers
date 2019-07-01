@@ -1,6 +1,7 @@
 from objects.language import Language
-from objects.perception import Stimulus
+from objects.perception import ReactiveUnit
 from objects.perception import DiscriminativeCategory
+from objects.perception import Stimulus
 from random import sample
 
 
@@ -12,26 +13,57 @@ class Population:
 
     def select_pairs_per_round(self, games_per_round: int):
         agents_per_game = sample(self.population, games_per_round * 2)
-        return [(agent1._as_hearer(), agent2._as_speaker()) for agent1, agent2 in zip(agents_per_game[::2], agents_per_game[1::2])]
+        return [(a1._as_hearer(), a2._as_speaker()) for a1, a2 in zip(agents_per_game[::2], agents_per_game[1::2])]
 
 
 class Agent:
+
+    discriminative_threshold = 0.95
+
     def __init__(self, id, language: Language = Language()):
         self.language = language
         self.id = id
+        self.discriminative_success = 0
 
     def discriminate(self, context, topic):
-        s1 = context[0]
-        s2 = context[1]
+        if not self.language.discriminative_categories:
+            # print("no discriminative categories")
+            self.language.add_discriminative_category(context[topic])
+            return None
+
+        s1, s2 = context[0], context[1]
         responses1 = [c.response(s1) for c in self.language.discriminative_categories]
         responses2 = [c.response(s2) for c in self.language.discriminative_categories]
+        # print(responses1)
+        # print(responses2)
         max1 = max(responses1)
         max2 = max(responses2)
         max_args1 = [i for i, j in enumerate(responses1) if j == max1]
         max_args2 = [i for i, j in enumerate(responses2) if j == max2]
+        # print(max_args1)
+        # print(max_args2)
+
+        if len(max_args1) > 1 or len(max_args2) > 1:
+            raise Exception("Two categories give the same maximal value for stimulus")
+
         i = max_args1[0]
         j = max_args2[0]
-        return None if len(max_args1) != 1 or len(max_args2) != 1 or i != j else i if topic == 0 else j
+
+        if i == j:
+            if self.discriminative_success >= Agent.discriminative_threshold:
+                k = i if topic == 0 else j
+                #print("updating category by adding reactive unit centered on %5.2f" % (context[topic].a/context[topic].b))
+                self.language.discriminative_categories[k].add_reactive_unit(context[topic])
+            else:
+                #print("adding new category centered on %5.2f" % (context[topic].a/context[topic].b))
+                c = DiscriminativeCategory()
+                r = ReactiveUnit(context[topic])
+                c.add_reactive_unit(r)
+                self.language.discriminative_categories.append(c)
+            return None
+
+        #discrimination successful
+        return i if topic == 0 else j
 
     def _as_speaker(self):
         return SpeakerAgent(self.id, self.language)
