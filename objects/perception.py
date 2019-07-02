@@ -57,7 +57,7 @@ class ReactiveUnit:
             plt.show()
 
 
-class DiscriminativeCategory:
+class Category:
 
     def __init__(self):
         self.weights = []

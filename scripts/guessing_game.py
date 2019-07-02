@@ -11,15 +11,17 @@ class GuessingGame:
 
         # 2. the speaker tries to discriminate the topic from the context by playing the discrimination game
         speaker_category = speaker.discriminate(context, topic)
-
         if speaker_category is None:
             return
 
         # 3. the speaker looks up the word forms in Ds associated with speaker_category.
         speaker_word = speaker.get_word(speaker_category)
+        if speaker_word is None:
+            return
+
         # 4. the hearer looks up speaker_word in his lexicon... (happens 'under the hood')
         # 5. the hearer does have speaker_word in his lexicon...
-        hearer_category = hearer.get_discriminative_category(speaker_word)
+        hearer_category = hearer.get_category(speaker_word)
         # 5. point to the stimulus ...
         hearer_stimulus = hearer.get_stimulus(hearer_category)
         # 6. The speaker observes to which stimulus the hearer is pointing and if

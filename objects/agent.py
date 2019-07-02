@@ -1,7 +1,4 @@
 from objects.language import Language
-from objects.perception import ReactiveUnit
-from objects.perception import DiscriminativeCategory
-from objects.perception import Stimulus
 from random import sample
 
 
@@ -26,14 +23,14 @@ class Agent:
         self.discriminative_success = 0
 
     def discriminate(self, context, topic):
-        if not self.language.discriminative_categories:
-            # print("no discriminative categories")
-            self.language.add_discriminative_category(context[topic])
+        if not self.language.categories:
+            # print("no categories")
+            self.language.add_category(context[topic])
             return None
 
         s1, s2 = context[0], context[1]
-        responses1 = [c.response(s1) for c in self.language.discriminative_categories]
-        responses2 = [c.response(s2) for c in self.language.discriminative_categories]
+        responses1 = [c.response(s1) for c in self.language.categories]
+        responses2 = [c.response(s2) for c in self.language.categories]
         # print(responses1)
         # print(responses2)
         max1 = max(responses1)
@@ -51,15 +48,9 @@ class Agent:
 
         if i == j:
             if self.discriminative_success >= Agent.discriminative_threshold:
-                k = i if topic == 0 else j
-                #print("updating category by adding reactive unit centered on %5.2f" % (context[topic].a/context[topic].b))
-                self.language.discriminative_categories[k].add_reactive_unit(context[topic])
+                self.language.update_category(i if topic == 0 else j, context[topic])
             else:
-                #print("adding new category centered on %5.2f" % (context[topic].a/context[topic].b))
-                c = DiscriminativeCategory()
-                r = ReactiveUnit(context[topic])
-                c.add_reactive_unit(r)
-                self.language.discriminative_categories.append(c)
+                self.language.add_category(context[topic])
             return None
 
         #discrimination successful
@@ -77,10 +68,10 @@ class SpeakerAgent(Agent):
         Agent.__init__(self, id, language)
 
     def get_word(self, category):
-        return self.language.pick_word(category)
+        return self.language.get_word(category)
 
     # getDiscriminativeCategory
-    def get_discriminative_category(self, context: (int, int), topic):
+    def get_category(self, context: (int, int), topic):
         # TODO
         return None
 
@@ -89,7 +80,7 @@ class HearerAgent(Agent):
     def __init__(self, id, language: Language):
         Agent.__init__(self, id, language)
 
-    def get_discriminative_category(self, word):
+    def get_category(self, word):
         return self.language.pick_category(word)
 
     def get_stimulus(self, category):
