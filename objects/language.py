@@ -2,6 +2,7 @@ from objects.perception import Category
 from objects.perception import ReactiveUnit
 from objects.perception import Stimulus
 from numpy import array
+from numpy.random import choice
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
@@ -42,11 +43,11 @@ class Language:
             self.lxc[new_word_index, category] = 0.5
             return None
 
-        # TODO requires testing 
+        # TODO performance?
         word_propensities = self.lxc[0::, category]
         max_propensity = max(word_propensities)
-        max_propensity_index = [i for i, j in enumerate(word_propensities) if j == max_propensity]
-        return self.lexicon[max_propensity_index]
+        max_propensity_indices = [i for i, j in enumerate(word_propensities) if j == max_propensity]
+        return self.lexicon[choice(max_propensity_indices)]
 
     def get_category(self, word):
         # TODO

@@ -25,7 +25,4 @@ a.get_word(c)
 print(a.language.lexicon)
 print(a.language.lxc)
 
-if c is None:
-    print("discrimination failed")
-else:
-    print(c)
+print(a.get_word(c))
