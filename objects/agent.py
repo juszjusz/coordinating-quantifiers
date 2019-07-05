@@ -5,7 +5,7 @@ from enum import Enum
 
 class Population:
 
-    def __init__(self, population_size: int):d
+    def __init__(self, population_size: int):
         self.population_size = population_size
         self.agents = [Agent(agent_id) for agent_id in range(population_size)]
 
