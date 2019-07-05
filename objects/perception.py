@@ -82,7 +82,7 @@ class Category:
         return 0 if len(self.reactive_units) == 0 \
             else sum([r.fun(x)*w for r, w in zip(self.reactive_units, self.weights)])
 
-    def select(self, stimuli):
+    def select(self, stimuli: list):
         responses = [self.response(s) for s in stimuli]
         max_response = max(responses)
         which = [i for i, j in enumerate(responses) if j == max_response]
