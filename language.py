@@ -1,9 +1,9 @@
-from objects.perception import Category
-from objects.perception import ReactiveUnit
-from objects.perception import Stimulus
-from numpy import array
+from perception import Category
+from perception import ReactiveUnit
+from perception import Stimulus
+from numpy import empty
 from numpy.random import choice
-from enum import Enum
+# from enum import Enum
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
@@ -11,7 +11,7 @@ from gibberish import Gibberish
 
 class Language:
 
-    class Error(Enum):
+    class Error:
         NO_ERROR = 0
         NO_CATEGORY = 1            # agent has no categories
         NO_DISCRIMINATION = 2      # agent has categories but is unable to discriminate
@@ -25,7 +25,7 @@ class Language:
     def __init__(self):
         self.lexicon = []
         self.categories = []
-        self.lxc = array([])
+        self.lxc = empty(shape=(0, 0))
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -34,22 +34,20 @@ class Language:
         #new_word_index = rows_cnt
         #self.lxc[new_word_index, category] = 0.5
 
-    def add_word(self, word: str):
+    def add_word(self, word):
         self.lexicon.append(word)
         rows_cnt, cols_cnt = self.lxc.shape
         self.lxc.resize((rows_cnt + 1, cols_cnt), refcheck=False)
 
-    def add_category(self, stimulus: Stimulus, weight=0.5):
+    def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
         c = Category()
         c.add_reactive_unit(ReactiveUnit(stimulus), weight)
         self.categories.append(c)
-        rows_cnt = self.lxc.shape[0] if self.lxc.ndim == 2 else 0 if self.lxc.shape[0] == 0 else 1
-        cols_cnt = self.lxc.shape[1] if self.lxc.ndim == 2 else self.lxc.shape[0]
-        # print("rows = %d, cols = %d" % (rows_cnt, cols_cnt))
+        rows_cnt, cols_cnt = self.lxc.shape
         self.lxc.resize((rows_cnt, cols_cnt+1), refcheck=False)
 
-    def update_category(self, i: int, stimulus: Stimulus):
+    def update_category(self, i, stimulus):
         # print("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
         self.categories[i].add_reactive_unit(stimulus)
 

@@ -1,6 +1,6 @@
 # from objects.agent import SpeakerAgent, HearerAgent
-from objects.agent import Agent
-from objects.perception import Stimulus
+from agent import Agent
+from perception import Stimulus
 from random import choice
 
 
@@ -10,6 +10,7 @@ class GuessingGame:
         self.speaker = speaker
         self.hearer = hearer
         self.in_progress = True
+        self.completed = False
         self.context = [Stimulus(), Stimulus()]
         self.speaker_topic = choice([0, 1])
         self.hearer_topic = None
@@ -19,6 +20,11 @@ class GuessingGame:
         self.hearer_word = None
 
     def on_error(self, error):
+        if error == Agent.Error.NO_ERROR:
+            return
+
+        self.in_progress = False
+
         if error == Agent.Error.NO_CATEGORY:
             self.speaker.learn_topic(None, self.context, self.speaker_topic)
         elif error == Agent.Error.NO_DISCRIMINATION:
@@ -49,6 +55,8 @@ class GuessingGame:
     def play(self):
 
         self.speaker_category, error = self.speaker.discriminate(self.context, self.speaker_topic)
+        self.speaker.store_ds_result(self.speaker.Result.SUCCESS if error == Agent.Error.NO_ERROR
+                                     else self.speaker.Result.FAILURE)
         self.on_error(error)
 
         if self.in_progress:
@@ -63,9 +71,17 @@ class GuessingGame:
             self.hearer_topic, error = self.hearer.get_topic(self.context, self.hearer_category)
             self.on_error(error)
 
+        self.completed = self.in_progress
         success = self.speaker_topic == self.hearer_topic
 
-        if self.speaker_category is not None and self.hearer_category is not None and self.speaker_word is not None:
+        if self.completed and success:
+            self.speaker.store_cs_result(Agent.Result.SUCCESS)
+            self.hearer.store_cs_result(Agent.Result.SUCCESS)
+        else:
+            self.speaker.store_cs_result(Agent.Result.FAILURE)
+            self.hearer.store_cs_result(Agent.Result.FAILURE)
+
+        if self.completed:
             self.speaker.update(success=success, role=Agent.Role.SPEAKER,
                                 word=self.speaker_word, category=self.speaker_category)
             self.hearer.update(success=success, role=Agent.Role.HEARER,
@@ -73,6 +89,9 @@ class GuessingGame:
 
         # TODO stage 7
         #print('goto to stage 7')
+
+    def get_stats(self):
+        return None
 
 # my comments:
 # 1. Lets make method naming consistent, i.e. if a method is used for queries, then

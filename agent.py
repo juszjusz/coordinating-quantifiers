@@ -1,22 +1,27 @@
-from objects.language import Language
+from language import Language
 from random import sample
-from enum import Enum
+# from enum import Enum, IntEnum
+from collections import deque
 
 
 class Population:
 
-    def __init__(self, population_size: int):
+    def __init__(self, population_size):
         self.population_size = population_size
         self.agents = [Agent(agent_id) for agent_id in range(population_size)]
 
-    def select_pairs_per_round(self, games_per_round: int):
+    def select_pairs_per_round(self, games_per_round):
         agents_per_game = sample(self.agents, games_per_round * 2)
         return [(a1, a2) for a1, a2 in zip(agents_per_game[::2], agents_per_game[1::2])]
 
 
 class Agent(Language):
 
-    class Role(Enum):
+    class Result:
+        SUCCESS = 1
+        FAILURE = 0
+
+    class Role:
         SPEAKER = 1
         HEARER = 2
 
@@ -26,9 +31,27 @@ class Agent(Language):
         Language.__init__(self)
         self.id = id
         self.discriminative_success = 0
+        self.communicative_success = 0
+        self.ds_scores = deque([0])
+        self.cs_scores = deque([0])
+
+    def store_ds_result(self, result):
+        if len(self.ds_scores) == 50:
+            self.ds_scores.rotate(-1)
+            self.ds_scores[-1] = int(result)
+        else:
+            self.ds_scores.append(int(result))
+
+    def store_cs_result(self, result):
+        if len(self.cs_scores) == 50:
+            self.cs_scores.rotate(-1)
+            self.cs_scores[-1] = int(result)
+        else:
+            self.cs_scores.append(int(result))
 
     def discriminate(self, context, topic):
         if not self.categories:
+            # self.store_ds_result(self.Result.FAILURE)
             return None, Language.Error.NO_CATEGORY
 
         s1, s2 = context[0], context[1]
@@ -43,15 +66,15 @@ class Agent(Language):
 
         i, j = max_args1[0], max_args2[0]
 
+        # self.store_ds_result(i != j)
+
         if i == j:
+            # self.store_ds_result(self.Result.FAILURE)
             return None, Language.Error.NO_DISCRIMINATION
 
         #discrimination successful
+        # self.store_ds_result(self.Result.SUCCESS)
         return i if topic == 0 else j, Agent.Error.NO_ERROR
-
-    def get_stimulus(self, category):
-        # TODO
-        return None
 
     def learn_word_category(self, word, category_index):
         self.lxc[self.lexicon.index(word), category_index] = 0.5
@@ -67,13 +90,13 @@ class Agent(Language):
     #         return
     #     else:
 
-    def learn_topic(self, category: int, context: list, topic: int):
+    def learn_topic(self, category, context, topic):
         if self.discriminative_success >= Agent.discriminative_threshold and category is not None:
             self.update_category(category, context[topic])
         else:
             self.add_category(context[topic])
 
-    def get_topic(self, context: list, category: int):
+    def get_topic(self, context, category):
         if category is None:
             return None, Language.Error.ERROR
 
@@ -82,7 +105,7 @@ class Agent(Language):
         return (topic, Language.Error.NO_DIFFERENCE) if topic is None \
             else (topic, Language.Error.NO_ERROR)
 
-    def update(self, success: bool, role: Role, word, category):
+    def update(self, success, role, word, category):
         i = self.lexicon.index(word)
         c = category
         if success and role == self.Role.SPEAKER:
