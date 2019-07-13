@@ -5,12 +5,24 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 
+class Error:
+    NO_ERROR = -1
+    ERROR = -2
+    _END_ = ERROR
+
+
 class Stimulus:
     # stimulus represents a perceptual situation where two exact quantities are given
 
-    def __init__(self, a=randint(0, 101), b=randint(1, 101)):
-        self.a = a
-        self.b = b
+    def __init__(self, a=None, b=None):
+        if a is None:
+            self.a = randint(1, 101)
+        else:
+            self.a = a
+        if b is None:
+            self.b = randint(1, 101)
+        else:
+            self.b = b
 
 
 class ReactiveUnit:
@@ -27,7 +39,12 @@ class ReactiveUnit:
         self.ratio_samples = r.tolist()
         y, bin_edges = np.histogram(self.ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
-        self.interp = interp1d(x, y) #radial basis interpolation?
+        try:
+            self.interp = interp1d(x, y) #radial basis interpolation?
+        except ValueError:
+            print("x and y arrays must have at least 2 entries")
+            print(x)
+            print(y)
         self.x_left = x[0]
         self.x_right = x[-1]
 
@@ -83,10 +100,12 @@ class Category:
             else sum([r.fun(x)*w for r, w in zip(self.reactive_units, self.weights)])
 
     def select(self, stimuli):
+        # TODO what if the same stimuli?
         responses = [self.response(s) for s in stimuli]
         max_response = max(responses)
         which = [i for i, j in enumerate(responses) if j == max_response]
         return which[0] if len(which) == 1 else None
+        # TODO example: responses == [0.0, 0.0]
 
     def update_weights(self, factors):
         self.weights = [weight + factor*weight for weight, factor in zip(self.weights, factors)]
@@ -106,3 +125,62 @@ class Category:
         #    flat_weights += [self.weights[i]] * len(self.reactive_units[i].ratios)
         #return flat_ratios, flat_weights
         return []
+
+
+class Perception:
+
+    class Error(Error):
+        NO_CATEGORY = Error.ERROR - 1                   # agent has no categories
+        NO_DISCRIMINATION = Error.ERROR - 2             # agent has categories but is unable to discriminate
+        NO_DIFFERENCE_FOR_CATEGORY = Error.ERROR - 3    # agent fails to select topic using category bcs it produces the same responses for both stimuli
+        NO_POSITIVE_RESPONSE = Error.ERROR - 4          # agent has categories but they return 0 as response for at least one stimulus
+        NO_NOTICEABLE_DIFFERENCE = Error.ERROR - 5      # stimuli are indistinguishable for agent perception (jnd)
+        _END_ = NO_NOTICEABLE_DIFFERENCE
+
+    def __init__(self):
+        self.categories = []
+
+    def discriminate(self, context, topic):
+        if not self.categories:
+            return None, Perception.Error.NO_CATEGORY
+
+        s1, s2 = context[0], context[1]
+
+        if not Perception.noticeable_difference(s1,s2):
+            return None, Perception.Error.NO_NOTICEABLE_DIFFERENCE
+
+        responses1 = [c.response(s1) for c in self.categories]
+        responses2 = [c.response(s2) for c in self.categories]
+        max1, max2 = max(responses1), max(responses2)
+        max_args1 = [i for i, j in enumerate(responses1) if j == max1]
+        max_args2 = [i for i, j in enumerate(responses2) if j == max2]
+
+        # TODO discuss
+        if max1 == 0 or max2 == 0:
+            return None, Perception.Error.NO_POSITIVE_RESPONSE
+
+        if len(max_args1) > 1 or len(max_args2) > 1:
+            raise Exception("Two categories give the same maximal value for stimulus")
+
+        i, j = max_args1[0], max_args2[0]
+
+        if i == j:
+            # self.store_ds_result(self.Result.FAILURE)
+            return None, Perception.Error.NO_DISCRIMINATION
+
+        #discrimination successful
+        return i if topic == 0 else j, Perception.Error.NO_ERROR
+
+    # TODO adhoc implementation of noticeable difference between stimuli
+    # TODO doesnt seem to work, try out simulation
+    # Stimulus 1: 7 / 75 = 0.093333
+    # Stimulus 2: 6 / 84 = 0.071429
+    # topic = 2
+    # discrimination failure no discrimination
+    # Speaker(1) learns topic by adding new category
+    @staticmethod
+    def noticeable_difference(stimulus1, stimulus2):
+        p1 = (stimulus1.a / stimulus1.b)
+        p2 = (stimulus2.a / stimulus2.b)
+        ds = min(0.3 * p1, 0.3 * p2)
+        return abs(p1-p2) > ds
