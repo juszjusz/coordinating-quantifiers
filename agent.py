@@ -1,8 +1,10 @@
+import logging
 from language import Language
+from language import Perception
 from random import sample
-# from enum import Enum, IntEnum
 from collections import deque
-
+import matplotlib.pyplot as plt
+from numpy import linspace
 
 class Population:
 
@@ -25,6 +27,7 @@ class Agent(Language):
         SPEAKER = 1
         HEARER = 2
 
+    # TODO move to Perception?
     discriminative_threshold = 0.95
 
     def __init__(self, id):
@@ -49,33 +52,6 @@ class Agent(Language):
         else:
             self.cs_scores.append(int(result))
 
-    def discriminate(self, context, topic):
-        if not self.categories:
-            # self.store_ds_result(self.Result.FAILURE)
-            return None, Language.Error.NO_CATEGORY
-
-        s1, s2 = context[0], context[1]
-        responses1 = [c.response(s1) for c in self.categories]
-        responses2 = [c.response(s2) for c in self.categories]
-        max1, max2 = max(responses1), max(responses2)
-        max_args1 = [i for i, j in enumerate(responses1) if j == max1]
-        max_args2 = [i for i, j in enumerate(responses2) if j == max2]
-
-        if len(max_args1) > 1 or len(max_args2) > 1:
-            raise Exception("Two categories give the same maximal value for stimulus")
-
-        i, j = max_args1[0], max_args2[0]
-
-        # self.store_ds_result(i != j)
-
-        if i == j:
-            # self.store_ds_result(self.Result.FAILURE)
-            return None, Language.Error.NO_DISCRIMINATION
-
-        #discrimination successful
-        # self.store_ds_result(self.Result.SUCCESS)
-        return i if topic == 0 else j, Agent.Error.NO_ERROR
-
     def learn_word_category(self, word, category_index):
         self.lxc[self.lexicon.index(word), category_index] = 0.5
 
@@ -91,10 +67,14 @@ class Agent(Language):
     #     else:
 
     def learn_topic(self, category, context, topic):
+        logging.debug(" learns topic by ")
         if self.discriminative_success >= Agent.discriminative_threshold and category is not None:
+            logging.debug("updating category")
             self.update_category(category, context[topic])
+            return category
         else:
-            self.add_category(context[topic])
+            logging.debug("adding new category")
+            return self.add_category(context[topic])
 
     def get_topic(self, context, category):
         if category is None:
@@ -102,8 +82,8 @@ class Agent(Language):
 
         category = self.categories[category]
         topic = category.select(context)
-        return (topic, Language.Error.NO_DIFFERENCE) if topic is None \
-            else (topic, Language.Error.NO_ERROR)
+        return (topic, Perception.Error.NO_DIFFERENCE_FOR_CATEGORY) if topic is None \
+            else (topic, Perception.Error.NO_ERROR)
 
     def update(self, success, role, word, category):
         i = self.lexicon.index(word)
@@ -122,6 +102,16 @@ class Agent(Language):
 
         elif not success:
             self.lxc[i, c] = self.lxc[i, c] - 0.1 * self.lxc[i, c]
+
+    def plot_categories(self, filename):
+        plt.title("categories")
+        x = linspace(0, 4, 50, False)
+        logging.debug("Number of categories of Agent(%d): %d" % (self.id, len(self.categories)))
+        for c in self.categories:
+            plt.plot(x, [c.fun(x_0) for x_0 in x], '-')
+            plt.legend(['cubic'])
+        plt.savefig(filename)
+        plt.close()
 
 # class Speaker(Agent):
 #     def __init__(self, agent):
