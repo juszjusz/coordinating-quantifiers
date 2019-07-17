@@ -1,3 +1,4 @@
+from __future__ import division # force python 3 division in python 2
 import logging
 from agent import Agent
 from language import Language
@@ -14,6 +15,8 @@ class GuessingGame:
         self.in_progress = True
         self.completed = False
         self.context = [Stimulus(), Stimulus()]
+        while not Perception.noticeable_difference(self.context[0], self.context[1]):
+            self.context = [Stimulus(), Stimulus()]
         self.topic = choice([0, 1])
         self.hearer_topic = None
         self.speaker_category = None
@@ -33,8 +36,8 @@ class GuessingGame:
 
         if error == Perception.Error.NO_CATEGORY:
             logging.debug("no category")
-            logging.debug("%s(%d)", (agent_role, agent.id))
-            agent.learn_topic(None, self.context, self.topic)
+            logging.debug("%s(%d)" % (agent_role, agent.id))
+            agent.learn_stimulus(None, self.context, self.topic)
             return
 
         if error == Perception.Error.NO_NOTICEABLE_DIFFERENCE:
@@ -42,16 +45,28 @@ class GuessingGame:
             return
 
         # TODO encapsulate
-        if error == Perception.Error.NO_DISCRIMINATION:
-            logging.debug("no discrimination")
+        if error == Perception.Error.NO_DISCRIMINATION_LOWER_1:
+            logging.debug("no discrimination lower 1")
             logging.debug("%s(%d)" % (agent_role, agent.id))
-            agent.learn_topic(agent_category, self.context, self.topic)
+            agent.learn_stimulus(agent_category, self.context, 0)
             return
 
-        if error == Perception.Error.NO_POSITIVE_RESPONSE:
-            logging.debug("no responsive category")
+        if error == Perception.Error.NO_DISCRIMINATION_LOWER_2:
+            logging.debug("no discrimination lower 2")
             logging.debug("%s(%d)" % (agent_role, agent.id))
-            agent.learn_topic(agent_category, self.context, self.topic)
+            agent.learn_stimulus(agent_category, self.context, 1)
+            return
+
+        if error == Perception.Error.NO_POSITIVE_RESPONSE_1:
+            logging.debug("no responsive category for stimulus 1")
+            logging.debug("%s(%d)" % (agent_role, agent.id))
+            agent.learn_stimulus(agent_category, self.context, 0)
+            return
+
+        if error == Perception.Error.NO_POSITIVE_RESPONSE_2:
+            logging.debug("no responsive category for stimulus 2")
+            logging.debug("%s(%d)" % (agent_role, agent.id))
+            agent.learn_stimulus(agent_category, self.context, 1)
             return
 
         # TODO talk to Franek ("category capable of discriminating the topic")
@@ -64,34 +79,47 @@ class GuessingGame:
             logging.debug("%s(%d) associates \"%s\" with his category" % (agent_role, agent.id, new_word))
             return
 
-        # TODO recursion, invoke again on_error?
+        # TODO added recursion, invocation of on_error, check
         if error == Language.Error.NO_SUCH_WORD:
             logging.debug("Hearer(%d) adds word \"%s\"" % (self.hearer.id, self.speaker_word))
             self.hearer.add_word(self.speaker_word)
-            logging.debug("Hearer plays the discrimination game")
-            self.hearer_category, error = self.hearer.discriminate(self.context, self.topic)
-            if error == Perception.Error.NO_CATEGORY:
-                logging.debug("Hearer(%d) " % self.hearer.id)
-                self.hearer_category = self.hearer.learn_topic(None, self.context, self.topic)
-            if error == Perception.Error.NO_DISCRIMINATION:
-                logging.debug("Hearer(%d) " % self.hearer.id)
-                self.hearer_category = self.hearer.learn_topic(self.hearer_category, self.context, self.topic)
-            if error == Perception.Error.NO_POSITIVE_RESPONSE:
-                logging.debug("Hearer(%d) " % self.hearer.id)
-                self.hearer_category = self.hearer.learn_topic(self.hearer_category, self.context, self.topic)
-            logging.debug("Hearer(%d) associates \"%s\" with his category" % (self.hearer.id, self.speaker_word))
+            logging.debug("Hearer(%d) plays the discrimination game" % self.hearer.id)
+            self.hearer_category, hearer_error = self.hearer.discriminate(self.context, self.topic)
+            logging.debug("Hearer(%d) category %d" % (self.hearer.id,
+                                                      -1 if self.hearer_category is None else self.hearer_category))
+            if hearer_error != Perception.Error.NO_ERROR:
+                self.on_error(hearer_error, Agent.Role.HEARER)
+                logging.debug("Hearer(%d) plays the discrimination game" % self.hearer.id)
+                self.hearer_category, hearer_error = self.hearer.discriminate(self.context, self.topic)
+                logging.debug("Hearer(%d) category %d" % (self.hearer.id,
+                                                          -1 if self.hearer_category is None else self.hearer_category))
+                if hearer_error != Perception.Error.NO_ERROR:
+                    raise Exception("Wow, there should be no error here.")
+
+            logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (self.hearer.id, self.speaker_word, self.hearer_category))
             self.hearer.learn_word_category(self.speaker_word, self.hearer_category)
             return
 
         # TODO no difference works for speaker and haerer?
         if error == Perception.Error.NO_DIFFERENCE_FOR_CATEGORY:
-            logging.debug("%s(%d) sees no difference between stimuli using his category")
-            learned_category = self.hearer.learn_topic(self.hearer_category, self.context, self.topic)
-            if learned_category != self.hearer_category:
-                logging.debug("%s(%d) associates \"%s\" with his learned category" % (agent_role, agent.id, self.speaker_word))
-                self.hearer.learn_word_category(self.speaker_word, learned_category)
-            # self.hearer.learn_word_category(self.speaker_word, self.hearer_category)
-            # raise Exception("no difference between stimuli")
+            logging.debug("%s(%d) sees no difference between stimuli using his category" % (agent_role, agent.id))
+            logging.debug("Hearer plays the discrimination game")
+            self.hearer_category, error = self.hearer.discriminate(self.context, self.topic)
+            if error != Perception.Error.NO_ERROR:
+                self.on_error(error, Agent.Role.HEARER)
+                logging.debug("Hearer plays the discrimination game")
+                self.hearer_category, error = self.hearer.discriminate(self.context, self.topic)
+                logging.debug("Hearer category %d" % -1 if self.hearer_category is None else self.hearer_category)
+                if error != Perception.Error.NO_ERROR:
+                    raise Exception("Wow, there should be no error here.")
+
+            # learned_category = self.hearer.learn_stimulus(self.hearer_category, self.context, self.topic)
+            # if learned_category != self.hearer_category:
+            logging.debug("%s(%d) associates \"%s\" with category %d" % (agent_role,
+                                                                         agent.id,
+                                                                         self.speaker_word,
+                                                                         self.hearer_category))
+            self.hearer.learn_word_category(self.speaker_word, self.hearer_category)
             return
 
     # guessing game

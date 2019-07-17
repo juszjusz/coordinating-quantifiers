@@ -1,3 +1,4 @@
+from __future__ import division # force python 3 division in python 2
 import logging
 from language import Language
 from language import Perception
@@ -5,6 +6,7 @@ from random import sample
 from collections import deque
 import matplotlib.pyplot as plt
 from numpy import linspace
+
 
 class Population:
 
@@ -26,9 +28,6 @@ class Agent(Language):
     class Role:
         SPEAKER = 1
         HEARER = 2
-
-    # TODO move to Perception?
-    discriminative_threshold = 0.95
 
     def __init__(self, id):
         Language.__init__(self)
@@ -66,15 +65,15 @@ class Agent(Language):
     #         return
     #     else:
 
-    def learn_topic(self, category, context, topic):
-        logging.debug(" learns topic by ")
-        if self.discriminative_success >= Agent.discriminative_threshold and category is not None:
+    def learn_stimulus(self, category, context, n):
+        logging.debug(" learns stimulus %d by " % (n+1))
+        if self.discriminative_success >= Perception.discriminative_threshold and category is not None:
             logging.debug("updating category")
-            self.update_category(category, context[topic])
+            self.update_category(category, context[n])
             return category
         else:
-            logging.debug("adding new category")
-            return self.add_category(context[topic])
+            logging.debug("adding new category centered on %f" % (context[n].a/context[n].b))
+            return self.add_category(context[n])
 
     def get_topic(self, context, category):
         if category is None:
@@ -102,16 +101,6 @@ class Agent(Language):
 
         elif not success:
             self.lxc[i, c] = self.lxc[i, c] - 0.1 * self.lxc[i, c]
-
-    def plot_categories(self, filename):
-        plt.title("categories")
-        x = linspace(0, 4, 50, False)
-        logging.debug("Number of categories of Agent(%d): %d" % (self.id, len(self.categories)))
-        for c in self.categories:
-            plt.plot(x, [c.fun(x_0) for x_0 in x], '-')
-            plt.legend(['cubic'])
-        plt.savefig(filename)
-        plt.close()
 
 # class Speaker(Agent):
 #     def __init__(self, agent):

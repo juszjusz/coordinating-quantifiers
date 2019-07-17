@@ -1,8 +1,12 @@
+from __future__ import division # force python 3 division in python 2
 from random import randint
 import scipy.integrate
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from visualization import Viewable
+from numpy import linspace
+import logging
 
 
 class Error:
@@ -127,14 +131,18 @@ class Category:
         return []
 
 
-class Perception:
+class Perception(Viewable):
+
+    discriminative_threshold = 0.95
 
     class Error(Error):
-        NO_CATEGORY = Error.ERROR - 1                   # agent has no categories
-        NO_DISCRIMINATION = Error.ERROR - 2             # agent has categories but is unable to discriminate
-        NO_DIFFERENCE_FOR_CATEGORY = Error.ERROR - 3    # agent fails to select topic using category bcs it produces the same responses for both stimuli
-        NO_POSITIVE_RESPONSE = Error.ERROR - 4          # agent has categories but they return 0 as response for at least one stimulus
-        NO_NOTICEABLE_DIFFERENCE = Error.ERROR - 5      # stimuli are indistinguishable for agent perception (jnd)
+        NO_CATEGORY = Error._END_ - 1                   # agent has no categories
+        NO_DISCRIMINATION_LOWER_1 = Error._END_ - 2     # agent has categories but is unable to discriminate, lower response for stimulus 1
+        NO_DISCRIMINATION_LOWER_2 = Error._END_ - 3     # agent has categories but is unable to discriminate, lower response for stimulus 2
+        NO_DIFFERENCE_FOR_CATEGORY = Error._END_ - 4    # agent fails to select topic using category bcs it produces the same responses for both stimuli
+        NO_POSITIVE_RESPONSE_1 = Error._END_ - 5        # agent has categories but they return 0 as response for stimulus 1
+        NO_POSITIVE_RESPONSE_2 = Error._END_ - 6        # agent has categories but they return 0 as response for stimulus 2
+        NO_NOTICEABLE_DIFFERENCE = Error._END_ - 7      # stimuli are indistinguishable for agent perception (jnd)
         _END_ = NO_NOTICEABLE_DIFFERENCE
 
     def __init__(self):
@@ -156,8 +164,11 @@ class Perception:
         max_args2 = [i for i, j in enumerate(responses2) if j == max2]
 
         # TODO discuss
-        if max1 == 0 or max2 == 0:
-            return None, Perception.Error.NO_POSITIVE_RESPONSE
+        if max1 == 0:
+            return None, Perception.Error.NO_POSITIVE_RESPONSE_1
+
+        if max2 == 0:
+            return None, Perception.Error.NO_POSITIVE_RESPONSE_2
 
         if len(max_args1) > 1 or len(max_args2) > 1:
             raise Exception("Two categories give the same maximal value for stimulus")
@@ -166,7 +177,8 @@ class Perception:
 
         if i == j:
             # self.store_ds_result(self.Result.FAILURE)
-            return None, Perception.Error.NO_DISCRIMINATION
+            return (None, Perception.Error.NO_DISCRIMINATION_LOWER_1) if max1 < max2 else \
+                (None, Perception.Error.NO_DISCRIMINATION_LOWER_2)
 
         #discrimination successful
         return i if topic == 0 else j, Perception.Error.NO_ERROR
@@ -184,3 +196,12 @@ class Perception:
         p2 = (stimulus2.a / stimulus2.b)
         ds = min(0.3 * p1, 0.3 * p2)
         return abs(p1-p2) > ds
+
+    def plot(self, filename=None, x_left=0, x_right=10, mode=''):
+        plt.title("categories")
+        x = linspace(x_left, x_right, 10*(x_right-x_left), False)
+        for c in self.categories:
+            plt.plot(x, [c.fun(x_0) for x_0 in x], '-', label="%d" % (self.categories.index(c) + 1))
+        plt.legend(loc="best")
+        plt.savefig(filename)
+        plt.close()

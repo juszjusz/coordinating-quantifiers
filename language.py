@@ -1,3 +1,4 @@
+from __future__ import division # force python 3 division in python 2
 import logging
 from perception import Perception
 from perception import Category
@@ -8,9 +9,11 @@ from numpy import arange
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
+from numpy import linspace
 from numpy.random import choice
 from fractions import Fraction
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
@@ -21,6 +24,7 @@ class Language(Perception):
     class Error(Perception.Error):
         NO_WORD_FOR_CATEGORY = Perception.Error._END_ - 1      # agent has no word for category
         NO_SUCH_WORD = Perception.Error._END_ - 2              # agent doesn't know the word
+        _END_ = NO_SUCH_WORD
 
     gibberish = Gibberish()
 
@@ -86,33 +90,68 @@ class Language(Perception):
         # TODO random choice?
         return choice(max_propensity_indices), Language.Error.NO_ERROR
 
-    def plot_bottom_up(self, left=0, right=5):
-        x = arange(left + 0.1, right, 0.1)
-        logging.debug(x)
-        f = [Fraction(int(100*p), 10) for p in x]
-        words = []
-        n = 1
-        for u in range(len(f)):
-            print(u)
-            fraction = f[u]
-            s = Stimulus(fraction.numerator, fraction.denominator)
-            responses = [c.response(s) for c in self.categories]
-            m = max(responses)
-            if m == 0:
-                words.append(0)
+    def plot(self, filename=None, x_left=0, x_right=5, mode="Franek"):
+        if not self.lxc.size:
+            logging.debug("Language is empty")
+            return
+        if mode == 'Franek':
+            forms_to_categories = {f: [] for f in self.lexicon}
+            for c in self.categories:
+                j = self.categories.index(c)
+                m = max(self.lxc[0::, j])
+                if m == 0:
+                    continue
+                else:
+                    max_form_indices = [i for i, w in enumerate(self.lxc[0::, j]) if w == m]
+                    form = self.lexicon[max_form_indices[0]]
+                    forms_to_categories[form].append(j)
+
+            plt.title("language")
+            x = linspace(x_left, x_right, 10 * (x_right - x_left), False)
+            colors = sns.color_palette("hls", len(self.lexicon))
+            sns.set_palette(colors)
+            for i in range(len(self.lexicon)):
+                f = self.lexicon[i]
+                if len(forms_to_categories[f]) == 0:
+                    continue
+                else:
+                    for j in forms_to_categories[f]:
+                        plt.plot(x, [self.categories[j].fun(x_0) for x_0 in x], color=colors[i], linestyle='-')
+                    plt.plot([], [], color=colors[i], linestyle='-', label=f)
+            plt.legend(loc="best")
+            plt.savefig(filename)
+            plt.close()
+        else:
+            x = arange(x_left + 0.01, x_right, 0.01)
+            logging.debug(x)
+            f = [Fraction(int(100*p), 100) for p in x]
+            words = []
+            n = 1
+            for u in range(len(f)):
+                fraction = f[u]
+                s = Stimulus(fraction.numerator, fraction.denominator)
+                responses = [c.response(s) for c in self.categories]
+                m = max(responses)
+                if m == 0:
+                    words.append(0)
+                else:
+                    m_indices = [j for j, r in enumerate(responses) if r == m]
+                    if len(m_indices) > 1:
+                        logging.debug("more than one category responds with max")
+                        logging.debug(len(m_indices))
+                    m_i = m_indices[0]
+                    w, e = self.get_word(m_i)
+                    words.append(e if w is None else self.lexicon.index(w) + 1)
+            plt.xlabel("ratio")
+            plt.ylabel("word")
+            plt.ylim(bottom=Language.Error._END_)
+            plt.ylim(top=len(self.lexicon))
+            plt.xlim(left=x_left)
+            plt.xlim(right=x_right)
+            # locs, labels = plt.yticks()
+            plt.plot(x, words, 'o')
+            plt.legend(['data'], loc='best')
+            if filename is None:
+                plt.show()
             else:
-                m_indices = [j for j, r in enumerate(responses) if r == m]
-                if len(m_indices) > 1:
-                    logging.debug("more than one category responds with max")
-                    logging.debug(len(m_indices))
-                m_i = m_indices[0]
-                w, e = self.get_word(m_i)
-                words.append(e if w is None else self.lexicon.index(w) + 1)
-        plt.xlabel("ratio")
-        plt.ylabel("word")
-        plt.xlim(left=0)
-        plt.xlim(right=20)
-        # locs, labels = plt.yticks()
-        plt.plot(x, words, 'o')
-        plt.legend(['data'], loc='best')
-        plt.show()
+                plt.savefig(filename)
