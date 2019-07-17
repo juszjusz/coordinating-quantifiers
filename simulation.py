@@ -1,10 +1,11 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 import logging, sys
 import matplotlib.pyplot as plt
 # matplotlib.use("Agg")
 from agent import Population
 from guessing_game import GuessingGame
 from language import Language
+
 # import cProfile
 
 
@@ -44,14 +45,14 @@ class Simulation:
                                                                          len(population.agents[1].categories)))
                 super(Language, population.agents[1]).plot("./cats/categories%d_%d" % (1, step))
 
-            ds_score1 = (sum(population.agents[0].ds_scores)/len(population.agents[0].ds_scores)*100)
+            ds_score1 = (sum(population.agents[0].ds_scores) / len(population.agents[0].ds_scores) * 100)
             ds_score2 = (sum(population.agents[1].ds_scores) / len(population.agents[1].ds_scores) * 100)
-            cs_score1 = (sum(population.agents[0].cs_scores)/len(population.agents[0].cs_scores)*100)
+            cs_score1 = (sum(population.agents[0].cs_scores) / len(population.agents[0].cs_scores) * 100)
             ds_scores_1.append(ds_score1)
             ds_scores_2.append(ds_score2)
             cs_scores_1.append(cs_score1)
 
-        x = range(1, self.params["steps"]+1)
+        x = range(1, self.params["steps"] + 1)
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
