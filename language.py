@@ -95,7 +95,9 @@ class Language(Perception):
             logging.debug("Language is empty")
             return
         if mode == 'Franek':
-            forms_to_categories = {f: [] for f in self.lexicon}
+            forms_to_categories = {}
+            for f in self.lexicon:
+                forms_to_categories[f] = []
             for c in self.categories:
                 j = self.categories.index(c)
                 m = max(self.lxc[0::, j])
@@ -113,16 +115,19 @@ class Language(Perception):
             ax.xaxis.set_major_formatter(ScalarFormatter())
             ax.yaxis.set_major_formatter(ScalarFormatter())
             x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
-            colors = sns.color_palette("hls", len(self.lexicon))
-            sns.set_palette(colors)
+            colors = sns.color_palette()
+            # sns.set_palette(colors)
             for i in range(len(self.lexicon)):
                 f = self.lexicon[i]
                 if len(forms_to_categories[f]) == 0:
                     continue
                 else:
                     for j in forms_to_categories[f]:
-                        plt.plot(x, [self.categories[j].fun(x_0) for x_0 in x], color=colors[i], linestyle='-')
-                    plt.plot([], [], color=colors[i], linestyle='-', label=f)
+                        ls = self.line_styles[i // len(colors)]
+                        ci = i % len(colors)
+                        plt.plot(x, [self.categories[j].fun(x_0) for x_0 in x],
+                                 color=colors[ci], linestyle=ls)
+                    plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
             plt.legend(loc="best")
             plt.savefig(filename)
             plt.close()

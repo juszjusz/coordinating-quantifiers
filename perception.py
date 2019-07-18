@@ -7,6 +7,7 @@ from scipy.interpolate import interp1d
 from visualization import Viewable
 from numpy import linspace
 from matplotlib.ticker import ScalarFormatter
+import seaborn as sns
 import logging
 
 
@@ -205,9 +206,14 @@ class Perception(Viewable):
         ax.xaxis.set_major_formatter(ScalarFormatter())
         plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
+        colors = sns.color_palette()
+        # sns.set_palette(colors)
         x = linspace(x_left, x_right, 20*(x_right-x_left), False)
-        for c in self.categories:
-            plt.plot(x, [c.fun(x_0) for x_0 in x], '-', label="%d" % (self.categories.index(c) + 1))
+        num_of_categories = len(self.categories)
+        for i in range(num_of_categories):
+            plt.plot(x, [self.categories[i].fun(x_0) for x_0 in x],
+                     color=colors[i % len(colors)], linestyle=self.line_styles[i // len(colors)],
+                     label="%d" % (i + 1))
         plt.legend(loc="best")
         plt.savefig(filename)
         plt.close()
