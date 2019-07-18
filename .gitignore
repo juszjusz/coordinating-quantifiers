@@ -3,3 +3,5 @@ venv
 **/__pycache__
 *.png
 *.db
+language0.pdf
+*.pdf

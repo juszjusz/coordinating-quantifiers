@@ -1,4 +1,4 @@
-from __future__ import division  # force python 3 division in python 2
+from __future__ import division # force python 3 division in python 2
 from random import randint
 import scipy.integrate
 import numpy as np
@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from visualization import Viewable
 from numpy import linspace
+from matplotlib.ticker import ScalarFormatter
 import logging
 
 
@@ -44,7 +45,7 @@ class ReactiveUnit:
         y, bin_edges = np.histogram(self.ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
         try:
-            self.interp = interp1d(x, y)  # radial basis interpolation?
+            self.interp = interp1d(x, y) #radial basis interpolation?
         except ValueError:
             print("x and y arrays must have at least 2 entries")
             print(x)
@@ -90,7 +91,7 @@ class Category:
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        return scipy.integrate.quad(lambda x: s.fun(x) * self.fun(x), x_left, x_right)[0]
+        return scipy.integrate.quad(lambda x: s.fun(x)*self.fun(x), x_left, x_right)[0]
 
     def add_reactive_unit(self, reactive_unit, weight=0.5):
         self.weights.append(weight)
@@ -101,7 +102,7 @@ class Category:
     def fun(self, x):
         # performance?
         return 0 if len(self.reactive_units) == 0 \
-            else sum([r.fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
+            else sum([r.fun(x)*w for r, w in zip(self.reactive_units, self.weights)])
 
     def select(self, stimuli):
         # TODO what if the same stimuli?
@@ -112,7 +113,7 @@ class Category:
         # TODO example: responses == [0.0, 0.0]
 
     def update_weights(self, factors):
-        self.weights = [weight + factor * weight for weight, factor in zip(self.weights, factors)]
+        self.weights = [weight + factor*weight for weight, factor in zip(self.weights, factors)]
 
     def show(self):
         x = np.linspace(self.x_left, self.x_right, num=100)
@@ -122,26 +123,27 @@ class Category:
 
     def get_flat(self):
         # TODO
-        # flat_ratios = []
-        # flat_weights = []
-        # for i in range(0, len(self.reactive_units)):
+        #flat_ratios = []
+        #flat_weights = []
+        #for i in range(0, len(self.reactive_units)):
         #    flat_ratios += self.reactive_units[i].ratios
         #    flat_weights += [self.weights[i]] * len(self.reactive_units[i].ratios)
-        # return flat_ratios, flat_weights
+        #return flat_ratios, flat_weights
         return []
 
 
 class Perception(Viewable):
+
     discriminative_threshold = 0.95
 
     class Error(Error):
-        NO_CATEGORY = Error._END_ - 1  # agent has no categories
-        NO_DISCRIMINATION_LOWER_1 = Error._END_ - 2  # agent has categories but is unable to discriminate, lower response for stimulus 1
-        NO_DISCRIMINATION_LOWER_2 = Error._END_ - 3  # agent has categories but is unable to discriminate, lower response for stimulus 2
-        NO_DIFFERENCE_FOR_CATEGORY = Error._END_ - 4  # agent fails to select topic using category bcs it produces the same responses for both stimuli
-        NO_POSITIVE_RESPONSE_1 = Error._END_ - 5  # agent has categories but they return 0 as response for stimulus 1
-        NO_POSITIVE_RESPONSE_2 = Error._END_ - 6  # agent has categories but they return 0 as response for stimulus 2
-        NO_NOTICEABLE_DIFFERENCE = Error._END_ - 7  # stimuli are indistinguishable for agent perception (jnd)
+        NO_CATEGORY = Error._END_ - 1                   # agent has no categories
+        NO_DISCRIMINATION_LOWER_1 = Error._END_ - 2     # agent has categories but is unable to discriminate, lower response for stimulus 1
+        NO_DISCRIMINATION_LOWER_2 = Error._END_ - 3     # agent has categories but is unable to discriminate, lower response for stimulus 2
+        NO_DIFFERENCE_FOR_CATEGORY = Error._END_ - 4    # agent fails to select topic using category bcs it produces the same responses for both stimuli
+        NO_POSITIVE_RESPONSE_1 = Error._END_ - 5        # agent has categories but they return 0 as response for stimulus 1
+        NO_POSITIVE_RESPONSE_2 = Error._END_ - 6        # agent has categories but they return 0 as response for stimulus 2
+        NO_NOTICEABLE_DIFFERENCE = Error._END_ - 7      # stimuli are indistinguishable for agent perception (jnd)
         _END_ = NO_NOTICEABLE_DIFFERENCE
 
     def __init__(self):
@@ -153,7 +155,7 @@ class Perception(Viewable):
 
         s1, s2 = context[0], context[1]
 
-        if not Perception.noticeable_difference(s1, s2):
+        if not Perception.noticeable_difference(s1,s2):
             return None, Perception.Error.NO_NOTICEABLE_DIFFERENCE
 
         responses1 = [c.response(s1) for c in self.categories]
@@ -179,7 +181,7 @@ class Perception(Viewable):
             return (None, Perception.Error.NO_DISCRIMINATION_LOWER_1) if max1 < max2 else \
                 (None, Perception.Error.NO_DISCRIMINATION_LOWER_2)
 
-        # discrimination successful
+        #discrimination successful
         return i if topic == 0 else j, Perception.Error.NO_ERROR
 
     # TODO adhoc implementation of noticeable difference between stimuli
@@ -194,11 +196,16 @@ class Perception(Viewable):
         p1 = (stimulus1.a / stimulus1.b)
         p2 = (stimulus2.a / stimulus2.b)
         ds = min(0.3 * p1, 0.3 * p2)
-        return abs(p1 - p2) > ds
+        return abs(p1-p2) > ds
 
-    def plot(self, filename=None, x_left=0, x_right=10, mode=''):
+    def plot(self, filename=None, x_left=0, x_right=100, mode=''):
         plt.title("categories")
-        x = linspace(x_left, x_right, 10 * (x_right - x_left), False)
+        ax = plt.gca()
+        plt.xscale("symlog")
+        ax.xaxis.set_major_formatter(ScalarFormatter())
+        plt.yscale("symlog")
+        ax.yaxis.set_major_formatter(ScalarFormatter())
+        x = linspace(x_left, x_right, 20*(x_right-x_left), False)
         for c in self.categories:
             plt.plot(x, [c.fun(x_0) for x_0 in x], '-', label="%d" % (self.categories.index(c) + 1))
         plt.legend(loc="best")
