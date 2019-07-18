@@ -1,4 +1,4 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 import logging
 from perception import Perception
 from perception import Category
@@ -21,10 +21,9 @@ from gibberish import Gibberish
 
 
 class Language(Perception):
-
     class Error(Perception.Error):
-        NO_WORD_FOR_CATEGORY = Perception.Error._END_ - 1      # agent has no word for category
-        NO_SUCH_WORD = Perception.Error._END_ - 2              # agent doesn't know the word
+        NO_WORD_FOR_CATEGORY = Perception.Error._END_ - 1  # agent has no word for category
+        NO_SUCH_WORD = Perception.Error._END_ - 2  # agent doesn't know the word
         _END_ = NO_SUCH_WORD
 
     gibberish = Gibberish()
@@ -50,7 +49,7 @@ class Language(Perception):
         self.categories.append(c)
         # TODO this should work
         self.lxc = column_stack((self.lxc, zeros(self.lxc.shape[0])))
-        return self.lxc.shape[1]-1  # this is the index of the added category
+        return self.lxc.shape[1] - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
         # print("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
@@ -130,7 +129,7 @@ class Language(Perception):
         else:
             x = arange(x_left + 0.01, x_right, 0.01)
             logging.debug(x)
-            f = [Fraction(int(100*p), 100) for p in x]
+            f = [Fraction(int(100 * p), 100) for p in x]
             words = []
             n = 1
             for u in range(len(f)):
