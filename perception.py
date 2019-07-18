@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 from visualization import Viewable
 from numpy import linspace
+from matplotlib.ticker import ScalarFormatter
 import logging
 
 
@@ -197,9 +198,14 @@ class Perception(Viewable):
         ds = min(0.3 * p1, 0.3 * p2)
         return abs(p1-p2) > ds
 
-    def plot(self, filename=None, x_left=0, x_right=10, mode=''):
+    def plot(self, filename=None, x_left=0, x_right=100, mode=''):
         plt.title("categories")
-        x = linspace(x_left, x_right, 10*(x_right-x_left), False)
+        ax = plt.gca()
+        plt.xscale("symlog")
+        ax.xaxis.set_major_formatter(ScalarFormatter())
+        plt.yscale("symlog")
+        ax.yaxis.set_major_formatter(ScalarFormatter())
+        x = linspace(x_left, x_right, 20*(x_right-x_left), False)
         for c in self.categories:
             plt.plot(x, [c.fun(x_0) for x_0 in x], '-', label="%d" % (self.categories.index(c) + 1))
         plt.legend(loc="best")

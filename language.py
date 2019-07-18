@@ -13,6 +13,7 @@ from numpy import linspace
 from numpy.random import choice
 from fractions import Fraction
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
@@ -90,7 +91,7 @@ class Language(Perception):
         # TODO random choice?
         return choice(max_propensity_indices), Language.Error.NO_ERROR
 
-    def plot(self, filename=None, x_left=0, x_right=5, mode="Franek"):
+    def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
         if not self.lxc.size:
             logging.debug("Language is empty")
             return
@@ -107,7 +108,12 @@ class Language(Perception):
                     forms_to_categories[form].append(j)
 
             plt.title("language")
-            x = linspace(x_left, x_right, 10 * (x_right - x_left), False)
+            plt.xscale("symlog")
+            plt.yscale("symlog")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(ScalarFormatter())
+            ax.yaxis.set_major_formatter(ScalarFormatter())
+            x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
             colors = sns.color_palette("hls", len(self.lexicon))
             sns.set_palette(colors)
             for i in range(len(self.lexicon)):
@@ -155,3 +161,4 @@ class Language(Perception):
                 plt.show()
             else:
                 plt.savefig(filename)
+            plt.close()
