@@ -1,4 +1,4 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 import logging
 from agent import Agent
 from language import Language
@@ -96,7 +96,8 @@ class GuessingGame:
                 if hearer_error != Perception.Error.NO_ERROR:
                     raise Exception("Wow, there should be no error here.")
 
-            logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (self.hearer.id, self.speaker_word, self.hearer_category))
+            logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
+            self.hearer.id, self.speaker_word, self.hearer_category))
             self.hearer.learn_word_category(self.speaker_word, self.hearer_category)
             return
 
@@ -125,9 +126,11 @@ class GuessingGame:
     # guessing game
     def play(self):
         logging.debug("--")
-        logging.debug("Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a/self.context[0].b))
-        logging.debug("Stimulus 2: %d/%d = %f" % (self.context[1].a, self.context[1].b, self.context[1].a/self.context[1].b))
-        logging.debug("topic = %d" % (self.topic+1))
+        logging.debug(
+            "Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a / self.context[0].b))
+        logging.debug(
+            "Stimulus 2: %d/%d = %f" % (self.context[1].a, self.context[1].b, self.context[1].a / self.context[1].b))
+        logging.debug("topic = %d" % (self.topic + 1))
 
         self.speaker_category, error = self.speaker.discriminate(self.context, self.topic)
         self.speaker.store_ds_result(self.speaker.Result.SUCCESS if error == Agent.Error.NO_ERROR
@@ -184,7 +187,7 @@ class GuessingGame:
             logging.debug(self.speaker.lxc)
 
         # TODO stage 7
-        #print('goto to stage 7')
+        # print('goto to stage 7')
 
     def get_stats(self):
         return None

@@ -1,4 +1,4 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 import logging
 from language import Language
 from language import Perception
@@ -20,7 +20,6 @@ class Population:
 
 
 class Agent(Language):
-
     class Result:
         SUCCESS = 1
         FAILURE = 0
@@ -66,13 +65,13 @@ class Agent(Language):
     #     else:
 
     def learn_stimulus(self, category, context, n):
-        logging.debug(" learns stimulus %d by " % (n+1))
+        logging.debug(" learns stimulus %d by " % (n + 1))
         if self.discriminative_success >= Perception.discriminative_threshold and category is not None:
             logging.debug("updating category")
             self.update_category(category, context[n])
             return category
         else:
-            logging.debug("adding new category centered on %f" % (context[n].a/context[n].b))
+            logging.debug("adding new category centered on %f" % (context[n].a / context[n].b))
             return self.add_category(context[n])
 
     def get_topic(self, context, category):
@@ -88,7 +87,7 @@ class Agent(Language):
         i = self.lexicon.index(word)
         c = category
         if success and role == self.Role.SPEAKER:
-            self.lxc[i, c] = self.lxc[i, c] + 0.1*self.lxc[i, c]
+            self.lxc[i, c] = self.lxc[i, c] + 0.1 * self.lxc[i, c]
             for k in range(len(self.categories)):
                 if k != c:
                     self.lxc[i, k] = self.lxc[i, k] - 0.1 * self.lxc[i, k]
