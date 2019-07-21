@@ -94,6 +94,7 @@ class GuessingGame:
                 logging.debug("Hearer(%d) category %d" % (self.hearer.id,
                                                           -1 if self.hearer_category is None else self.hearer_category))
                 if hearer_error != Perception.Error.NO_ERROR:
+                    # TODO discuss
                     raise Exception("Wow, there should be no error here.")
 
             logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
@@ -119,7 +120,7 @@ class GuessingGame:
             logging.debug("%s(%d) associates \"%s\" with category %d" % (agent_role,
                                                                          agent.id,
                                                                          self.speaker_word,
-                                                                         self.hearer_category))
+                                                                         self.hearer_category+1))
             self.hearer.learn_word_category(self.speaker_word, self.hearer_category)
             return
 
@@ -164,7 +165,6 @@ class GuessingGame:
             self.speaker.store_cs_result(Agent.Result.FAILURE)
             self.hearer.store_cs_result(Agent.Result.FAILURE)
 
-        # TODO if completed? - check this
         if self.completed:
             self.speaker.update(success=success, role=Agent.Role.SPEAKER,
                                 word=self.speaker_word, category=self.speaker_category)
