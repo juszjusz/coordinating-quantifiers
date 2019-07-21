@@ -128,7 +128,8 @@ class Language(Perception):
                         plt.plot(x, [self.categories[j].fun(x_0) for x_0 in x],
                                  color=colors[ci], linestyle=ls)
                     plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
-            plt.legend(loc="best")
+            plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+            plt.tight_layout(pad=0)
             plt.savefig(filename)
             plt.close()
         else:

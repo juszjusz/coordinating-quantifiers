@@ -214,6 +214,7 @@ class Perception(Viewable):
             plt.plot(x, [self.categories[i].fun(x_0) for x_0 in x],
                      color=colors[i % len(colors)], linestyle=self.line_styles[i // len(colors)],
                      label="%d" % (i + 1))
-        plt.legend(loc="best")
+        plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+        plt.tight_layout(pad=0)
         plt.savefig(filename)
         plt.close()
