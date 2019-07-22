@@ -8,6 +8,7 @@ from visualization import Viewable
 from numpy import linspace
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
+from collections import deque
 import logging
 
 
@@ -67,6 +68,13 @@ class ReactiveUnit:
         else:
             return 0 if x < self.x_left or x > self.x_right else self.interp(x)
 
+    # TODO code repetition
+    def response(self, stimulus):
+        s = ReactiveUnit(stimulus)
+        x_left = min(s.x_left, self.x_left)
+        x_right = max(s.x_right, self.x_right)
+        return scipy.integrate.quad(lambda x: s.fun(x)*self.fun(x), x_left, x_right)[0]
+
     def show(self, how="spline"):
         plt.title("Reactive unit for " + str(self.a) + "/" + str(self.b) + " = " + str(self.a / self.b))
         if how == "hist":
@@ -88,6 +96,7 @@ class Category:
         self.x_left = float("inf")
         self.x_right = float("-inf")
 
+    # TODO code repetition
     def response(self, stimulus):
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
@@ -113,8 +122,8 @@ class Category:
         return which[0] if len(which) == 1 else None
         # TODO example: responses == [0.0, 0.0]
 
-    def update_weights(self, factors):
-        self.weights = [weight + factor*weight for weight, factor in zip(self.weights, factors)]
+    # def update_weights(self, factors):
+    #    self.weights = [weight + factor*weight for weight, factor in zip(self.weights, factors)]
 
     def show(self):
         x = np.linspace(self.x_left, self.x_right, num=100)
@@ -134,8 +143,14 @@ class Category:
 
 
 class Perception(Viewable):
+    class Result:
+        SUCCESS = 1
+        FAILURE = 0
 
     discriminative_threshold = 0.95
+    # TODO handle this with parameters
+    alpha = 0.1  # forgetting
+    beta = 1.0  # learning rate
 
     class Error(Error):
         NO_CATEGORY = Error._END_ - 1                   # agent has no categories
@@ -149,14 +164,34 @@ class Perception(Viewable):
 
     def __init__(self):
         self.categories = []
+        self.ds_scores = deque([0])
+        self.discriminative_success = .0
+
+    def store_ds_result(self, result):
+        if len(self.ds_scores) == 50:
+            self.ds_scores.rotate(-1)
+            self.ds_scores[-1] = int(result)
+        else:
+            self.ds_scores.append(int(result))
+        self.discriminative_success = (sum(self.ds_scores)/len(self.ds_scores))*100
+
+    def discrimination_game(self, context, topic):
+        category_index, error = self.discriminate(context, topic)
+        if error == Perception.Error.NO_ERROR:
+            self.reinforce(category_index, context[topic])
+        self.forget()
+        return category_index, error
 
     def discriminate(self, context, topic):
         if not self.categories:
+            self.store_ds_result(Perception.Result.FAILURE)
             return None, Perception.Error.NO_CATEGORY
 
         s1, s2 = context[0], context[1]
 
-        if not Perception.noticeable_difference(s1,s2):
+        # TODO do wywalnie prawdopodobnie, ze wzgledu na sposób generowania kontekstow
+        if not Perception.noticeable_difference(s1, s2):
+            self.store_ds_result(Perception.Result.FAILURE)
             return None, Perception.Error.NO_NOTICEABLE_DIFFERENCE
 
         responses1 = [c.response(s1) for c in self.categories]
@@ -167,9 +202,11 @@ class Perception(Viewable):
 
         # TODO discuss
         if max1 == 0:
+            self.store_ds_result(Perception.Result.FAILURE)
             return None, Perception.Error.NO_POSITIVE_RESPONSE_1
 
         if max2 == 0:
+            self.store_ds_result(Perception.Result.FAILURE)
             return None, Perception.Error.NO_POSITIVE_RESPONSE_2
 
         if len(max_args1) > 1 or len(max_args2) > 1:
@@ -178,12 +215,22 @@ class Perception(Viewable):
         i, j = max_args1[0], max_args2[0]
 
         if i == j:
-            # self.store_ds_result(self.Result.FAILURE)
+            self.store_ds_result(Perception.Result.FAILURE)
             return (None, Perception.Error.NO_DISCRIMINATION_LOWER_1) if max1 < max2 else \
                 (None, Perception.Error.NO_DISCRIMINATION_LOWER_2)
 
         #discrimination successful
+        self.store_ds_result(Perception.Result.SUCCESS)
         return i if topic == 0 else j, Perception.Error.NO_ERROR
+
+    def forget(self):
+        for c in self.categories:
+            c.weights = [w - self.alpha*w for w in c.weights]
+
+    # TODO check
+    def reinforce(self, category_index, stimulus):
+        c = self.categories[category_index]
+        c.weights = [w + self.beta*ru.response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
 
     # TODO adhoc implementation of noticeable difference between stimuli
     # TODO doesnt seem to work, try out simulation

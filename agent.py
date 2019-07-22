@@ -31,17 +31,8 @@ class Agent(Language):
     def __init__(self, id):
         Language.__init__(self)
         self.id = id
-        self.discriminative_success = 0
         self.communicative_success = 0
-        self.ds_scores = deque([0])
         self.cs_scores = deque([0])
-
-    def store_ds_result(self, result):
-        if len(self.ds_scores) == 50:
-            self.ds_scores.rotate(-1)
-            self.ds_scores[-1] = int(result)
-        else:
-            self.ds_scores.append(int(result))
 
     def store_cs_result(self, result):
         if len(self.cs_scores) == 50:

@@ -1,3 +1,4 @@
+from __future__ import division  # force python 3 division in python 2
 import matplotlib.pyplot as plt
 from numpy import column_stack
 from numpy import linspace
@@ -5,12 +6,35 @@ from numpy import arange
 from numpy import array
 from numpy import zeros
 from numpy import amax
+from collections import deque
+
 
 class Data:
 
     def __init__(self, population_size):
-        self.languages = {a: [] for a in range(population_size)}
+        self._population_size_ = population_size
         self._max_weight_ = {a: .0 for a in range(population_size)}
+        self.ds_per_agent = [.0 for a in range(population_size)]
+        self.cs_scores = deque([0])  # {a: deque([0]) for a in range(population_size)}
+        self.languages = {a: [] for a in range(population_size)}
+        # self.ds = []
+        # self.cs = []
+
+    def store_ds_result(self, agent_index, ds):
+        self.ds_per_agent[agent_index] = ds
+
+    def store_cs_result(self, cs_result):
+        if len(self.cs_scores) == 50:
+            self.cs_scores.rotate(-1)
+            self.cs_scores[-1] = int(cs_result)
+        else:
+            self.cs_scores.append(int(cs_result))
+
+    def get_ds(self):
+        return sum(self.ds_per_agent)/self._population_size_
+
+    def get_cs(self):
+        return sum(self.cs_scores) / len(self.cs_scores) * 100
 
     def store_languages(self, agents):
         for i in range(len(agents)):
@@ -68,14 +92,3 @@ class RoundStatistics:
     discriminative_success = 0
     guessing_topic_success = 0
     guessing_word_success = 0
-
-
-class ScoreCalculator:
-
-    def __init__(self):
-        self.ds_scores = []
-        self.cs_scores = []
-
-    def update_result(self, agent):
-        self.ds_scores.append(sum(agent.ds_scores) / len(agent.ds_scores) * 100)
-        self.cs_scores.append(sum(agent.cs_scores) / len(agent.cs_scores) * 100)
