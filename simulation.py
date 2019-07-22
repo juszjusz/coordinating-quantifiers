@@ -1,5 +1,5 @@
 from __future__ import division  # force python 3 division in python 2
-import logging,sys
+import logging, sys
 import matplotlib.pyplot as plt
 from agent import Population
 from guessing_game import GuessingGame
@@ -7,12 +7,11 @@ from language import Language
 from data import Data
 # import cProfile
 
-params = {"population_size": 10,
-          "games_per_round": 5,  # gamesPerRound * 2 <= populationSize
+params = {"population_size": int(sys.argv[1]),
           "learning_rate": 0,  # co to?
           "discriminative_threshold": 0.95,
           "weight_decay": 0.1,
-          "steps": 15,
+          "steps": int(sys.argv[2]),
           "runs": 1}
 
 
@@ -30,7 +29,7 @@ class Simulation:
 
         for step in range(self.params["steps"]):
             logging.debug("\n------------\nSTEP %d" % step)
-            selected_pairs = population.select_pairs_per_round(self.params["games_per_round"])
+            selected_pairs = population.select_pairs_per_round(self.params['population_size']//2)
             for speaker, hearer in selected_pairs:
                 game = GuessingGame(speaker=speaker, hearer=hearer)
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
@@ -65,5 +64,6 @@ class Simulation:
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
 sim = Simulation()
 sim.run()

@@ -189,7 +189,7 @@ class Perception(Viewable):
 
         s1, s2 = context[0], context[1]
 
-        # TODO do wywalnie prawdopodobnie, ze wzgledu na sposób generowania kontekstow
+        # TODO do wywalnie prawdopodobnie, ze wzgledu na sposob generowania kontekstow
         if not Perception.noticeable_difference(s1, s2):
             self.store_ds_result(Perception.Result.FAILURE)
             return None, Perception.Error.NO_NOTICEABLE_DIFFERENCE

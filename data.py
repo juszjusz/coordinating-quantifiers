@@ -77,14 +77,14 @@ class Data:
                          rotation_mode="anchor")
                 for i in range(len(lexicon)):
                     for j in range(n_categories):
-                        text = ax.text(j, i, round(lxc_ex[i, j], 2),
+                        text = ax.text(j, i, round(lxc_ex[i, j], 3),
                                        ha="center", va="center", color="w")
                 for i in range(n_rows):
                     ax.text(n_cols, i, round(lxc_ex[i, n_cols], 2), ha="center", va="center", color="w")
 
                 ax.set_title("Association matrix")
                 fig.tight_layout()
-                plt.savefig("./simulation_results/lxc/lxc%d_%d" % (l,m))
+                plt.savefig("./simulation_results/matrices/matrix%d_%d" % (l, m))
                 plt.close()
 
 
