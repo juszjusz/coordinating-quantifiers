@@ -21,10 +21,16 @@ from gibberish import Gibberish
 
 
 class Language(Perception):
-    class Error(Perception.Error):
-        NO_WORD_FOR_CATEGORY = Perception.Error._END_ - 1  # agent has no word for category
-        NO_SUCH_WORD = Perception.Error._END_ - 2  # agent doesn't know the word
-        _END_ = NO_SUCH_WORD
+    class ERROR(Exception):
+        pass
+
+    # NO_WORD_FOR_CATEGORY = Perception.Error._END_ - 1  # agent has no word for category
+    class NO_WORD_FOR_CATEGORY(Exception):
+        pass
+
+    # NO_SUCH_WORD = Perception.Error._END_ - 2  # agent doesn't know the word
+    class NO_SUCH_WORD(Exception):
+        pass
 
     gibberish = Gibberish()
 
@@ -57,24 +63,24 @@ class Language(Perception):
 
     def get_word(self, category):
         if category is None:
-            return None, Language.Error.ERROR
+            raise Language.ERROR
 
         if not self.lexicon or all(v == 0 for v in self.lxc[0::, category]):
-            return None, Language.Error.NO_WORD_FOR_CATEGORY
+            raise Language.NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
         # TODO performance?
         word_propensities = self.lxc[0::, category]
         max_propensity = max(word_propensities)
         max_propensity_indices = [i for i, j in enumerate(word_propensities) if j == max_propensity]
-        return self.lexicon[choice(max_propensity_indices)], Language.Error.NO_ERROR
+        return self.lexicon[choice(max_propensity_indices)]
 
     def get_category(self, word):
         if word is None:
-            return None, Language.Error.ERROR
+            raise Language.ERROR
 
         if word not in self.lexicon:
-            return None, Language.Error.NO_SUCH_WORD
+            raise Language.NO_SUCH_WORD
         word_index = self.lexicon.index(word)
         propensities = self.lxc[word_index, 0::]
         max_propensity = max(propensities)
@@ -88,7 +94,7 @@ class Language(Perception):
 
         max_propensity_indices = [i for i, j in enumerate(propensities) if j == max_propensity]
         # TODO random choice?
-        return choice(max_propensity_indices), Language.Error.NO_ERROR
+        return choice(max_propensity_indices)
 
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
         if not self.lxc.size:

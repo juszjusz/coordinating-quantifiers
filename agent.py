@@ -67,12 +67,13 @@ class Agent(Language):
 
     def get_topic(self, context, category):
         if category is None:
-            return None, Language.Error.ERROR
+            raise Language.ERROR
 
         category = self.categories[category]
         topic = category.select(context)
-        return (topic, Perception.Error.NO_DIFFERENCE_FOR_CATEGORY) if topic is None \
-            else (topic, Perception.Error.NO_ERROR)
+        if topic is None:
+            raise Perception.NO_DIFFERENCE_FOR_CATEGORY
+        return topic
 
     def update(self, success, role, word, category):
         i = self.lexicon.index(word)
@@ -91,13 +92,3 @@ class Agent(Language):
 
         elif not success:
             self.lxc[i, c] = self.lxc[i, c] - 0.1 * self.lxc[i, c]
-
-# class Speaker(Agent):
-#     def __init__(self, agent):
-#         super().__init__()
-#         Agent.__init__(self, id)
-#
-#
-# class Hearer(Agent):
-#     def __init__(self, id):
-#         Agent.__init__(self, id)
