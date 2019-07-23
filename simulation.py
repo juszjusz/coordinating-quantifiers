@@ -7,11 +7,11 @@ from language import Language
 from data import Data
 # import cProfile
 
-params = {"population_size": 10,
+params = {"population_size": int(sys.argv[1]),
           "learning_rate": 0,  # co to?
           "discriminative_threshold": 0.95,
           "weight_decay": 0.1,
-          "steps": 15,
+          "steps": int(sys.argv[2]),
           "runs": 1}
 
 
