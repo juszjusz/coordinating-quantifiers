@@ -49,18 +49,22 @@ class Simulation:
             ds.append(self.data.get_ds())
             cs.append(self.data.get_cs())
 
+            x = range(1, step + 2)
+            plt.ylim(bottom=0)
+            plt.ylim(top=100)
+            plt.xlabel("step")
+            plt.ylabel("success")
+            x_ex = range(0, step + 3)
+            th = [95 for i in x_ex]
+            plt.plot(x_ex, th, ':', linewidth=0.2)
+            plt.plot(x, ds, '--', label="discriminative success")
+            plt.plot(x, cs, '-', label="communicative success")
+            plt.legend(['line', 'line'], loc='best')
+            # # plt.show()
+            plt.savefig("./simulation_results/success.pdf")
+            plt.close()
+
         self.data.plot_languages()
-        x = range(1, self.params["steps"] + 1)
-        plt.ylim(bottom=0)
-        plt.ylim(top=100)
-        plt.xlabel("step")
-        plt.ylabel("success")
-        plt.plot(x, ds, '--', label="discriminative success")
-        plt.plot(x, cs, '-', label="communicative success")
-        plt.legend(['line', 'line'], loc='best')
-        # # plt.show()
-        plt.savefig("./simulation_results/success.pdf")
-        plt.close()
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
