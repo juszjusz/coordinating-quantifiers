@@ -1,7 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
 from agent import Agent
-from language import Language
+from guessing_game_exceptions import *
 from perception import Perception
 from perception import Stimulus
 from random import choice
@@ -40,42 +40,42 @@ class GuessingGame:
             self.hearer_category = self.hearer.get_category(word=self.speaker_word)
             self.hearer_topic = self.hearer.get_topic(context=self.context, category=self.hearer_category)
             self.completed = True
-        except Perception.NO_CATEGORY:
+        except NO_CATEGORY:
             self.speaker.store_ds_result(self.speaker.Result.FAILURE)
             self.exception_handler.on_NO_CATEGORY(agent=self.speaker, context=self.context, topic=self.topic)
-        except Perception.NO_NOTICEABLE_DIFFERENCE:
+        except NO_NOTICEABLE_DIFFERENCE:
             self.speaker.store_ds_result(self.speaker.Result.FAILURE)
             self.exception_handler.on_NO_NOTICEABLE_DIFFERENCE()
-        except Perception.NO_POSITIVE_RESPONSE_1:
+        except NO_POSITIVE_RESPONSE_1:
             self.speaker.store_ds_result(self.speaker.Result.FAILURE)
             self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=self.speaker, agent_category=self.speaker_category,
                                                              context=self.context)
-        except Perception.NO_POSITIVE_RESPONSE_2:
+        except NO_POSITIVE_RESPONSE_2:
             self.speaker.store_ds_result(self.speaker.Result.FAILURE)
             self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=self.speaker, agent_category=self.speaker_category,
                                                              context=self.context)
-        except Perception.NO_DISCRIMINATION_LOWER_1:
+        except NO_DISCRIMINATION_LOWER_1:
             self.speaker.store_ds_result(self.speaker.Result.FAILURE)
             self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=self.speaker,
                                                                 agent_category=self.speaker_category,
                                                                 context=self.context)
-        except Perception.NO_DISCRIMINATION_LOWER_2:
+        except NO_DISCRIMINATION_LOWER_2:
             self.speaker.store_ds_result(self.speaker.Result.FAILURE)
             self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=self.speaker,
                                                                 agent_category=self.speaker_category,
                                                                 context=self.context)
-        except Language.NO_WORD_FOR_CATEGORY:
+        except NO_WORD_FOR_CATEGORY:
             self.exception_handler.on_NO_WORD_FOR_CATEGORY(agent=self.speaker, agent_category=self.speaker_category)
-        except Language.NO_DIFFERENCE_FOR_CATEGORY:
+        except NO_DIFFERENCE_FOR_CATEGORY:
             self.hearer_category = self.exception_handler.on_NO_DIFFERENCE_FOR_CATEGORY(agent=self.hearer,
                                                                                         context=self.context,
                                                                                         topic=self.topic,
                                                                                         speaker_word=self.speaker_word)
-        except Language.NO_SUCH_WORD:
+        except NO_SUCH_WORD:
             self.hearer_category = self.exception_handler.on_NO_SUCH_WORD(agent=self.hearer, context=self.context,
                                                                           topic=self.topic,
                                                                           speaker_word=self.speaker_word)
-        except Language.ERROR:
+        except ERROR:
             self.exception_handler.on_LANGUAGE_ERROR()
 
         # logging.debug("discrimination success" if error == Agent.Error.NO_ERROR else "discrimination failure")
@@ -180,37 +180,37 @@ class ExceptionHandler:
             category = agent.discrimination_game(context, topic)
             logging.debug("Hearer(%d) category %d" % (agent.id,
                                                       -1 if category is None else category))
-        except Perception.NO_CATEGORY:
+        except NO_CATEGORY:
             self.on_NO_CATEGORY(agent=agent, context=context, topic=topic)
             logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
             category = agent.discrimination_game(context, topic)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_NOTICEABLE_DIFFERENCE:
+        except NO_NOTICEABLE_DIFFERENCE:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
             category = agent.discrimination_game(context, topic)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_POSITIVE_RESPONSE_1:
+        except NO_POSITIVE_RESPONSE_1:
             self.on_NO_POSITIVE_RESPONSE_1(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
             category = agent.discrimination_game(context, topic)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_POSITIVE_RESPONSE_2:
+        except NO_POSITIVE_RESPONSE_2:
             self.on_NO_POSITIVE_RESPONSE_2(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
             category = agent.discrimination_game(context, topic)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_DISCRIMINATION_LOWER_1:
+        except NO_DISCRIMINATION_LOWER_1:
             self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
             category = agent.discrimination_game(context, topic)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_DISCRIMINATION_LOWER_2:
+        except NO_DISCRIMINATION_LOWER_2:
             self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
             category = agent.discrimination_game(context, topic)
@@ -229,37 +229,37 @@ class ExceptionHandler:
         # TODO discrimination_game czy discriminate?
         try:
             category = agent.discrimination_game(context, topic)
-        except Perception.NO_CATEGORY:
+        except NO_CATEGORY:
             self.on_NO_CATEGORY(agent=agent, context=context, topic=topic)
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = agent.discrimination_game(context, topic)
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_NOTICEABLE_DIFFERENCE:
+        except NO_NOTICEABLE_DIFFERENCE:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = agent.discrimination_game(context, topic)
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_POSITIVE_RESPONSE_1:
+        except NO_POSITIVE_RESPONSE_1:
             self.on_NO_POSITIVE_RESPONSE_1(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = agent.discrimination_game(context, topic)
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_POSITIVE_RESPONSE_2:
+        except NO_POSITIVE_RESPONSE_2:
             self.on_NO_POSITIVE_RESPONSE_2(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = agent.discrimination_game(context, topic)
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_DISCRIMINATION_LOWER_1:
+        except NO_DISCRIMINATION_LOWER_1:
             self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = agent.discrimination_game(context, topic)
             # raise Exception("Wow, there should be no error here.")
-        except Perception.NO_DISCRIMINATION_LOWER_2:
+        except NO_DISCRIMINATION_LOWER_2:
             self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, agent_category=None, context=context)
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?

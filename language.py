@@ -1,5 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
+
+from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR
 from perception import Perception
 from perception import Category
 from perception import ReactiveUnit
@@ -21,16 +23,6 @@ from gibberish import Gibberish
 
 
 class Language(Perception):
-    class ERROR(Exception):
-        pass
-
-    # NO_WORD_FOR_CATEGORY = Perception.Error._END_ - 1  # agent has no word for category
-    class NO_WORD_FOR_CATEGORY(Exception):
-        pass
-
-    # NO_SUCH_WORD = Perception.Error._END_ - 2  # agent doesn't know the word
-    class NO_SUCH_WORD(Exception):
-        pass
 
     gibberish = Gibberish()
 
@@ -63,10 +55,10 @@ class Language(Perception):
 
     def get_word(self, category):
         if category is None:
-            raise Language.ERROR
+            raise ERROR
 
         if not self.lexicon or all(v == 0 for v in self.lxc[0::, category]):
-            raise Language.NO_WORD_FOR_CATEGORY
+            raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
         # TODO performance?
@@ -77,10 +69,10 @@ class Language(Perception):
 
     def get_category(self, word):
         if word is None:
-            raise Language.ERROR
+            raise ERROR
 
         if word not in self.lexicon:
-            raise Language.NO_SUCH_WORD
+            raise NO_SUCH_WORD
         word_index = self.lexicon.index(word)
         propensities = self.lxc[word_index, 0::]
         max_propensity = max(propensities)

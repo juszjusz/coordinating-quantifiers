@@ -4,6 +4,9 @@ import scipy.integrate
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+
+from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
+    NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from visualization import Viewable
 from numpy import linspace
 from matplotlib.ticker import ScalarFormatter
@@ -146,34 +149,6 @@ class Perception(Viewable):
     alpha = 0.1  # forgetting
     beta = 1.0  # learning rate
 
-    # agent has no categories
-    class NO_CATEGORY(Exception):
-        pass
-
-    # agent has categories but is unable to discriminate, lower response for stimulus 1
-    class NO_DISCRIMINATION_LOWER_1(Exception):
-        pass
-
-    # agent has categories but is unable to discriminate, lower response for stimulus 2
-    class NO_DISCRIMINATION_LOWER_2(Exception):
-        pass
-
-    # agent fails to select topic using category bcs it produces the same responses for both stimuli
-    class NO_DIFFERENCE_FOR_CATEGORY(Exception):
-        pass
-
-    # agent has categories but they return 0 as response for stimulus 1
-    class NO_POSITIVE_RESPONSE_1(Exception):
-        pass
-
-    # agent has categories but they return 0 as response for stimulus 2
-    class NO_POSITIVE_RESPONSE_2(Exception):
-        pass
-
-    # stimuli are indistinguishable for agent perception (jnd)
-    class NO_NOTICEABLE_DIFFERENCE(Exception):
-        pass
-
     def __init__(self):
         self.categories = []
         self.ds_scores = deque([0])
@@ -196,14 +171,14 @@ class Perception(Viewable):
     def discriminate(self, context, topic):
         if not self.categories:
             self.store_ds_result(Perception.Result.FAILURE)
-            raise Perception.NO_CATEGORY
+            raise NO_CATEGORY
 
         s1, s2 = context[0], context[1]
 
         # TODO do wywalnie prawdopodobnie, ze wzgledu na sposob generowania kontekstow
         if not Perception.noticeable_difference(s1, s2):
             self.store_ds_result(Perception.Result.FAILURE)
-            raise Perception.NO_NOTICEABLE_DIFFERENCE
+            raise NO_NOTICEABLE_DIFFERENCE
 
         responses1 = [c.response(s1) for c in self.categories]
         responses2 = [c.response(s2) for c in self.categories]
@@ -214,11 +189,11 @@ class Perception(Viewable):
         # TODO discuss
         if max1 == 0:
             self.store_ds_result(Perception.Result.FAILURE)
-            raise Perception.NO_POSITIVE_RESPONSE_1
+            raise NO_POSITIVE_RESPONSE_1
 
         if max2 == 0:
             self.store_ds_result(Perception.Result.FAILURE)
-            raise Perception.NO_POSITIVE_RESPONSE_2
+            raise NO_POSITIVE_RESPONSE_2
 
         if len(max_args1) > 1 or len(max_args2) > 1:
             raise Exception("Two categories give the same maximal value for stimulus")
@@ -227,8 +202,8 @@ class Perception(Viewable):
 
         if i == j:
             self.store_ds_result(Perception.Result.FAILURE)
-            raise Perception.NO_DISCRIMINATION_LOWER_1 if max1 < max2 else \
-                Perception.NO_DISCRIMINATION_LOWER_2
+            raise NO_DISCRIMINATION_LOWER_1 if max1 < max2 else \
+                NO_DISCRIMINATION_LOWER_2
 
         # discrimination successful
         self.store_ds_result(Perception.Result.SUCCESS)
