@@ -1,21 +1,18 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 from random import randint
 import scipy.integrate
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+
+from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
+    NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from visualization import Viewable
 from numpy import linspace
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from collections import deque
 import logging
-
-
-class Error:
-    NO_ERROR = -1
-    ERROR = -2
-    _END_ = ERROR
 
 
 class Stimulus:
@@ -47,7 +44,7 @@ class ReactiveUnit:
         y, bin_edges = np.histogram(self.ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
         try:
-            self.interp = interp1d(x, y) #radial basis interpolation?
+            self.interp = interp1d(x, y)  # radial basis interpolation?
         except ValueError:
             print("x and y arrays must have at least 2 entries")
             print(x)
@@ -73,7 +70,7 @@ class ReactiveUnit:
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        return scipy.integrate.quad(lambda x: s.fun(x)*self.fun(x), x_left, x_right)[0]
+        return scipy.integrate.quad(lambda x: s.fun(x) * self.fun(x), x_left, x_right)[0]
 
     def show(self, how="spline"):
         plt.title("Reactive unit for " + str(self.a) + "/" + str(self.b) + " = " + str(self.a / self.b))
@@ -101,7 +98,7 @@ class Category:
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        return scipy.integrate.quad(lambda x: s.fun(x)*self.fun(x), x_left, x_right)[0]
+        return scipy.integrate.quad(lambda x: s.fun(x) * self.fun(x), x_left, x_right)[0]
 
     def add_reactive_unit(self, reactive_unit, weight=0.5):
         self.weights.append(weight)
@@ -112,7 +109,7 @@ class Category:
     def fun(self, x):
         # performance?
         return 0 if len(self.reactive_units) == 0 \
-            else sum([r.fun(x)*w for r, w in zip(self.reactive_units, self.weights)])
+            else sum([r.fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
 
     def select(self, stimuli):
         # TODO what if the same stimuli?
@@ -133,12 +130,12 @@ class Category:
 
     def get_flat(self):
         # TODO
-        #flat_ratios = []
-        #flat_weights = []
-        #for i in range(0, len(self.reactive_units)):
+        # flat_ratios = []
+        # flat_weights = []
+        # for i in range(0, len(self.reactive_units)):
         #    flat_ratios += self.reactive_units[i].ratios
         #    flat_weights += [self.weights[i]] * len(self.reactive_units[i].ratios)
-        #return flat_ratios, flat_weights
+        # return flat_ratios, flat_weights
         return []
 
 
@@ -152,16 +149,6 @@ class Perception(Viewable):
     alpha = 0.1  # forgetting
     beta = 1.0  # learning rate
 
-    class Error(Error):
-        NO_CATEGORY = Error._END_ - 1                   # agent has no categories
-        NO_DISCRIMINATION_LOWER_1 = Error._END_ - 2     # agent has categories but is unable to discriminate, lower response for stimulus 1
-        NO_DISCRIMINATION_LOWER_2 = Error._END_ - 3     # agent has categories but is unable to discriminate, lower response for stimulus 2
-        NO_DIFFERENCE_FOR_CATEGORY = Error._END_ - 4    # agent fails to select topic using category bcs it produces the same responses for both stimuli
-        NO_POSITIVE_RESPONSE_1 = Error._END_ - 5        # agent has categories but they return 0 as response for stimulus 1
-        NO_POSITIVE_RESPONSE_2 = Error._END_ - 6        # agent has categories but they return 0 as response for stimulus 2
-        NO_NOTICEABLE_DIFFERENCE = Error._END_ - 7      # stimuli are indistinguishable for agent perception (jnd)
-        _END_ = NO_NOTICEABLE_DIFFERENCE
-
     def __init__(self):
         self.categories = []
         self.ds_scores = deque([0])
@@ -173,26 +160,25 @@ class Perception(Viewable):
             self.ds_scores[-1] = int(result)
         else:
             self.ds_scores.append(int(result))
-        self.discriminative_success = (sum(self.ds_scores)/len(self.ds_scores))*100
+        self.discriminative_success = (sum(self.ds_scores) / len(self.ds_scores)) * 100
 
     def discrimination_game(self, context, topic):
-        category_index, error = self.discriminate(context, topic)
-        if error == Perception.Error.NO_ERROR:
-            self.reinforce(category_index, context[topic])
+        category_index = self.discriminate(context, topic)
+        self.reinforce(category_index, context[topic])
         self.forget()
-        return category_index, error
+        return category_index
 
     def discriminate(self, context, topic):
         if not self.categories:
             self.store_ds_result(Perception.Result.FAILURE)
-            return None, Perception.Error.NO_CATEGORY
+            raise NO_CATEGORY
 
         s1, s2 = context[0], context[1]
 
         # TODO do wywalnie prawdopodobnie, ze wzgledu na sposob generowania kontekstow
         if not Perception.noticeable_difference(s1, s2):
             self.store_ds_result(Perception.Result.FAILURE)
-            return None, Perception.Error.NO_NOTICEABLE_DIFFERENCE
+            raise NO_NOTICEABLE_DIFFERENCE
 
         responses1 = [c.response(s1) for c in self.categories]
         responses2 = [c.response(s2) for c in self.categories]
@@ -203,11 +189,11 @@ class Perception(Viewable):
         # TODO discuss
         if max1 == 0:
             self.store_ds_result(Perception.Result.FAILURE)
-            return None, Perception.Error.NO_POSITIVE_RESPONSE_1
+            raise NO_POSITIVE_RESPONSE_1
 
         if max2 == 0:
             self.store_ds_result(Perception.Result.FAILURE)
-            return None, Perception.Error.NO_POSITIVE_RESPONSE_2
+            raise NO_POSITIVE_RESPONSE_2
 
         if len(max_args1) > 1 or len(max_args2) > 1:
             raise Exception("Two categories give the same maximal value for stimulus")
@@ -216,21 +202,21 @@ class Perception(Viewable):
 
         if i == j:
             self.store_ds_result(Perception.Result.FAILURE)
-            return (None, Perception.Error.NO_DISCRIMINATION_LOWER_1) if max1 < max2 else \
-                (None, Perception.Error.NO_DISCRIMINATION_LOWER_2)
+            raise NO_DISCRIMINATION_LOWER_1 if max1 < max2 else \
+                NO_DISCRIMINATION_LOWER_2
 
-        #discrimination successful
+        # discrimination successful
         self.store_ds_result(Perception.Result.SUCCESS)
-        return i if topic == 0 else j, Perception.Error.NO_ERROR
+        return i if topic == 0 else j
 
     def forget(self):
         for c in self.categories:
-            c.weights = [w - self.alpha*w for w in c.weights]
+            c.weights = [w - self.alpha * w for w in c.weights]
 
     # TODO check
     def reinforce(self, category_index, stimulus):
         c = self.categories[category_index]
-        c.weights = [w + self.beta*ru.response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
+        c.weights = [w + self.beta * ru.response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
 
     # TODO adhoc implementation of noticeable difference between stimuli
     # TODO doesnt seem to work, try out simulation
@@ -244,7 +230,7 @@ class Perception(Viewable):
         p1 = (stimulus1.a / stimulus1.b)
         p2 = (stimulus2.a / stimulus2.b)
         ds = min(0.3 * p1, 0.3 * p2)
-        return abs(p1-p2) > ds
+        return abs(p1 - p2) > ds
 
     def plot(self, filename=None, x_left=0, x_right=100, mode=''):
         plt.title("categories")
@@ -255,7 +241,7 @@ class Perception(Viewable):
         ax.yaxis.set_major_formatter(ScalarFormatter())
         colors = sns.color_palette()
         # sns.set_palette(colors)
-        x = linspace(x_left, x_right, 20*(x_right-x_left), False)
+        x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
         num_of_categories = len(self.categories)
         for i in range(num_of_categories):
             plt.plot(x, [self.categories[i].fun(x_0) for x_0 in x],
