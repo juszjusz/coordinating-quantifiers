@@ -1,5 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
+
+from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
 from language import Perception
 from random import sample
@@ -67,12 +69,12 @@ class Agent(Language):
 
     def get_topic(self, context, category):
         if category is None:
-            raise Language.ERROR
+            raise ERROR
 
         category = self.categories[category]
         topic = category.select(context)
         if topic is None:
-            raise Perception.NO_DIFFERENCE_FOR_CATEGORY
+            raise NO_DIFFERENCE_FOR_CATEGORY
         return topic
 
     def update(self, success, role, word, category):
