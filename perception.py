@@ -157,27 +157,36 @@ class Perception(Viewable):
     def store_ds_result(self, result):
         if len(self.ds_scores) == 50:
             self.ds_scores.rotate(-1)
-            self.ds_scores[-1] = int(result)
+            self.ds_scores[-1] = result
         else:
-            self.ds_scores.append(int(result))
+            self.ds_scores.append(result)
+        self.discriminative_success = (sum(self.ds_scores) / len(self.ds_scores)) * 100
+
+    def store_ds_failure(self):
+        self.store_ds_result(Perception.Result.FAILURE)
+
+    def switch_ds_result(self):
+        self.ds_scores[-1] = 1 - self.ds_scores[-1]
         self.discriminative_success = (sum(self.ds_scores) / len(self.ds_scores)) * 100
 
     def discrimination_game(self, context, topic):
+        self.store_ds_result(Perception.Result.FAILURE)
         category_index = self.discriminate(context, topic)
         self.reinforce(category_index, context[topic])
         self.forget()
+        self.switch_ds_result()
         return category_index
 
     def discriminate(self, context, topic):
         if not self.categories:
-            self.store_ds_result(Perception.Result.FAILURE)
+            # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_CATEGORY
 
         s1, s2 = context[0], context[1]
 
         # TODO do wywalnie prawdopodobnie, ze wzgledu na sposob generowania kontekstow
         if not Perception.noticeable_difference(s1, s2):
-            self.store_ds_result(Perception.Result.FAILURE)
+            # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_NOTICEABLE_DIFFERENCE
 
         responses1 = [c.response(s1) for c in self.categories]
@@ -188,11 +197,11 @@ class Perception(Viewable):
 
         # TODO discuss
         if max1 == 0:
-            self.store_ds_result(Perception.Result.FAILURE)
+            # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_POSITIVE_RESPONSE_1
 
         if max2 == 0:
-            self.store_ds_result(Perception.Result.FAILURE)
+            # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_POSITIVE_RESPONSE_2
 
         if len(max_args1) > 1 or len(max_args2) > 1:
@@ -201,12 +210,12 @@ class Perception(Viewable):
         i, j = max_args1[0], max_args2[0]
 
         if i == j:
-            self.store_ds_result(Perception.Result.FAILURE)
+            # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_DISCRIMINATION_LOWER_1 if max1 < max2 else \
                 NO_DISCRIMINATION_LOWER_2
 
         # discrimination successful
-        self.store_ds_result(Perception.Result.SUCCESS)
+        # self.store_ds_result(Perception.Result.SUCCESS)
         return i if topic == 0 else j
 
     def forget(self):

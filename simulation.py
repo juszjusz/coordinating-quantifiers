@@ -1,5 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 import logging, sys
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from agent import Population
 from guessing_game import GuessingGame
