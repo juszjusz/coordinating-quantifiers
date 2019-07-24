@@ -7,7 +7,16 @@ from numpy import array
 from numpy import zeros
 from numpy import amax
 from collections import deque
+from matplotlib.ticker import ScalarFormatter
+import seaborn as sns
 
+line_styles = {0: '-',
+               1: ':',
+               2: '--',
+               3: '-.',
+               4: '.',
+               5: ',',
+               6: 'o'}
 
 class Data:
 
@@ -16,7 +25,11 @@ class Data:
         self._max_weight_ = {a: .0 for a in range(population_size)}
         self.ds_per_agent = [.0 for a in range(population_size)]
         self.cs_scores = deque([0])  # {a: deque([0]) for a in range(population_size)}
-        self.languages = {a: [] for a in range(population_size)}
+        self.matrices = {a: [] for a in range(population_size)}
+        self.langs = {a: [] for a in range(population_size)}
+        self.x_left = 0
+        self.x_right = 100
+        self.x = linspace(self.x_left, self.x_right, 20 * (self.x_right - self.x_left), False)
         # self.ds = []
         # self.cs = []
 
@@ -36,30 +49,58 @@ class Data:
     def get_cs(self):
         return sum(self.cs_scores) / len(self.cs_scores) * 100
 
-    def store_languages(self, agents):
+    def store_langs(self, agents, x_left=0, x_right=100):
+        for i in range(len(agents)):
+            self.langs[i].append([])
+            a = agents[i]
+            forms_to_categories = {}
+            if not a.lxc.size:
+                continue
+            for f in a.lexicon:
+                forms_to_categories[f] = []
+            for c in a.categories:
+                j = a.categories.index(c)
+                m = max(a.lxc[0::, j])
+                if m == 0:
+                    continue
+                else:
+                    max_form_indices = [i for i, w in enumerate(a.lxc[0::, j]) if w == m]
+                    form = a.lexicon[max_form_indices[0]]
+                    forms_to_categories[form].append(j)
+
+            for w in range(len(a.lexicon)):
+                f = a.lexicon[w]
+                if len(forms_to_categories[f]) == 0:
+                    continue
+                else:
+                    self.langs[i][-1].append([f])
+                    for j in forms_to_categories[f]:
+                        self.langs[i][-1][-1].append([a.categories[j].fun(x_0) for x_0 in self.x])
+
+    def store_matrices(self, agents):
         for i in range(len(agents)):
             lex = agents[i].lexicon
             lxc = agents[i].lxc
-            self.languages[i].append((list(lex), array(lxc)))
+            self.matrices[i].append((list(lex), array(lxc)))
             if lxc.size:
                 self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
 
-    def plot_languages(self):
-        for l in range(len(self.languages)):
-            n_rows = self.languages[l][-1][1].shape[0]
-            n_cols = self.languages[l][-1][1].shape[1]
-            for m in range(len(self.languages[l])):
-                if not self.languages[l][m][1].size:
+    def plot_matrices(self):
+        for l in range(len(self.matrices)):
+            n_rows = self.matrices[l][-1][1].shape[0]
+            n_cols = self.matrices[l][-1][1].shape[1]
+            for m in range(len(self.matrices[l])):
+                if not self.matrices[l][m][1].size:
                     continue
-                n_categories = self.languages[l][m][1].shape[1]
-                n_forms = len(self.languages[l][m][0])
+                n_categories = self.matrices[l][m][1].shape[1]
+                n_forms = len(self.matrices[l][m][0])
                 #lxc = self.languages[l][m][1].resize((n_rows, n_cols), refcheck=False)
                 lxc = zeros((n_rows, n_cols))
-                lxc[0:n_forms, 0:n_categories] = self.languages[l][m][1]
+                lxc[0:n_forms, 0:n_categories] = self.matrices[l][m][1]
                 fig, ax = plt.subplots()
                 lxc_ex = column_stack((lxc, linspace(self._max_weight_[l], 0, n_rows)))
                 im = ax.imshow(lxc_ex)
-                lexicon = self.languages[l][m][0]
+                lexicon = self.matrices[l][m][0]
                 # We want to show all ticks...
                 ax.set_xticks(arange(n_cols + 1))
                 ax.set_yticks(arange(n_rows))
@@ -87,6 +128,30 @@ class Data:
                 plt.savefig("./simulation_results/matrices/matrix%d_%d" % (l, m))
                 plt.close()
 
+    def plot_langs(self):
+        for i in range(len(self.langs)):
+            # sns.set_palette(colors)
+            for step in range(len(self.langs[i])):
+                plt.title("language")
+                plt.xscale("symlog")
+                plt.yscale("symlog")
+                ax = plt.gca()
+                ax.xaxis.set_major_formatter(ScalarFormatter())
+                ax.yaxis.set_major_formatter(ScalarFormatter())
+                colors = sns.color_palette()
+                for word_cats_index in range(len(self.langs[i][step])):
+                    num_words = len(self.langs[i][step])
+                    word_cats = self.langs[i][step][word_cats_index]
+                    f = word_cats[0]
+                    ls = line_styles[word_cats_index // len(colors)]
+                    ci = word_cats_index % len(colors)
+                    for y in word_cats[1::]:
+                        plt.plot(self.x, y, color=colors[ci], linestyle=ls)
+                    plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
+                plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+                plt.tight_layout(pad=0)
+                plt.savefig("./simulation_results/langs/language%d_%d.png" % (i, step))
+                plt.close()
 
 class RoundStatistics:
     discriminative_success = 0
