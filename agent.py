@@ -1,5 +1,7 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 import logging
+
+from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
 from language import Perception
 from random import sample
@@ -20,7 +22,6 @@ class Population:
 
 
 class Agent(Language):
-
     class Result:
         SUCCESS = 1
         FAILURE = 0
@@ -32,17 +33,8 @@ class Agent(Language):
     def __init__(self, id):
         Language.__init__(self)
         self.id = id
-        self.discriminative_success = 0
         self.communicative_success = 0
-        self.ds_scores = deque([0])
         self.cs_scores = deque([0])
-
-    def store_ds_result(self, result):
-        if len(self.ds_scores) == 50:
-            self.ds_scores.rotate(-1)
-            self.ds_scores[-1] = int(result)
-        else:
-            self.ds_scores.append(int(result))
 
     def store_cs_result(self, result):
         if len(self.cs_scores) == 50:
@@ -66,29 +58,30 @@ class Agent(Language):
     #     else:
 
     def learn_stimulus(self, category, context, n):
-        logging.debug(" learns stimulus %d by " % (n+1))
+        logging.debug(" learns stimulus %d by " % (n + 1))
         if self.discriminative_success >= Perception.discriminative_threshold and category is not None:
             logging.debug("updating category")
             self.update_category(category, context[n])
             return category
         else:
-            logging.debug("adding new category centered on %f" % (context[n].a/context[n].b))
+            logging.debug("adding new category centered on %f" % (context[n].a / context[n].b))
             return self.add_category(context[n])
 
     def get_topic(self, context, category):
         if category is None:
-            return None, Language.Error.ERROR
+            raise ERROR
 
         category = self.categories[category]
         topic = category.select(context)
-        return (topic, Perception.Error.NO_DIFFERENCE_FOR_CATEGORY) if topic is None \
-            else (topic, Perception.Error.NO_ERROR)
+        if topic is None:
+            raise NO_DIFFERENCE_FOR_CATEGORY
+        return topic
 
     def update(self, success, role, word, category):
         i = self.lexicon.index(word)
         c = category
         if success and role == self.Role.SPEAKER:
-            self.lxc[i, c] = self.lxc[i, c] + 0.1*self.lxc[i, c]
+            self.lxc[i, c] = self.lxc[i, c] + 0.1 * self.lxc[i, c]
             for k in range(len(self.categories)):
                 if k != c:
                     self.lxc[i, k] = self.lxc[i, k] - 0.1 * self.lxc[i, k]
@@ -101,13 +94,3 @@ class Agent(Language):
 
         elif not success:
             self.lxc[i, c] = self.lxc[i, c] - 0.1 * self.lxc[i, c]
-
-# class Speaker(Agent):
-#     def __init__(self, agent):
-#         super().__init__()
-#         Agent.__init__(self, id)
-#
-#
-# class Hearer(Agent):
-#     def __init__(self, id):
-#         Agent.__init__(self, id)

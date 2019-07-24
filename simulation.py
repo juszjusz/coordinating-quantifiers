@@ -1,19 +1,17 @@
-from __future__ import division # force python 3 division in python 2
+from __future__ import division  # force python 3 division in python 2
 import logging, sys
 import matplotlib.pyplot as plt
-# matplotlib.use("Agg")
 from agent import Population
 from guessing_game import GuessingGame
 from language import Language
+from data import Data
 # import cProfile
 
-
-params = {"populationSize": 2,
-          "gamesPerRound": 1,  # gamesPerRound * 2 <= populationSize
-          "learningRate": 0,  # co to?
-          "discriminativeThreshold": 0.95,
-          "weightDecay": 0.1,
-          "steps": 30,
+params = {"population_size": int(sys.argv[1]),
+          "learning_rate": 0,  # co to?
+          "discriminative_threshold": 0.95,
+          "weight_decay": 0.1,
+          "steps": int(sys.argv[2]),
           "runs": 1}
 
 
@@ -21,59 +19,55 @@ class Simulation:
 
     def __init__(self, parameters=params):
         self.params = parameters
-        self.stats = []
+        self.data = Data(self.params['population_size'])
 
     def run(self):
 
-        population = Population(self.params['populationSize'])
-
-        ds_scores_1 = []
-        ds_scores_2 = []
-        cs_scores_1 = []
+        population = Population(self.params['population_size'])
+        ds = []
+        cs = []
 
         for step in range(self.params["steps"]):
-            logging.debug("--\nSTEP %d" % step)
-            selected_pairs = population.select_pairs_per_round(self.params["gamesPerRound"])
+            logging.debug("\n------------\nSTEP %d" % step)
+            selected_pairs = population.select_pairs_per_round(self.params['population_size']//2)
             for speaker, hearer in selected_pairs:
                 game = GuessingGame(speaker=speaker, hearer=hearer)
-                game.play()
-                logging.debug("Number of categories of Agent(%d): %d" % (population.agents[0].id,
-                                                                         len(population.agents[0].categories)))
-                super(Language, population.agents[0]).plot("./cats/categories%d_%d" % (0, step))
-                logging.debug("Number of categories of Agent(%d): %d" % (population.agents[1].id,
-                                                                         len(population.agents[1].categories)))
-                super(Language, population.agents[1]).plot("./cats/categories%d_%d" % (1, step))
+                logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
+                result = game.play()
 
-            ds_score1 = (sum(population.agents[0].ds_scores)/len(population.agents[0].ds_scores)*100)
-            ds_score2 = (sum(population.agents[1].ds_scores) / len(population.agents[1].ds_scores) * 100)
-            cs_score1 = (sum(population.agents[0].cs_scores)/len(population.agents[0].cs_scores)*100)
-            ds_scores_1.append(ds_score1)
-            ds_scores_2.append(ds_score2)
-            cs_scores_1.append(cs_score1)
+                logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
+                super(Language, speaker).plot("./simulation_results/cats/categories%d_%d" % (speaker.id, step))
+                logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
+                super(Language, hearer).plot("./simulation_results/cats/categories%d_%d" % (hearer.id, step))
+                speaker.plot(filename="./simulation_results/langs/language%d_%d.png" % (speaker.id, step))
+                hearer.plot(filename="./simulation_results/langs/language%d_%d.png" % (hearer.id, step))
+                self.data.store_ds_result(speaker.id, speaker.discriminative_success)
+                self.data.store_ds_result(hearer.id, hearer.discriminative_success)
+                self.data.store_cs_result(result)
 
-        x = range(1, self.params["steps"]+1)
-        plt.ylim(bottom=0)
-        plt.ylim(top=100)
-        plt.xlabel("step")
-        plt.ylabel("success")
-        plt.plot(x, ds_scores_1, '--', x, ds_scores_2, '--', x, cs_scores_1, '-')
-        plt.legend(['line', 'line', 'line', 'line'], loc='best')
-        # plt.show()
-        plt.savefig("success.pdf")
-        plt.close()
-        # plot language of the first agent
-        print("plotting languages")
-        population.agents[0].plot(filename="language0.pdf")
-        # population.agents[0].plot_categories()
-        population.agents[1].plot(filename="language1.pdf")
+            self.data.store_languages(population.agents)
+            ds.append(self.data.get_ds())
+            cs.append(self.data.get_cs())
 
+            x = range(1, step + 2)
+            plt.ylim(bottom=0)
+            plt.ylim(top=100)
+            plt.xlabel("step")
+            plt.ylabel("success")
+            x_ex = range(0, step + 3)
+            th = [95 for i in x_ex]
+            plt.plot(x_ex, th, ':', linewidth=0.2)
+            plt.plot(x, ds, '--', label="discriminative success")
+            plt.plot(x, cs, '-', label="communicative success")
+            plt.legend(['line', 'line'], loc='best')
+            # # plt.show()
+            plt.savefig("./simulation_results/success.pdf")
+            plt.close()
 
-class RoundStatistics:
-    discriminative_success = 0
-    guessing_topic_success = 0
-    guessing_word_success = 0
+        self.data.plot_languages()
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
 sim = Simulation()
 sim.run()
