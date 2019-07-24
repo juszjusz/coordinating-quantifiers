@@ -27,6 +27,7 @@ class Data:
         self.cs_scores = deque([0])  # {a: deque([0]) for a in range(population_size)}
         self.matrices = {a: [] for a in range(population_size)}
         self.langs = {a: [] for a in range(population_size)}
+        self.cats = {a: [] for a in range(population_size)}
         self.x_left = 0
         self.x_right = 100
         self.x = linspace(self.x_left, self.x_right, 20 * (self.x_right - self.x_left), False)
@@ -49,7 +50,34 @@ class Data:
     def get_cs(self):
         return sum(self.cs_scores) / len(self.cs_scores) * 100
 
-    def store_langs(self, agents, x_left=0, x_right=100):
+    def store_cats(self, agents):
+        for i in range(len(agents)):
+            self.cats[i].append([])
+            a = agents[i]
+            for cat_index in range(len(a.categories)):
+                self.cats[i][-1].append([a.categories[cat_index].fun(x_0) for x_0 in self.x])
+
+    def plot_cats(self):
+        for i in range(len(self.cats)):
+            for step in range(len(self.cats[i])):
+                plt.title("categories")
+                ax = plt.gca()
+                plt.xscale("symlog")
+                ax.xaxis.set_major_formatter(ScalarFormatter())
+                plt.yscale("symlog")
+                ax.yaxis.set_major_formatter(ScalarFormatter())
+                colors = sns.color_palette()
+                num_of_cats = len(self.cats[i][step])
+                for j in range(num_of_cats):
+                    plt.plot(self.x, self.cats[i][step][j],
+                             color=colors[j % len(colors)], linestyle=line_styles[j // len(colors)],
+                             label="%d" % (j + 1))
+                plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+                plt.tight_layout(pad=0)
+                plt.savefig("./simulation_results/cats/categories%d_%d" % (i, step))
+                plt.close()
+
+    def store_langs(self, agents):
         for i in range(len(agents)):
             self.langs[i].append([])
             a = agents[i]
@@ -152,6 +180,7 @@ class Data:
                 plt.tight_layout(pad=0)
                 plt.savefig("./simulation_results/langs/language%d_%d.png" % (i, step))
                 plt.close()
+
 
 class RoundStatistics:
     discriminative_success = 0

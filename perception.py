@@ -241,22 +241,22 @@ class Perception(Viewable):
         ds = min(0.3 * p1, 0.3 * p2)
         return abs(p1 - p2) > ds
 
-    def plot(self, filename=None, x_left=0, x_right=100, mode=''):
-        plt.title("categories")
-        ax = plt.gca()
-        plt.xscale("symlog")
-        ax.xaxis.set_major_formatter(ScalarFormatter())
-        plt.yscale("symlog")
-        ax.yaxis.set_major_formatter(ScalarFormatter())
-        colors = sns.color_palette()
-        # sns.set_palette(colors)
-        x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
-        num_of_categories = len(self.categories)
-        for i in range(num_of_categories):
-            plt.plot(x, [self.categories[i].fun(x_0) for x_0 in x],
-                     color=colors[i % len(colors)], linestyle=self.line_styles[i // len(colors)],
-                     label="%d" % (i + 1))
-        plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-        plt.tight_layout(pad=0)
-        plt.savefig(filename)
-        plt.close()
+    # def plot(self, filename=None, x_left=0, x_right=100, mode=''):
+    #     plt.title("categories")
+    #     ax = plt.gca()
+    #     plt.xscale("symlog")
+    #     ax.xaxis.set_major_formatter(ScalarFormatter())
+    #     plt.yscale("symlog")
+    #     ax.yaxis.set_major_formatter(ScalarFormatter())
+    #     colors = sns.color_palette()
+    #     # sns.set_palette(colors)
+    #     x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    #     num_of_categories = len(self.categories)
+    #     for i in range(num_of_categories):
+    #         plt.plot(x, [self.categories[i].fun(x_0) for x_0 in x],
+    #                  color=colors[i % len(colors)], linestyle=self.line_styles[i // len(colors)],
+    #                  label="%d" % (i + 1))
+    #     plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+    #     plt.tight_layout(pad=0)
+    #     plt.savefig(filename)
+    #     plt.close()

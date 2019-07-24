@@ -86,6 +86,7 @@ class Language(Perception):
         # TODO random choice?
         return choice(max_propensity_indices)
 
+    # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
         if not self.lxc.size:
             logging.debug("Language is empty")
