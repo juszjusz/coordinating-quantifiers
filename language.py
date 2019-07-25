@@ -24,13 +24,11 @@ from gibberish import Gibberish
 
 
 class Language(Perception):
-
     gibberish = Gibberish()
 
     def __init__(self):
         Perception.__init__(self)
         self.lexicon = []
-        self.lxc = empty(shape=(0, 0))
         self.__lxc = AssociativeMatrix()
 
     def add_new_word(self):
@@ -40,7 +38,6 @@ class Language(Perception):
 
     def add_word(self, word):
         self.lexicon.append(word)
-        self.lxc = row_stack((self.lxc, zeros(self.lxc.shape[1])))
         self.__lxc.add_row()
 
     def add_category(self, stimulus, weight=0.5):
@@ -49,11 +46,8 @@ class Language(Perception):
         c.add_reactive_unit(ReactiveUnit(stimulus), weight)
         self.categories.append(c)
         # TODO this should work
-        self.lxc = column_stack((self.lxc, zeros(self.lxc.shape[0])))
         self.__lxc.add_col()
-        col_count = self.__lxc.col_count()
-        assert col_count - 1 == self.lxc.shape[1] - 1
-        return self.lxc.shape[1] - 1  # this is the index of the added category
+        return self.__lxc.col_count() - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
         # print("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
@@ -63,18 +57,12 @@ class Language(Perception):
         if category is None:
             raise ERROR
 
-        x = not self.lexicon or all(v == 0 for v in self.lxc[0::, category])
-        y = not self.lexicon or all(v == 0 for v in self.__lxc.get_row_by_col(category))
-        # if x != y:
-        assert x == y
-        if not self.lexicon or all(v == 0 for v in self.lxc[0::, category]):
+        if not self.lexicon or all(v == 0 for v in self.__lxc.get_row_by_col(category)):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
         # TODO performance?
-        word_propensities = self.lxc[0::, category]
-        word_propensities2 = self.__lxc.get_row_by_col(category)
-        assert array_equal(word_propensities, word_propensities2)
+        word_propensities = self.__lxc.get_row_by_col(category)
         max_propensity = max(word_propensities)
         max_propensity_indices = [i for i, j in enumerate(word_propensities) if j == max_propensity]
         return self.lexicon[choice(max_propensity_indices)]
@@ -86,9 +74,7 @@ class Language(Perception):
         if word not in self.lexicon:
             raise NO_SUCH_WORD
         word_index = self.lexicon.index(word)
-        propensities = self.lxc[word_index, 0::]
-        propensities2 = self.__lxc.get_col_by_row(word_index)
-        assert array_equal(propensities, propensities2)
+        propensities = self.__lxc.get_col_by_row(word_index)
         max_propensity = max(propensities)
 
         # TODO still happens
@@ -104,18 +90,16 @@ class Language(Perception):
         self.__lxc.set_value(word_index, category_index, .5)
 
     def increment_word2category_connection(self, word_index, category_index):
-        self.lxc[word_index, category_index] += 0.1 * self.lxc[word_index, category_index]
         value = self.__lxc.get_value(word_index, category_index)
         self.__lxc.set_value(word_index, category_index, value + .1 * value)
 
     def decrement_word2category_connection(self, word_index, category_index):
-        self.lxc[word_index, category_index] -= 0.1 * self.lxc[word_index, category_index]
         value = self.__lxc.get_value(word_index, category_index)
         self.__lxc.set_value(word_index, category_index, value - .1 * value)
 
     # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
-        if not self.lxc.size:
+        if not self.__lxc.size():
             logging.debug("Language is empty")
             return
         if mode == 'Franek':
@@ -124,11 +108,11 @@ class Language(Perception):
                 forms_to_categories[f] = []
             for c in self.categories:
                 j = self.categories.index(c)
-                m = max(self.lxc[0::, j])
+                m = max(self.__lxc.get_row_by_col(j))
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [i for i, w in enumerate(self.lxc[0::, j]) if w == m]
+                    max_form_indices = [i for i, w in enumerate(self.__lxc.get_row_by_col(j)) if w == m]
                     form = self.lexicon[max_form_indices[0]]
                     forms_to_categories[form].append(j)
 
@@ -220,3 +204,6 @@ class AssociativeMatrix():
 
     def set_value(self, row, col, value):
         self.matrix[row][col] = value
+
+    def size(self):
+        return self.size()

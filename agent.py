@@ -44,7 +44,6 @@ class Agent(Language):
             self.cs_scores.append(int(result))
 
     def learn_word_category(self, word, category_index):
-        self.lxc[self.lexicon.index(word), category_index] = 0.5
         self.initialize_word2category_connection(self.lexicon.index(word), category_index)
 
     # def learn_word_topic(self, word: str, context: list, topic: int):
