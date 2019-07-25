@@ -1,5 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 import logging, sys
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from agent import Population
 from guessing_game import GuessingGame
@@ -36,16 +38,14 @@ class Simulation:
                 result = game.play()
 
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
-                super(Language, speaker).plot("./simulation_results/cats/categories%d_%d" % (speaker.id, step))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
-                super(Language, hearer).plot("./simulation_results/cats/categories%d_%d" % (hearer.id, step))
-                speaker.plot(filename="./simulation_results/langs/language%d_%d.png" % (speaker.id, step))
-                hearer.plot(filename="./simulation_results/langs/language%d_%d.png" % (hearer.id, step))
                 self.data.store_ds_result(speaker.id, speaker.discriminative_success)
                 self.data.store_ds_result(hearer.id, hearer.discriminative_success)
                 self.data.store_cs_result(result)
 
-            self.data.store_languages(population.agents)
+            self.data.store_matrices(population.agents)
+            self.data.store_langs(population.agents)
+            self.data.store_cats(population.agents)
             ds.append(self.data.get_ds())
             cs.append(self.data.get_cs())
 
@@ -64,7 +64,9 @@ class Simulation:
             plt.savefig("./simulation_results/success.pdf")
             plt.close()
 
-        self.data.plot_languages()
+        self.data.plot_matrices()  # saves language matrices to ./simulation_results/matrices
+        self.data.plot_langs()  # saves languages to ./simulation_results/langs
+        self.data.plot_cats()  # saves categories to ./simulation_results/cats
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)

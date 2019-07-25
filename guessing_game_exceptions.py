@@ -20,6 +20,11 @@ class NO_SUCH_WORD(LanguageError):
     pass
 
 
+# agent has not associated categories with a word
+class NO_ASSOCIATED_CATEGORIES(LanguageError):
+    pass
+
+
 # agent has no categories
 class NO_CATEGORY(PerceptionError):
     pass

@@ -1,7 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
 
-from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR
+from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
 from perception import ReactiveUnit
@@ -80,14 +80,13 @@ class Language(Perception):
         # TODO still happens
         if max_propensity == 0:
             logging.debug("\"%s\" has no associated categories" % word)
-            logging.debug("category propensities: ")
-            logging.debug(propensities)
-            raise Exception("no associated categories")
+            raise NO_ASSOCIATED_CATEGORIES
 
         max_propensity_indices = [i for i, j in enumerate(propensities) if j == max_propensity]
         # TODO random choice?
         return choice(max_propensity_indices)
 
+    # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
         if not self.lxc.size:
             logging.debug("Language is empty")
