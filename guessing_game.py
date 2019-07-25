@@ -9,7 +9,7 @@ from random import choice
 
 class GuessingGame:
 
-    def __init__(self, speaker, hearer):
+    def __init__(self):
         self.completed = False
         self.context = [Stimulus(), Stimulus()]
         while not Perception.noticeable_difference(self.context[0], self.context[1]):
