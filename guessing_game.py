@@ -10,22 +10,15 @@ from random import choice
 class GuessingGame:
 
     def __init__(self, speaker, hearer):
-        self.speaker = speaker
-        self.hearer = hearer
         self.completed = False
         self.context = [Stimulus(), Stimulus()]
         while not Perception.noticeable_difference(self.context[0], self.context[1]):
             self.context = [Stimulus(), Stimulus()]
         self.topic = choice([0, 1])
-        self.hearer_topic = None
-        self.speaker_category = None
-        self.speaker_word = None
-        self.hearer_category = None
-        self.hearer_word = None
         self.exception_handler = ExceptionHandler()
 
     # guessing game
-    def play(self):
+    def play(self, speaker, hearer):
         logging.debug("--")
         logging.debug(
             "Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a / self.context[0].b))
@@ -33,70 +26,76 @@ class GuessingGame:
             "Stimulus 2: %d/%d = %f" % (self.context[1].a, self.context[1].b, self.context[1].a / self.context[1].b))
         logging.debug("topic = %d" % (self.topic + 1))
 
+        hearer_topic = None
+        speaker_category = None
+        speaker_word = None
+        hearer_category = None
+
         try:
-            self.speaker_category = self.speaker.discrimination_game(self.context, self.topic)
-            self.speaker_word = self.speaker.get_word(self.speaker_category)
-            self.hearer_category = self.hearer.get_category(word=self.speaker_word)
-            self.hearer_topic = self.hearer.get_topic(context=self.context, category=self.hearer_category)
+            speaker_category = speaker.discrimination_game(self.context, self.topic)
+            speaker_word = speaker.get_word(speaker_category)
+            hearer_category = hearer.get_category(word=speaker_word)
+            hearer_topic = hearer.get_topic(context=self.context, category=hearer_category)
             self.completed = True
         except NO_CATEGORY:
-            self.exception_handler.on_NO_CATEGORY(agent=self.speaker, context=self.context, topic=self.topic)
+            self.exception_handler.on_NO_CATEGORY(agent=speaker, context=self.context, topic=self.topic)
         except NO_NOTICEABLE_DIFFERENCE:
             self.exception_handler.on_NO_NOTICEABLE_DIFFERENCE()
         except NO_POSITIVE_RESPONSE_1:
-            self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=self.speaker, agent_category=self.speaker_category,
+            self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=speaker, agent_category=speaker_category,
                                                              context=self.context)
         except NO_POSITIVE_RESPONSE_2:
-            self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=self.speaker, agent_category=self.speaker_category,
+            self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=speaker, agent_category=speaker_category,
                                                              context=self.context)
         except NO_DISCRIMINATION_LOWER_1:
-            self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=self.speaker,
-                                                                agent_category=self.speaker_category,
+            self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=speaker,
+                                                                agent_category=speaker_category,
                                                                 context=self.context)
         except NO_DISCRIMINATION_LOWER_2:
-            self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=self.speaker,
-                                                                agent_category=self.speaker_category,
+            self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker,
+                                                                agent_category=speaker_category,
                                                                 context=self.context)
         except NO_WORD_FOR_CATEGORY:
-            self.exception_handler.on_NO_WORD_FOR_CATEGORY(agent=self.speaker, agent_category=self.speaker_category)
+            self.exception_handler.on_NO_WORD_FOR_CATEGORY(agent=speaker, agent_category=speaker_category)
         except NO_ASSOCIATED_CATEGORIES:
             self.exception_handler.on_NO_ASSOCIATED_CATEGORIES(context=self.context,
                                                                topic=self.topic,
-                                                               hearer=self.hearer,
-                                                               speaker_word=self.speaker_word)
+                                                               hearer=hearer,
+                                                               speaker_word=speaker_word)
         except NO_DIFFERENCE_FOR_CATEGORY:
-            self.hearer_category = self.exception_handler.on_NO_DIFFERENCE_FOR_CATEGORY(hearer=self.hearer,
+            hearer_category = self.exception_handler.on_NO_DIFFERENCE_FOR_CATEGORY(hearer=hearer,
                                                                                         context=self.context,
                                                                                         topic=self.topic,
-                                                                                        speaker_word=self.speaker_word)
+                                                                                        speaker_word=speaker_word)
         except NO_SUCH_WORD:
-            self.hearer_category = self.exception_handler.on_NO_SUCH_WORD(agent=self.hearer, context=self.context,
+            hearer_category = self.exception_handler.on_NO_SUCH_WORD(agent=hearer, context=self.context,
                                                                           topic=self.topic,
-                                                                          speaker_word=self.speaker_word)
+                                                                          speaker_word=speaker_word)
         except ERROR:
             self.exception_handler.on_LANGUAGE_ERROR()
 
         # logging.debug("discrimination success" if error == Agent.Error.NO_ERROR else "discrimination failure")
 
-        success = self.topic == self.hearer_topic
+        success = self.topic == hearer_topic
 
         if self.completed and success:
             logging.debug("guessing game success!")
-            self.speaker.store_cs_result(Agent.Result.SUCCESS)
-            self.hearer.store_cs_result(Agent.Result.SUCCESS)
+            speaker.store_cs_result(Agent.Result.SUCCESS)
+            hearer.store_cs_result(Agent.Result.SUCCESS)
         else:
             logging.debug("guessing game failed!")
-            self.speaker.store_cs_result(Agent.Result.FAILURE)
-            self.hearer.store_cs_result(Agent.Result.FAILURE)
+            speaker.store_cs_result(Agent.Result.FAILURE)
+            hearer.store_cs_result(Agent.Result.FAILURE)
 
         if self.completed:
-            self.speaker.update(success=success, role=Agent.Role.SPEAKER,
-                                word=self.speaker_word, category=self.speaker_category)
-            self.hearer.update(success=success, role=Agent.Role.HEARER,
-                               word=self.speaker_word, category=self.hearer_category)
+            speaker.update(success=success, role=Agent.Role.SPEAKER,
+                                word=speaker_word, category=speaker_category)
+            hearer.update(success=success, role=Agent.Role.HEARER,
+                               word=speaker_word, category=hearer_category)
 
         # TODO stage 7
         # print('goto to stage 7')
+        
         return self.completed and success
 
     def get_stats(self):

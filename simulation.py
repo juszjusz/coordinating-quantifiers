@@ -35,7 +35,7 @@ class Simulation:
             for speaker, hearer in selected_pairs:
                 game = GuessingGame(speaker=speaker, hearer=hearer)
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
-                result = game.play()
+                result = game.play(speaker, hearer)
 
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
