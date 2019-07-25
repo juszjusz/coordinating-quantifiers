@@ -94,3 +94,16 @@ class Agent(Language):
 
         elif not success:
             self.decrement_word2category_connection(i, c)
+
+    # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
+    def select_word(self, category):
+        threshold = 0
+        words_by_category = self.get_words(category=category)
+
+        if len(words_by_category) == 1:
+            return words_by_category[0]
+
+        word1, word2 = words_by_category[0], words_by_category[1]
+        categories1 = self.get_categories_above_threshold(word=word1, threshold=threshold)
+        categories2 = self.get_categories_above_threshold(word=word2, threshold=threshold)
+        return word1 if len(categories1) > len(categories2) else word2

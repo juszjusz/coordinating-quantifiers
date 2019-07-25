@@ -29,7 +29,7 @@ class Language(Perception):
     def __init__(self):
         Perception.__init__(self)
         self.lexicon = []
-        self.__lxc = AssociativeMatrix()
+        self.lxc = AssociativeMatrix()
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -38,7 +38,7 @@ class Language(Perception):
 
     def add_word(self, word):
         self.lexicon.append(word)
-        self.__lxc.add_row()
+        self.lxc.add_row()
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
@@ -46,26 +46,34 @@ class Language(Perception):
         c.add_reactive_unit(ReactiveUnit(stimulus), weight)
         self.categories.append(c)
         # TODO this should work
-        self.__lxc.add_col()
-        return self.__lxc.col_count() - 1  # this is the index of the added category
+        self.lxc.add_col()
+        return self.lxc.col_count() - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
         # print("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
         self.categories[i].add_reactive_unit(stimulus)
 
     def get_word(self, category):
+        return self.get_words(category)[0]
+
+    def get_words(self, category):
         if category is None:
             raise ERROR
 
-        if not self.lexicon or all(v == 0 for v in self.__lxc.get_row_by_col(category)):
+        if not self.lexicon or all(v == 0 for v in self.lxc.get_row_by_col(category)):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
         # TODO performance?
-        word_propensities = self.__lxc.get_row_by_col(category)
-        max_propensity = max(word_propensities)
-        max_propensity_indices = [i for i, j in enumerate(word_propensities) if j == max_propensity]
-        return self.lexicon[choice(max_propensity_indices)]
+        # https://stackoverflow.com/questions/1286167/is-the-order-of-results-coming-from-a-list-comprehension-guaranteed/1286180
+        return [self.lexicon[index] for index, _ in self.lxc.get_index2row_sorted_by_value(category)]
+
+    def get_categories(self, word):
+        word_index = self.lexicon.index(word)
+        return self.lxc.get_index2col_sorted_by_value(word_index)
+
+    def get_categories_above_threshold(self, word, threshold):
+        return list(filter(lambda category2propensity: category2propensity[1] > threshold, self.get_categories(word)))
 
     def get_category(self, word):
         if word is None:
@@ -73,33 +81,31 @@ class Language(Perception):
 
         if word not in self.lexicon:
             raise NO_SUCH_WORD
-        word_index = self.lexicon.index(word)
-        propensities = self.__lxc.get_col_by_row(word_index)
-        max_propensity = max(propensities)
+
+        # word_index = self.lexicon.index(word)
+        index, max_propensity = self.get_categories(word)[0]
 
         # TODO still happens
         if max_propensity == 0:
             logging.debug("\"%s\" has no associated categories" % word)
             raise NO_ASSOCIATED_CATEGORIES
 
-        max_propensity_indices = [i for i, j in enumerate(propensities) if j == max_propensity]
-        # TODO random choice?
-        return choice(max_propensity_indices)
+        return index
 
     def initialize_word2category_connection(self, word_index, category_index):
-        self.__lxc.set_value(word_index, category_index, .5)
+        self.lxc.set_value(word_index, category_index, .5)
 
     def increment_word2category_connection(self, word_index, category_index):
-        value = self.__lxc.get_value(word_index, category_index)
-        self.__lxc.set_value(word_index, category_index, value + .1 * value)
+        value = self.lxc.get_value(word_index, category_index)
+        self.lxc.set_value(word_index, category_index, value + .1 * value)
 
     def decrement_word2category_connection(self, word_index, category_index):
-        value = self.__lxc.get_value(word_index, category_index)
-        self.__lxc.set_value(word_index, category_index, value - .1 * value)
+        value = self.lxc.get_value(word_index, category_index)
+        self.lxc.set_value(word_index, category_index, value - .1 * value)
 
     # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
-        if not self.__lxc.size():
+        if not self.lxc.size():
             logging.debug("Language is empty")
             return
         if mode == 'Franek':
@@ -108,11 +114,11 @@ class Language(Perception):
                 forms_to_categories[f] = []
             for c in self.categories:
                 j = self.categories.index(c)
-                m = max(self.__lxc.get_row_by_col(j))
+                m = max(self.lxc.get_row_by_col(j))
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [i for i, w in enumerate(self.__lxc.get_row_by_col(j)) if w == m]
+                    max_form_indices = [i for i, w in enumerate(self.lxc.get_row_by_col(j)) if w == m]
                     form = self.lexicon[max_form_indices[0]]
                     forms_to_categories[form].append(j)
 
@@ -190,8 +196,20 @@ class AssociativeMatrix():
     def get_row_by_col(self, column):
         return self.matrix[0::, column]
 
+    # returns row vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
+    def get_index2row_sorted_by_value(self, column):
+        indices = range(self.row_count())
+        row = self.get_row_by_col(column)
+        return sorted(zip(indices, row), key=lambda index2row: index2row[1], reverse=True)
+
     def get_col_by_row(self, row):
         return self.matrix[row, 0::]
+
+    # returns col vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
+    def get_index2col_sorted_by_value(self, row):
+        indices = range(self.col_count())
+        col = self.get_col_by_row(row)
+        return sorted(zip(indices, col), key=lambda index2col: index2col[1], reverse=True)
 
     def col_count(self):
         return self.matrix.shape[1]

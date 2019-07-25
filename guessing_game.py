@@ -89,13 +89,24 @@ class GuessingGame:
 
         if self.completed:
             speaker.update(success=success, role=Agent.Role.SPEAKER,
-                                word=speaker_word, category=speaker_category)
+                           word=speaker_word, category=speaker_category)
             hearer.update(success=success, role=Agent.Role.HEARER,
-                               word=speaker_word, category=hearer_category)
+                          word=speaker_word, category=hearer_category)
 
-        # TODO stage 7
-        # print('goto to stage 7')
-        
+        # STAGE 7
+        if not success:
+            try:
+                word = hearer.select_word(category=hearer_category)
+                success = word == speaker_word
+                if success:
+                    pass  # TODO update word2category connection
+            except PerceptionError:
+                # TODO handle discrimination_game exception
+                pass
+            except LanguageError:
+                # TODO handle discrimination_game exception
+                pass
+
         return self.completed and success
 
     def get_stats(self):

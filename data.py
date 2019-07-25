@@ -82,17 +82,17 @@ class Data:
             self.langs[i].append([])
             a = agents[i]
             forms_to_categories = {}
-            if not a.lxc.size:
+            if not a.lxc.matrix.size:
                 continue
             for f in a.lexicon:
                 forms_to_categories[f] = []
             for c in a.categories:
                 j = a.categories.index(c)
-                m = max(a.lxc[0::, j])
+                m = max(a.lxc.matrix[0::, j])
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [i for i, w in enumerate(a.lxc[0::, j]) if w == m]
+                    max_form_indices = [i for i, w in enumerate(a.lxc.matrix[0::, j]) if w == m]
                     form = a.lexicon[max_form_indices[0]]
                     forms_to_categories[form].append(j)
 
@@ -108,7 +108,7 @@ class Data:
     def store_matrices(self, agents):
         for i in range(len(agents)):
             lex = agents[i].lexicon
-            lxc = agents[i].lxc
+            lxc = agents[i].lxc.matrix
             self.matrices[i].append((list(lex), array(lxc)))
             if lxc.size:
                 self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
