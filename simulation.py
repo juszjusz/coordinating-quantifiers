@@ -32,6 +32,7 @@ class Simulation:
         for step in range(self.params["steps"]):
             logging.debug("\n------------\nSTEP %d" % step)
             selected_pairs = population.select_pairs_per_round(self.params['population_size']//2)
+
             for speaker, hearer in selected_pairs:
                 game = GuessingGame(speaker=speaker, hearer=hearer)
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
@@ -64,9 +65,7 @@ class Simulation:
             plt.savefig("./simulation_results/success.pdf")
             plt.close()
 
-        self.data.plot_matrices()  # saves language matrices to ./simulation_results/matrices
-        self.data.plot_langs()  # saves languages to ./simulation_results/langs
-        self.data.plot_cats()  # saves categories to ./simulation_results/cats
+            self.data.pickle(step, population.agents)
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)

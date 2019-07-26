@@ -9,20 +9,24 @@ from numpy import amax
 from collections import deque
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
+import pickle
 
-line_styles = {0: '-',
-               1: ':',
-               2: '--',
-               3: '-.',
-               4: '.',
-               5: ',',
-               6: 'o'}
+line_styles = {0: 'solid',
+               1: 'dotted',
+               2: 'dashed',
+               3: 'dashdot',
+               4: 'loosely dotted',
+               5: 'loosely dashed',
+               6: 'densely dashed',
+               7: 'loosely dashdotted'}
+
 
 class Data:
 
-    def __init__(self, population_size):
+    def __init__(self, population_size, pickle_mode=True):
+        self.pickle_mode = pickle_mode
         self._population_size_ = population_size
-        self._max_weight_ = {a: .0 for a in range(population_size)}
+        # self._max_weight_ = {a: .0 for a in range(population_size)}
         self.ds_per_agent = [.0 for a in range(population_size)]
         self.cs_scores = deque([0])  # {a: deque([0]) for a in range(population_size)}
         self.matrices = {a: [] for a in range(population_size)}
@@ -31,8 +35,26 @@ class Data:
         self.x_left = 0
         self.x_right = 100
         self.x = linspace(self.x_left, self.x_right, 20 * (self.x_right - self.x_left), False)
-        # self.ds = []
-        # self.cs = []
+        self.step = 0
+        self.pickle_step = 10
+        self.pickle_count = 0
+        self._shape_ = {}
+
+    def pickle(self, step, agents):
+        self.step = step
+        if self.pickle_mode and (step + 1) % self.pickle_step == 0:
+            # for i in range(self._population_size_):
+            #     lxc = agents[i].lxc
+            #     if lxc.size:
+            #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
+            shapes = {i: agents[i].lxc.shape for i in range(self._population_size_)}
+            pickle.dump(shapes, open("./simulation_results/data/info.p", "wb"))
+
+            pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"))
+            self.pickle_count = self.pickle_count + 1
+            self.matrices = {a: [] for a in range(self._population_size_)}
+            self.langs = {a: [] for a in range(self._population_size_)}
+            self.cats = {a: [] for a in range(self._population_size_)}
 
     def store_ds_result(self, agent_index, ds):
         self.ds_per_agent[agent_index] = ds
@@ -57,7 +79,7 @@ class Data:
             for cat_index in range(len(a.categories)):
                 self.cats[i][-1].append([a.categories[cat_index].fun(x_0) for x_0 in self.x])
 
-    def plot_cats(self):
+    def plot_all_cats(self):
         for i in range(len(self.cats)):
             for step in range(len(self.cats[i])):
                 plt.title("categories")
@@ -74,7 +96,7 @@ class Data:
                              label="%d" % (j + 1))
                 plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
                 plt.tight_layout(pad=0)
-                plt.savefig("./simulation_results/cats/categories%d_%d" % (i, step))
+                plt.savefig("./simulation_results/cats/categories%d_%d" % (i, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
                 plt.close()
 
     def store_langs(self, agents):
@@ -92,10 +114,9 @@ class Data:
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [i for i, w in enumerate(a.lxc[0::, j]) if w == m]
+                    max_form_indices = [ind for ind, w in enumerate(a.lxc[0::, j]) if w == m]
                     form = a.lexicon[max_form_indices[0]]
                     forms_to_categories[form].append(j)
-
             for w in range(len(a.lexicon)):
                 f = a.lexicon[w]
                 if len(forms_to_categories[f]) == 0:
@@ -109,24 +130,26 @@ class Data:
         for i in range(len(agents)):
             lex = agents[i].lexicon
             lxc = agents[i].lxc
+            self._shape_[i] = lxc.shape
             self.matrices[i].append((list(lex), array(lxc)))
-            if lxc.size:
-                self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
+            # if lxc.size:
+            #     self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
 
-    def plot_matrices(self):
-        for l in range(len(self.matrices)):
-            n_rows = self.matrices[l][-1][1].shape[0]
-            n_cols = self.matrices[l][-1][1].shape[1]
+    def plot_all_matrices(self):
+        print("printing matrices")
+        for l in range(self._population_size_):
+            n_rows = self._shape_[l][0]
+            n_cols = self._shape_[l][1]
             for m in range(len(self.matrices[l])):
                 if not self.matrices[l][m][1].size:
                     continue
                 n_categories = self.matrices[l][m][1].shape[1]
                 n_forms = len(self.matrices[l][m][0])
                 #lxc = self.languages[l][m][1].resize((n_rows, n_cols), refcheck=False)
-                lxc = zeros((n_rows, n_cols))
+                lxc = zeros(self._shape_[l])
                 lxc[0:n_forms, 0:n_categories] = self.matrices[l][m][1]
                 fig, ax = plt.subplots()
-                lxc_ex = column_stack((lxc, linspace(self._max_weight_[l], 0, n_rows)))
+                lxc_ex = column_stack((lxc, linspace(amax(lxc), 0, n_rows)))
                 im = ax.imshow(lxc_ex)
                 lexicon = self.matrices[l][m][0]
                 # We want to show all ticks...
@@ -136,27 +159,27 @@ class Data:
                 x_tick_labels = [str(j + 1) for j in arange(n_categories)]
                 for t in range(n_categories,n_cols):
                     x_tick_labels.append('-')
-                x_tick_labels.append("scale")
+                x_tick_labels.append("s")
                 ax.set_xticklabels(x_tick_labels)
                 for t in range(len(lexicon), n_rows):
                     x_tick_labels.append('-')
                 ax.set_yticklabels(lexicon)
                 # Rotate the tick labels and set their alignment.
-                plt.setp(ax.get_xticklabels(), rotation=0, ha="right",
+                plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
                          rotation_mode="anchor")
-                for i in range(len(lexicon)):
-                    for j in range(n_categories):
-                        text = ax.text(j, i, round(lxc_ex[i, j], 3),
-                                       ha="center", va="center", color="w")
-                for i in range(n_rows):
-                    ax.text(n_cols, i, round(lxc_ex[i, n_cols], 2), ha="center", va="center", color="w")
+                # for i in range(len(lexicon)):
+                #     for j in range(n_categories):
+                #         text = ax.text(j, i, round(lxc_ex[i, j], 3),
+                #                        ha="center", va="center", color="w")
+                # for i in range(n_rows):
+                #     ax.text(n_cols, i, round(lxc_ex[i, n_cols], 2), ha="center", va="center", color="w")
 
                 ax.set_title("Association matrix")
                 fig.tight_layout()
-                plt.savefig("./simulation_results/matrices/matrix%d_%d" % (l, m))
+                plt.savefig("./simulation_results/matrices/matrix%d_%d" % (l, m if not self.pickle_mode else self.step - self.pickle_step + m + 1))
                 plt.close()
 
-    def plot_langs(self):
+    def plot_all_langs(self):
         for i in range(len(self.langs)):
             # sns.set_palette(colors)
             for step in range(len(self.langs[i])):
@@ -178,8 +201,43 @@ class Data:
                     plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
                 plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
                 plt.tight_layout(pad=0)
-                plt.savefig("./simulation_results/langs/language%d_%d.png" % (i, step))
+                plt.savefig("./simulation_results/langs/language%d_%d.png" % (i, step if not self.pickle_mode else self.step - self.pickle_step + step+1))
                 plt.close()
+
+    @staticmethod
+    def plot_matrices():
+        d = 0
+        shape = pickle.load(open("./simulation_results/data/info.p", "rb"))
+        while True:
+            try:
+                data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
+            except Exception:
+                break
+            data._shape_ = shape
+            data.plot_all_matrices()
+            d = d + 1
+
+    @staticmethod
+    def plot_cats():
+        d = 0
+        while True:
+            try:
+                data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
+            except Exception:
+                break
+            data.plot_all_cats()
+            d = d + 1
+
+    @staticmethod
+    def plot_langs():
+        d = 0
+        while True:
+            try:
+                data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
+            except Exception:
+                break
+            data.plot_all_langs()
+            d = d + 1
 
 
 class RoundStatistics:
