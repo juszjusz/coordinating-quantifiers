@@ -44,7 +44,7 @@ class Agent(Language):
             self.cs_scores.append(int(result))
 
     def learn_word_category(self, word, category_index):
-        self.lxc[self.lexicon.index(word), category_index] = 0.5
+        self.initialize_word2category_connection(self.lexicon.index(word), category_index)
 
     # def learn_word_topic(self, word: str, context: list, topic: int):
     #     c_j = self.discriminate(context, topic)
@@ -81,16 +81,32 @@ class Agent(Language):
         i = self.lexicon.index(word)
         c = category
         if success and role == self.Role.SPEAKER:
-            self.lxc[i, c] = self.lxc[i, c] + 0.1 * self.lxc[i, c]
+            self.increment_word2category_connection(i, c)
             for k in range(len(self.categories)):
                 if k != c:
-                    self.lxc[i, k] = self.lxc[i, k] - 0.1 * self.lxc[i, k]
+                    self.decrement_word2category_connection(i, k)
 
         elif success and role == self.Role.HEARER:
-            self.lxc[i, c] = self.lxc[i, c] + 0.1 * self.lxc[i, c]
+            self.increment_word2category_connection(i, c)
             for j in range(len(self.lexicon)):
                 if j != i:
-                    self.lxc[j, c] = self.lxc[j, c] - 0.1 * self.lxc[j, c]
+                    self.decrement_word2category_connection(j, c)
 
         elif not success:
-            self.lxc[i, c] = self.lxc[i, c] - 0.1 * self.lxc[i, c]
+            self.decrement_word2category_connection(i, c)
+
+    # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
+    def select_word(self, category):
+        threshold = .005 # todo
+        words_by_category = self.get_words(category=category)
+
+        if len(words_by_category) == 1:
+            return words_by_category[0]
+
+        word0 = words_by_category[0]
+        word1 = words_by_category[1]
+
+        categories0 = list(filter(lambda cat2propensity: cat2propensity[1] > threshold, self.get_categories(word0)))
+        categories1 = list(filter(lambda cat2propensity: cat2propensity[1] > threshold, self.get_categories(word1)))
+
+        return word0 if len(categories0) > len(categories1) else word1

@@ -47,7 +47,7 @@ class Data:
             #     lxc = agents[i].lxc
             #     if lxc.size:
             #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
-            shapes = {i: agents[i].lxc.shape for i in range(self._population_size_)}
+            shapes = {i: agents[i].lxc.matrix.shape for i in range(self._population_size_)}
             pickle.dump(shapes, open("./simulation_results/data/info.p", "wb"))
 
             pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"))
@@ -104,17 +104,17 @@ class Data:
             self.langs[i].append([])
             a = agents[i]
             forms_to_categories = {}
-            if not a.lxc.size:
+            if not a.lxc.matrix.size:
                 continue
             for f in a.lexicon:
                 forms_to_categories[f] = []
             for c in a.categories:
                 j = a.categories.index(c)
-                m = max(a.lxc[0::, j])
+                m = max(a.lxc.matrix[0::, j])
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [ind for ind, w in enumerate(a.lxc[0::, j]) if w == m]
+                    max_form_indices = [i for i, w in enumerate(a.lxc.matrix[0::, j]) if w == m]
                     form = a.lexicon[max_form_indices[0]]
                     forms_to_categories[form].append(j)
             for w in range(len(a.lexicon)):
@@ -129,7 +129,7 @@ class Data:
     def store_matrices(self, agents):
         for i in range(len(agents)):
             lex = agents[i].lexicon
-            lxc = agents[i].lxc
+            lxc = agents[i].lxc.matrix
             self._shape_[i] = lxc.shape
             self.matrices[i].append((list(lex), array(lxc)))
             # if lxc.size:

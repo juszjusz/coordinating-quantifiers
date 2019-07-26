@@ -34,9 +34,9 @@ class Simulation:
             selected_pairs = population.select_pairs_per_round(self.params['population_size']//2)
 
             for speaker, hearer in selected_pairs:
-                game = GuessingGame(speaker=speaker, hearer=hearer)
+                game = GuessingGame()
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
-                result = game.play()
+                result = game.play(speaker=speaker, hearer=hearer)
 
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
