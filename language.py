@@ -72,9 +72,6 @@ class Language(Perception):
         word_index = self.lexicon.index(word)
         return self.lxc.get_index2col_sorted_by_value(word_index)
 
-    def get_categories_above_threshold(self, word, threshold):
-        return list(filter(lambda category2propensity: category2propensity[1] > threshold, self.get_categories(word)))
-
     def get_category(self, word):
         if word is None:
             raise ERROR

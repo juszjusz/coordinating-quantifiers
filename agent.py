@@ -97,13 +97,16 @@ class Agent(Language):
 
     # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
     def select_word(self, category):
-        threshold = 0
+        threshold = .005 # todo
         words_by_category = self.get_words(category=category)
 
         if len(words_by_category) == 1:
             return words_by_category[0]
 
-        word1, word2 = words_by_category[0], words_by_category[1]
-        categories1 = self.get_categories_above_threshold(word=word1, threshold=threshold)
-        categories2 = self.get_categories_above_threshold(word=word2, threshold=threshold)
-        return word1 if len(categories1) > len(categories2) else word2
+        word0 = words_by_category[0]
+        word1 = words_by_category[1]
+
+        categories0 = list(filter(lambda cat2propensity: cat2propensity[1] > threshold, self.get_categories(word0)))
+        categories1 = list(filter(lambda cat2propensity: cat2propensity[1] > threshold, self.get_categories(word1)))
+
+        return word0 if len(categories0) > len(categories1) else word1
