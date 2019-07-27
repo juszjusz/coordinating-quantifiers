@@ -57,7 +57,7 @@ class Agent(Language):
     #         return
     #     else:
 
-    def learn_stimulus(self, category, context, n):
+    def learn_stimulus(self, context, n, category=None):
         logging.debug(" learns stimulus %d by " % (n + 1))
         if self.discriminative_success >= Perception.discriminative_threshold and category is not None:
             logging.debug("updating category")

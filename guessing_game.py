@@ -42,19 +42,13 @@ class GuessingGame:
         except NO_NOTICEABLE_DIFFERENCE:
             self.exception_handler.on_NO_NOTICEABLE_DIFFERENCE()
         except NO_POSITIVE_RESPONSE_1:
-            self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=speaker, agent_category=speaker_category,
-                                                             context=self.context)
+            self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=speaker, context=self.context)
         except NO_POSITIVE_RESPONSE_2:
-            self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=speaker, agent_category=speaker_category,
-                                                             context=self.context)
+            self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=speaker, context=self.context)
         except NO_DISCRIMINATION_LOWER_1:
-            self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=speaker,
-                                                                agent_category=speaker_category,
-                                                                context=self.context)
+            self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=speaker, context=self.context)
         except NO_DISCRIMINATION_LOWER_2:
-            self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker,
-                                                                agent_category=speaker_category,
-                                                                context=self.context)
+            self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker, context=self.context)
         except NO_WORD_FOR_CATEGORY:
             self.exception_handler.on_NO_WORD_FOR_CATEGORY(agent=speaker, agent_category=speaker_category)
         except NO_ASSOCIATED_CATEGORIES:
@@ -118,7 +112,7 @@ class ExceptionHandler:
     def on_NO_CATEGORY(self, agent, context, topic):
         logging.debug("no category")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(None, context, topic)
+        agent.learn_stimulus(context, topic)
 
     # TODO wyrzucic?
     # to be move to Speaker Hearer subclass
@@ -126,28 +120,28 @@ class ExceptionHandler:
         logging.debug("no noticeable difference")
         # to be move to Speaker Hearer subclass
 
-    def on_NO_DISCRIMINATION_LOWER_1(self, agent, agent_category, context):
+    def on_NO_DISCRIMINATION_LOWER_1(self, agent, context):
         logging.debug("no discrimination lower 1")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 0)
+        agent.learn_stimulus(context, 0)
 
     # to be move to Speaker Hearer subclass
-    def on_NO_DISCRIMINATION_LOWER_2(self, agent, agent_category, context):
+    def on_NO_DISCRIMINATION_LOWER_2(self, agent, context):
         logging.debug("no discrimination lower 2")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 1)
+        agent.learn_stimulus(context, 1)
 
     # to be move to Speaker Hearer subclass
-    def on_NO_POSITIVE_RESPONSE_1(self, agent, agent_category, context):
+    def on_NO_POSITIVE_RESPONSE_1(self, agent, context):
         logging.debug("no responsive category for stimulus 1")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 0)
+        agent.learn_stimulus(context, 0)
 
     # to be move to Speaker Hearer subclass
-    def on_NO_POSITIVE_RESPONSE_2(self, agent, agent_category, context):
+    def on_NO_POSITIVE_RESPONSE_2(self, agent, context):
         logging.debug("no responsive category for stimulus 2")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 1)
+        agent.learn_stimulus(context, 1)
 
     # to be move to Speaker and Hearer subclass
     def on_LANGUAGE_ERROR(self):
@@ -185,19 +179,19 @@ class ExceptionHandler:
             # TODO do wywalenia?
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=agent, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=agent, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
 
@@ -235,16 +229,16 @@ class ExceptionHandler:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
 
         try:
@@ -275,16 +269,16 @@ class ExceptionHandler:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
 
         logging.debug("Discrimination game failed")
