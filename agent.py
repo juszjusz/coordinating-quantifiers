@@ -95,6 +95,16 @@ class Agent(Language):
         elif not success:
             self.decrement_word2category_connection(i, c)
 
+    def increment_word2category_connections(self, delta = .1, **words2categories):
+        for w, c in words2categories:
+            w_index = self.lexicon.index(w)
+            self.increment_word2category_connection(w_index, c, delta)
+
+    def decrement_word2category_connections(self, delta = .1, **words2categories):
+        for w, c in words2categories:
+            w_index = self.lexicon.index(w)
+            self.increment_word2category_connection(w_index, c, delta)
+
     # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
     def select_word(self, category):
         threshold = .005 # todo
