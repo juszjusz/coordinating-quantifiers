@@ -54,9 +54,6 @@ class Language(Perception):
         self.categories[i].add_reactive_unit(stimulus)
 
     def get_word(self, category):
-        return self.get_words(category)[0]
-
-    def get_words(self, category):
         if category is None:
             raise ERROR
 
@@ -64,7 +61,9 @@ class Language(Perception):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
-        # TODO performance?
+        return self.get_words(category)[0]
+
+    def get_words(self, category):
         # https://stackoverflow.com/questions/1286167/is-the-order-of-results-coming-from-a-list-comprehension-guaranteed/1286180
         return [self.lexicon[index] for index, _ in self.lxc.get_index2row_sorted_by_value(category)]
 
@@ -89,16 +88,19 @@ class Language(Perception):
 
         return index
 
-    def initialize_word2category_connection(self, word_index, category_index):
+    def initialize_word2category_connection(self, word, category_index):
+        word_index = self.lexicon.index(word)
         self.lxc.set_value(word_index, category_index, .5)
 
-    def increment_word2category_connection(self, word_index, category_index):
+    def increment_word2category_connection(self, word, category_index, delta=.1):
+        word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
-        self.lxc.set_value(word_index, category_index, value + .1 * value)
+        self.lxc.set_value(word_index, category_index, value + delta * value)
 
-    def decrement_word2category_connection(self, word_index, category_index):
+    def decrement_word2category_connection(self, word, category_index, delta=.1):
+        word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
-        self.lxc.set_value(word_index, category_index, value - .1 * value)
+        self.lxc.set_value(word_index, category_index, value - delta * value)
 
     # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):

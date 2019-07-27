@@ -26,10 +26,6 @@ class Agent(Language):
         SUCCESS = 1
         FAILURE = 0
 
-    class Role:
-        SPEAKER = 1
-        HEARER = 2
-
     def __init__(self, id):
         Language.__init__(self)
         self.id = id
@@ -44,7 +40,7 @@ class Agent(Language):
             self.cs_scores.append(int(result))
 
     def learn_word_category(self, word, category_index):
-        self.initialize_word2category_connection(self.lexicon.index(word), category_index)
+        self.initialize_word2category_connection(word, category_index)
 
     # def learn_word_topic(self, word: str, context: list, topic: int):
     #     c_j = self.discriminate(context, topic)
@@ -77,46 +73,18 @@ class Agent(Language):
             raise NO_DIFFERENCE_FOR_CATEGORY
         return topic
 
-    def update(self, success, role, word, category):
-        i = self.lexicon.index(word)
-        c = category
-        if success and role == self.Role.SPEAKER:
-            self.increment_word2category_connection(i, c)
-            for k in range(len(self.categories)):
-                if k != c:
-                    self.decrement_word2category_connection(i, k)
-
-        elif success and role == self.Role.HEARER:
-            self.increment_word2category_connection(i, c)
-            for j in range(len(self.lexicon)):
-                if j != i:
-                    self.decrement_word2category_connection(j, c)
-
-        elif not success:
-            self.decrement_word2category_connection(i, c)
-
-    def increment_word2category_connections(self, delta = .1, **words2categories):
-        for w, c in words2categories:
-            w_index = self.lexicon.index(w)
-            self.increment_word2category_connection(w_index, c, delta)
-
-    def decrement_word2category_connections(self, delta = .1, **words2categories):
-        for w, c in words2categories:
-            w_index = self.lexicon.index(w)
-            self.increment_word2category_connection(w_index, c, delta)
-
     # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
     def select_word(self, category):
-        threshold = .005 # todo
+        threshold = .005  # todo
         words_by_category = self.get_words(category=category)
 
-        if len(words_by_category) == 1:
-            return words_by_category[0]
-
         word0 = words_by_category[0]
-        word1 = words_by_category[1]
-
         categories0 = list(filter(lambda cat2propensity: cat2propensity[1] > threshold, self.get_categories(word0)))
+
+        if len(words_by_category) == 1:
+            return word0, categories0
+
+        word1 = words_by_category[1]
         categories1 = list(filter(lambda cat2propensity: cat2propensity[1] > threshold, self.get_categories(word1)))
 
-        return word0 if len(categories0) > len(categories1) else word1
+        return (word0, categories0) if len(categories0) > len(categories1) else (word1, categories1)
