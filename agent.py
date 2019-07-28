@@ -45,7 +45,7 @@ class Agent:
     def discrimination_game(self, context, topic):
         return self.language.discrimination_game(context, topic)
 
-    def discriminative_success(self):
+    def get_discriminative_success(self):
         return self.language.discriminative_success
 
     def get_most_connected_word(self, category):

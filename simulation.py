@@ -40,8 +40,8 @@ class Simulation:
 
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
-                self.data.store_ds_result(speaker.id, speaker.discriminative_success())
-                self.data.store_ds_result(hearer.id, hearer.discriminative_success())
+                self.data.store_ds_result(speaker.id, speaker.get_discriminative_success())
+                self.data.store_ds_result(hearer.id, hearer.get_discriminative_success())
                 self.data.store_cs_result(result)
 
             self.data.store_matrices(population.agents)
