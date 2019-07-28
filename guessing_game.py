@@ -1,6 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
-from agent import Agent
+from agent import Agent, Hearer, Speaker
 from guessing_game_exceptions import *
 from perception import Perception
 from perception import Stimulus
@@ -18,7 +18,7 @@ class GuessingGame:
         self.exception_handler = ExceptionHandler()
 
     # guessing game
-    def play(self, speaker: Agent, hearer: Agent):
+    def play(self, speaker: Speaker, hearer: Hearer):
         logging.debug("--")
         logging.debug(
             "Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a / self.context[0].b))
@@ -33,8 +33,8 @@ class GuessingGame:
 
         try:
             speaker_category = speaker.discrimination_game(self.context, self.topic)
-            speaker_word = speaker.get_word(speaker_category)
-            hearer_category = hearer.get_category(word=speaker_word)
+            speaker_word = speaker.get_most_connected_word(speaker_category)
+            hearer_category = hearer.get_most_connected_category(speaker_word)
             hearer_topic = hearer.get_topic(context=self.context, category=hearer_category)
             self.completed = True
         except NO_CATEGORY:
@@ -77,18 +77,11 @@ class GuessingGame:
             speaker.store_cs_result(Agent.Result.SUCCESS)
             hearer.store_cs_result(Agent.Result.SUCCESS)
 
-            speaker.increment_word2category_connection(word=speaker_word, category_index=speaker_category)
-            for k_index, _ in speaker.get_categories(speaker_word):
-                if k_index != speaker_category:
-                    speaker.decrement_word2category_connection(word=speaker_word, category_index=k_index)
-
-            hearer.increment_word2category_connection(word=speaker_word, category_index=hearer_category)
-            for v in hearer.get_words(hearer_category):
-                if v != speaker_word:
-                    hearer.decrement_word2category_connection(word=v, category_index=hearer_category)
+            speaker.update_on_success(speaker_word, speaker_category)
+            hearer.update_on_success(speaker_word, hearer_category)
         elif self.completed:
-            hearer.decrement_word2category_connection(speaker_word, hearer_category)
-            speaker.decrement_word2category_connection(speaker_word, speaker_category)
+            hearer.update_on_failure(speaker_word, hearer_category)
+            speaker.update_on_failure(speaker_word, speaker_category)
 
         # STAGE 7
         if self.completed and not success:
@@ -96,9 +89,8 @@ class GuessingGame:
             success = word == speaker_word
 
             if success:
-                speaker.increment_word2category_connection(speaker_word, speaker_category)
-                for c_index, _ in word_categories:
-                    hearer.increment_word2category_connection(word, c_index)
+                speaker.update_on_success_stage7(speaker_word, speaker_category)
+                hearer.update_on_success_stage7(word, word_categories)
 
         success_result = self.completed and success
 
@@ -154,7 +146,7 @@ class ExceptionHandler:
         pass
 
     # to be move to Speaker subclass
-    def on_NO_WORD_FOR_CATEGORY(self, agent, agent_category):
+    def on_NO_WORD_FOR_CATEGORY(self, agent: Speaker, agent_category):
         logging.debug("%s(%d) has no word for his category" % (agent, agent.id))
         new_word = agent.add_new_word()
         # TODO speaker_word instead new_word_index?
@@ -163,7 +155,7 @@ class ExceptionHandler:
         logging.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.id, new_word))
 
     # to be move to Hearer subclass
-    def on_NO_SUCH_WORD(self, agent, context, topic, speaker_word):
+    def on_NO_SUCH_WORD(self, agent: Hearer, context, topic, speaker_word):
         logging.debug("Hearer(%d) adds word \"%s\"" % (agent.id, speaker_word))
         agent.add_word(speaker_word)
         logging.debug("Hearer(%d) plays the discrimination game" % agent.id)

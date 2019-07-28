@@ -38,10 +38,10 @@ class Simulation:
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
                 result = game.play(speaker=speaker, hearer=hearer)
 
-                logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
-                logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
-                self.data.store_ds_result(speaker.id, speaker.discriminative_success)
-                self.data.store_ds_result(hearer.id, hearer.discriminative_success)
+                logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
+                logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
+                self.data.store_ds_result(speaker.id, speaker.discriminative_success())
+                self.data.store_ds_result(hearer.id, hearer.discriminative_success())
                 self.data.store_cs_result(result)
 
             self.data.store_matrices(population.agents)
