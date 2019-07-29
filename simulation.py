@@ -36,8 +36,8 @@ class Simulation:
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
                 result = game.play(speaker=speaker, hearer=hearer)
 
-                logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
-                logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
+                logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
+                logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
                 self.data.store_cs(result)
 
             self.data.store_ds(population.agents)

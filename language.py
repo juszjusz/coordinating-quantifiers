@@ -53,10 +53,7 @@ class Language(Perception):
         # print("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
         self.categories[i].add_reactive_unit(stimulus)
 
-    def get_word(self, category):
-        return self.get_words(category)[0]
-
-    def get_words(self, category):
+    def get_most_connected_word(self, category):
         if category is None:
             raise ERROR
 
@@ -64,41 +61,52 @@ class Language(Perception):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
-        # TODO performance?
+        return self.get_words_sorted_by_val(category)[0]
+
+    def get_words_sorted_by_val(self, category):
         # https://stackoverflow.com/questions/1286167/is-the-order-of-results-coming-from-a-list-comprehension-guaranteed/1286180
         return [self.lexicon[index] for index, _ in self.lxc.get_index2row_sorted_by_value(category)]
 
-    def get_categories(self, word):
+    def get_categories_sorted_by_val(self, word):
         word_index = self.lexicon.index(word)
         return self.lxc.get_index2col_sorted_by_value(word_index)
 
-    def get_category(self, word):
+    def get_categories_by_word(self, word):
+        word_index = self.lexicon.index(word)
+        return self.lxc.get_col_by_row(word_index)
+
+    def get_words_by_category(self, category):
+        return self.lxc.get_row_by_col(category)
+
+    def get_most_connected_category(self, word):
         if word is None:
             raise ERROR
 
         if word not in self.lexicon:
             raise NO_SUCH_WORD
 
-        # word_index = self.lexicon.index(word)
-        index, max_propensity = self.get_categories(word)[0]
+        category_index, max_propensity = self.get_categories_sorted_by_val(word)[0]
 
         # TODO still happens
         if max_propensity == 0:
             logging.debug("\"%s\" has no associated categories" % word)
             raise NO_ASSOCIATED_CATEGORIES
 
-        return index
+        return category_index
 
-    def initialize_word2category_connection(self, word_index, category_index):
+    def initialize_word2category_connection(self, word, category_index):
+        word_index = self.lexicon.index(word)
         self.lxc.set_value(word_index, category_index, .5)
 
-    def increment_word2category_connection(self, word_index, category_index):
+    def increment_word2category_connection(self, word, category_index, delta=.1):
+        word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
-        self.lxc.set_value(word_index, category_index, value + .1 * value)
+        self.lxc.set_value(word_index, category_index, value + delta * value)
 
-    def decrement_word2category_connection(self, word_index, category_index):
+    def decrement_word2category_connection(self, word, category_index, delta=.1):
+        word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
-        self.lxc.set_value(word_index, category_index, value - .1 * value)
+        self.lxc.set_value(word_index, category_index, value - delta * value)
 
     # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
@@ -162,7 +170,7 @@ class Language(Perception):
                         logging.debug("more than one category responds with max")
                         logging.debug(len(m_indices))
                     m_i = m_indices[0]
-                    w, e = self.get_word(m_i)
+                    w, e = self.get_most_connected_word(m_i)
                     words.append(e if w is None else self.lexicon.index(w) + 1)
             plt.xlabel("ratio")
             plt.ylabel("word")

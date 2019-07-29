@@ -49,7 +49,7 @@ class Data:
             #     lxc = agents[i].lxc
             #     if lxc.size:
             #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
-            shapes = {i: agents[i].lxc.matrix.shape for i in range(self._population_size_)}
+            shapes = {i: agents[i].language.lxc.matrix.shape for i in range(self._population_size_)}
             pickle.dump(shapes, open("./simulation_results/data/info.p", "wb"))
 
             pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"))
@@ -81,8 +81,8 @@ class Data:
         for i in range(len(agents)):
             self.cats[i].append([])
             a = agents[i]
-            for cat_index in range(len(a.categories)):
-                self.cats[i][-1].append([a.categories[cat_index].fun(x_0) for x_0 in self.x])
+            for cat_index in range(len(a.get_categories())):
+                self.cats[i][-1].append([a.get_categories()[cat_index].fun(x_0) for x_0 in self.x])
 
     def plot_cats(self):
         for i in range(len(self.cats)):
@@ -109,32 +109,32 @@ class Data:
             self.langs[i].append([])
             a = agents[i]
             forms_to_categories = {}
-            if not a.lxc.matrix.size:
+            if not a.language.lxc.matrix.size:
                 continue
-            for f in a.lexicon:
+            for f in a.get_lexicon():
                 forms_to_categories[f] = []
-            for c in a.categories:
-                j = a.categories.index(c)
-                m = max(a.lxc.matrix[0::, j])
+            for c in a.get_categories():
+                j = a.get_categories().index(c)
+                m = max(a.language.get_words_by_category(j))
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [i for i, w in enumerate(a.lxc.matrix[0::, j]) if w == m]
-                    form = a.lexicon[max_form_indices[0]]
+                    max_form_indices = [i for i, w in enumerate(a.language.get_words_by_category(j)) if w == m]
+                    form = a.get_lexicon()[max_form_indices[0]]
                     forms_to_categories[form].append(j)
-            for w in range(len(a.lexicon)):
-                f = a.lexicon[w]
+            for w in range(len(a.get_lexicon())):
+                f = a.get_lexicon()[w]
                 if len(forms_to_categories[f]) == 0:
                     continue
                 else:
                     self.langs[i][-1].append([f])
                     for j in forms_to_categories[f]:
-                        self.langs[i][-1][-1].append([a.categories[j].fun(x_0) for x_0 in self.x])
+                        self.langs[i][-1][-1].append([a.get_categories()[j].fun(x_0) for x_0 in self.x])
 
     def store_matrices(self, agents):
         for i in range(len(agents)):
-            lex = agents[i].lexicon
-            lxc = agents[i].lxc.matrix
+            lex = agents[i].get_lexicon()
+            lxc = agents[i].language.lxc.matrix
             self._shape_[i] = lxc.shape
             self.matrices[i].append((list(lex), array(lxc)))
             # if lxc.size:

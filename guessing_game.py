@@ -1,6 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
-from agent import Agent
+from agent import Agent, Hearer, Speaker
 from guessing_game_exceptions import *
 from perception import Perception
 from perception import Stimulus
@@ -18,7 +18,7 @@ class GuessingGame:
         self.exception_handler = ExceptionHandler()
 
     # guessing game
-    def play(self, speaker, hearer):
+    def play(self, speaker: Speaker, hearer: Hearer):
         logging.debug("--")
         logging.debug(
             "Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a / self.context[0].b))
@@ -33,8 +33,8 @@ class GuessingGame:
 
         try:
             speaker_category = speaker.discrimination_game(self.context, self.topic)
-            speaker_word = speaker.get_word(speaker_category)
-            hearer_category = hearer.get_category(word=speaker_word)
+            speaker_word = speaker.get_most_connected_word(speaker_category)
+            hearer_category = hearer.get_most_connected_category(speaker_word)
             hearer_topic = hearer.get_topic(context=self.context, category=hearer_category)
             self.completed = True
         except NO_CATEGORY:
@@ -42,19 +42,13 @@ class GuessingGame:
         except NO_NOTICEABLE_DIFFERENCE:
             self.exception_handler.on_NO_NOTICEABLE_DIFFERENCE()
         except NO_POSITIVE_RESPONSE_1:
-            self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=speaker, agent_category=speaker_category,
-                                                             context=self.context)
+            self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=speaker, context=self.context)
         except NO_POSITIVE_RESPONSE_2:
-            self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=speaker, agent_category=speaker_category,
-                                                             context=self.context)
+            self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=speaker, context=self.context)
         except NO_DISCRIMINATION_LOWER_1:
-            self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=speaker,
-                                                                agent_category=speaker_category,
-                                                                context=self.context)
+            self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=speaker, context=self.context)
         except NO_DISCRIMINATION_LOWER_2:
-            self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker,
-                                                                agent_category=speaker_category,
-                                                                context=self.context)
+            self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker, context=self.context)
         except NO_WORD_FOR_CATEGORY:
             self.exception_handler.on_NO_WORD_FOR_CATEGORY(agent=speaker, agent_category=speaker_category)
         except NO_ASSOCIATED_CATEGORIES:
@@ -64,13 +58,13 @@ class GuessingGame:
                                                                speaker_word=speaker_word)
         except NO_DIFFERENCE_FOR_CATEGORY:
             hearer_category = self.exception_handler.on_NO_DIFFERENCE_FOR_CATEGORY(hearer=hearer,
-                                                                                        context=self.context,
-                                                                                        topic=self.topic,
-                                                                                        speaker_word=speaker_word)
+                                                                                   context=self.context,
+                                                                                   topic=self.topic,
+                                                                                   speaker_word=speaker_word)
         except NO_SUCH_WORD:
             hearer_category = self.exception_handler.on_NO_SUCH_WORD(agent=hearer, context=self.context,
-                                                                          topic=self.topic,
-                                                                          speaker_word=speaker_word)
+                                                                     topic=self.topic,
+                                                                     speaker_word=speaker_word)
         except ERROR:
             self.exception_handler.on_LANGUAGE_ERROR()
 
@@ -82,32 +76,30 @@ class GuessingGame:
             logging.debug("guessing game success!")
             speaker.store_cs_result(Agent.Result.SUCCESS)
             hearer.store_cs_result(Agent.Result.SUCCESS)
-        else:
+
+            speaker.update_on_success(speaker_word, speaker_category)
+            hearer.update_on_success(speaker_word, hearer_category)
+        elif self.completed:
+            hearer.update_on_failure(speaker_word, hearer_category)
+            speaker.update_on_failure(speaker_word, speaker_category)
+
+        # STAGE 7
+        if self.completed and not success:
+            word, word_categories = hearer.select_word(category=hearer_category)
+            success = word == speaker_word
+
+            if success:
+                speaker.update_on_success_stage7(speaker_word, speaker_category)
+                hearer.update_on_success_stage7(word, word_categories)
+
+        success_result = self.completed and success
+
+        if not success_result:
             logging.debug("guessing game failed!")
             speaker.store_cs_result(Agent.Result.FAILURE)
             hearer.store_cs_result(Agent.Result.FAILURE)
 
-        if self.completed:
-            speaker.update(success=success, role=Agent.Role.SPEAKER,
-                           word=speaker_word, category=speaker_category)
-            hearer.update(success=success, role=Agent.Role.HEARER,
-                          word=speaker_word, category=hearer_category)
-
-        # STAGE 7
-        if not success:
-            try:
-                word = hearer.select_word(category=hearer_category)
-                success = word == speaker_word
-                if success:
-                    pass  # TODO update word2category connection
-            except PerceptionError:
-                # TODO handle discrimination_game exception
-                pass
-            except LanguageError:
-                # TODO handle discrimination_game exception
-                pass
-
-        return self.completed and success
+        return success_result
 
     def get_stats(self):
         return None
@@ -118,7 +110,7 @@ class ExceptionHandler:
     def on_NO_CATEGORY(self, agent, context, topic):
         logging.debug("no category")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(None, context, topic)
+        agent.learn_stimulus(context, topic)
 
     # TODO wyrzucic?
     # to be move to Speaker Hearer subclass
@@ -126,35 +118,35 @@ class ExceptionHandler:
         logging.debug("no noticeable difference")
         # to be move to Speaker Hearer subclass
 
-    def on_NO_DISCRIMINATION_LOWER_1(self, agent, agent_category, context):
+    def on_NO_DISCRIMINATION_LOWER_1(self, agent, context):
         logging.debug("no discrimination lower 1")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 0)
+        agent.learn_stimulus(context, 0)
 
     # to be move to Speaker Hearer subclass
-    def on_NO_DISCRIMINATION_LOWER_2(self, agent, agent_category, context):
+    def on_NO_DISCRIMINATION_LOWER_2(self, agent, context):
         logging.debug("no discrimination lower 2")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 1)
+        agent.learn_stimulus(context, 1)
 
     # to be move to Speaker Hearer subclass
-    def on_NO_POSITIVE_RESPONSE_1(self, agent, agent_category, context):
+    def on_NO_POSITIVE_RESPONSE_1(self, agent, context):
         logging.debug("no responsive category for stimulus 1")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 0)
+        agent.learn_stimulus(context, 0)
 
     # to be move to Speaker Hearer subclass
-    def on_NO_POSITIVE_RESPONSE_2(self, agent, agent_category, context):
+    def on_NO_POSITIVE_RESPONSE_2(self, agent, context):
         logging.debug("no responsive category for stimulus 2")
         logging.debug("%s(%d)" % (agent, agent.id))
-        agent.learn_stimulus(agent_category, context, 1)
+        agent.learn_stimulus(context, 1)
 
     # to be move to Speaker and Hearer subclass
     def on_LANGUAGE_ERROR(self):
         pass
 
     # to be move to Speaker subclass
-    def on_NO_WORD_FOR_CATEGORY(self, agent, agent_category):
+    def on_NO_WORD_FOR_CATEGORY(self, agent: Speaker, agent_category):
         logging.debug("%s(%d) has no word for his category" % (agent, agent.id))
         new_word = agent.add_new_word()
         # TODO speaker_word instead new_word_index?
@@ -163,7 +155,7 @@ class ExceptionHandler:
         logging.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.id, new_word))
 
     # to be move to Hearer subclass
-    def on_NO_SUCH_WORD(self, agent, context, topic, speaker_word):
+    def on_NO_SUCH_WORD(self, agent: Hearer, context, topic, speaker_word):
         logging.debug("Hearer(%d) adds word \"%s\"" % (agent.id, speaker_word))
         agent.add_word(speaker_word)
         logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
@@ -185,19 +177,19 @@ class ExceptionHandler:
             # TODO do wywalenia?
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=agent, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=agent, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
 
@@ -235,16 +227,16 @@ class ExceptionHandler:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
 
         try:
@@ -275,16 +267,16 @@ class ExceptionHandler:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, agent_category=None, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, context=context)
             # raise Exception("Wow, there should be no error here.")
 
         logging.debug("Discrimination game failed")
