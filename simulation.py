@@ -26,8 +26,6 @@ class Simulation:
     def run(self):
 
         population = Population(self.params['population_size'])
-        ds = []
-        cs = []
 
         for step in range(self.params["steps"]):
             logging.debug("\n------------\nSTEP %d" % step)
@@ -40,32 +38,14 @@ class Simulation:
 
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.categories)))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.categories)))
-                self.data.store_ds_result(speaker.id, speaker.discriminative_success)
-                self.data.store_ds_result(hearer.id, hearer.discriminative_success)
-                self.data.store_cs_result(result)
+                self.data.store_cs(result)
 
+            self.data.store_ds(population.agents)
             self.data.store_matrices(population.agents)
             self.data.store_langs(population.agents)
             self.data.store_cats(population.agents)
-            ds.append(self.data.get_ds())
-            cs.append(self.data.get_cs())
-
-            x = range(1, step + 2)
-            plt.ylim(bottom=0)
-            plt.ylim(top=100)
-            plt.xlabel("step")
-            plt.ylabel("success")
-            x_ex = range(0, step + 3)
-            th = [95 for i in x_ex]
-            plt.plot(x_ex, th, ':', linewidth=0.2)
-            plt.plot(x, ds, '--', label="discriminative success")
-            plt.plot(x, cs, '-', label="communicative success")
-            plt.legend(['line', 'line'], loc='best')
-            # # plt.show()
-            plt.savefig("./simulation_results/success.pdf")
-            plt.close()
-
             self.data.pickle(step, population.agents)
+            self.data.plot_success(step)
 
 
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)

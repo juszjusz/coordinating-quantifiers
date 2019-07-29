@@ -39,6 +39,8 @@ class Data:
         self.pickle_step = 10
         self.pickle_count = 0
         self._shape_ = {}
+        self.ds = []
+        self.cs = []
 
     def pickle(self, step, agents):
         self.step = step
@@ -56,15 +58,18 @@ class Data:
             self.langs = {a: [] for a in range(self._population_size_)}
             self.cats = {a: [] for a in range(self._population_size_)}
 
-    def store_ds_result(self, agent_index, ds):
-        self.ds_per_agent[agent_index] = ds
+    def store_ds(self, agents):
+        for i in range(self._population_size_):
+            self.ds_per_agent[i] = agents[i].discriminative_success
+        self.ds.append(self.get_ds())
 
-    def store_cs_result(self, cs_result):
+    def store_cs(self, cs_result):
         if len(self.cs_scores) == 50:
             self.cs_scores.rotate(-1)
             self.cs_scores[-1] = int(cs_result)
         else:
             self.cs_scores.append(int(cs_result))
+        self.cs.append(self.get_cs())
 
     def get_ds(self):
         return sum(self.ds_per_agent)/self._population_size_
@@ -79,7 +84,7 @@ class Data:
             for cat_index in range(len(a.categories)):
                 self.cats[i][-1].append([a.categories[cat_index].fun(x_0) for x_0 in self.x])
 
-    def plot_all_cats(self):
+    def plot_cats(self):
         for i in range(len(self.cats)):
             for step in range(len(self.cats[i])):
                 plt.title("categories")
@@ -135,7 +140,7 @@ class Data:
             # if lxc.size:
             #     self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
 
-    def plot_all_matrices(self):
+    def plot_matrices(self):
         print("printing matrices")
         for l in range(self._population_size_):
             n_rows = self._shape_[l][0]
@@ -150,7 +155,7 @@ class Data:
                 lxc[0:n_forms, 0:n_categories] = self.matrices[l][m][1]
                 fig, ax = plt.subplots()
                 lxc_ex = column_stack((lxc, linspace(amax(lxc), 0, n_rows)))
-                im = ax.imshow(lxc_ex)
+                im = ax.imshow(lxc_ex, aspect='auto')
                 lexicon = self.matrices[l][m][0]
                 # We want to show all ticks...
                 ax.set_xticks(arange(n_cols + 1))
@@ -160,10 +165,10 @@ class Data:
                 for t in range(n_categories,n_cols):
                     x_tick_labels.append('-')
                 x_tick_labels.append("s")
-                ax.set_xticklabels(x_tick_labels)
+                ax.set_xticklabels(x_tick_labels, fontdict={'fontsize':8})
                 for t in range(len(lexicon), n_rows):
                     x_tick_labels.append('-')
-                ax.set_yticklabels(lexicon)
+                ax.set_yticklabels(lexicon, fontdict={'fontsize':8})
                 # Rotate the tick labels and set their alignment.
                 plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
                          rotation_mode="anchor")
@@ -179,7 +184,7 @@ class Data:
                 plt.savefig("./simulation_results/matrices/matrix%d_%d" % (l, m if not self.pickle_mode else self.step - self.pickle_step + m + 1))
                 plt.close()
 
-    def plot_all_langs(self):
+    def plot_langs(self):
         for i in range(len(self.langs)):
             # sns.set_palette(colors)
             for step in range(len(self.langs[i])):
@@ -205,7 +210,7 @@ class Data:
                 plt.close()
 
     @staticmethod
-    def plot_matrices():
+    def plot_pickled_matrices():
         d = 0
         shape = pickle.load(open("./simulation_results/data/info.p", "rb"))
         while True:
@@ -214,31 +219,45 @@ class Data:
             except Exception:
                 break
             data._shape_ = shape
-            data.plot_all_matrices()
+            data.plot_matrices()
             d = d + 1
 
     @staticmethod
-    def plot_cats():
+    def plot_pickled_cats():
         d = 0
         while True:
             try:
                 data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
             except Exception:
                 break
-            data.plot_all_cats()
+            data.plot_cats()
             d = d + 1
 
     @staticmethod
-    def plot_langs():
+    def plot_pickled_langs():
         d = 0
         while True:
             try:
                 data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
             except Exception:
                 break
-            data.plot_all_langs()
+            data.plot_langs()
             d = d + 1
 
+    def plot_success(self, step):
+        x = range(1, step + 2)
+        plt.ylim(bottom=0)
+        plt.ylim(top=100)
+        plt.xlabel("step")
+        plt.ylabel("success")
+        x_ex = range(0, step + 3)
+        th = [95 for i in x_ex]
+        plt.plot(x_ex, th, ':', linewidth=0.2)
+        plt.plot(x, self.ds, '--', label="discriminative success")
+        plt.plot(x, self.cs, '-', label="communicative success")
+        plt.legend(['line', 'line', 'line'], loc='best')
+        plt.savefig("./simulation_results/success.pdf")
+        plt.close()
 
 class RoundStatistics:
     discriminative_success = 0
