@@ -14,7 +14,7 @@ class Population:
 
     def __init__(self, population_size):
         self.population_size = population_size
-        self.agents = [Agent(agent_id, Language()) for agent_id in range(population_size)]
+        self.agents = [Agent(agent_id, Language(), 0, deque([0])) for agent_id in range(population_size)]
 
     def select_pairs_per_round(self, games_per_round):
         agents_per_game = sample(self.agents, games_per_round * 2)
@@ -26,7 +26,7 @@ class Agent:
         SUCCESS = 1
         FAILURE = 0
 
-    def __init__(self, id, language, communicative_success=0, cs_scores=deque([0])):
+    def __init__(self, id, language, communicative_success, cs_scores):
         self.id = id
         self.language = language
         self.communicative_success = communicative_success
