@@ -12,9 +12,9 @@ from numpy import linspace
 
 class Population:
 
-    def __init__(self, population_size):
-        self.population_size = population_size
-        self.agents = [Agent(agent_id, Language(), 0, deque([0])) for agent_id in range(population_size)]
+    def __init__(self, params):
+        self.population_size = params['population_size']
+        self.agents = [Agent(agent_id, Language(params), 0, deque([0])) for agent_id in range(self.population_size)]
 
     def select_pairs_per_round(self, games_per_round):
         agents_per_game = sample(self.agents, games_per_round * 2)
@@ -79,7 +79,7 @@ class Agent:
 
     def learn_stimulus(self, context, n, category=None):
         logging.debug(" learns stimulus %d by " % (n + 1))
-        if self.language.discriminative_success >= Perception.discriminative_threshold and category is not None:
+        if self.language.discriminative_success >= self.language.discriminative_threshold and category is not None:
             logging.debug("updating category")
             self.language.update_category(category, context[n])
             return category
@@ -92,7 +92,7 @@ class Agent:
 
 
 class Speaker(Agent):
-    def __init__(self, agent: Agent):
+    def __init__(self, agent):
         Agent.__init__(self, agent.id, agent.language, agent.communicative_success, agent.cs_scores)
 
     def update_on_success(self, word, category):
@@ -109,7 +109,7 @@ class Speaker(Agent):
 
 
 class Hearer(Agent):
-    def __init__(self, agent: Agent):
+    def __init__(self, agent):
         Agent.__init__(self, agent.id, agent.language, agent.communicative_success, agent.cs_scores)
 
     def get_topic(self, context, category):
