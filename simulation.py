@@ -43,7 +43,7 @@ class Simulation:
             self.data.store_langs(population.agents)
             self.data.store_cats(population.agents)
             self.data.pickle(step, population.agents)
-            # self.data.plot_success(step)
+            self.data.plot_success(step)
 
 
 if __name__ == "__main__":
