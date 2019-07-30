@@ -12,6 +12,7 @@ from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
 from numpy import linspace
+from numpy import delete
 from numpy.random import choice
 from numpy import array_equal
 from fractions import Fraction
@@ -42,7 +43,7 @@ class Language(Perception):
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
-        c = Category()
+        c = Category(id = self.get_cat_id())
         c.add_reactive_unit(ReactiveUnit(stimulus), weight)
         self.categories.append(c)
         # TODO this should work
@@ -107,6 +108,25 @@ class Language(Perception):
         word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
         self.lxc.set_value(word_index, category_index, value - delta * value)
+
+    def forget(self, category):
+        category_index = self.categories.index(category)
+        for c in self.categories:
+            c.weights = [w - self.alpha * w for w in c.weights]
+        to_forget = [j for j in range(len(self.categories))
+                     if min(self.categories[j].weights) < 0.01 and j != category_index]
+
+        if len(to_forget):
+            self.lxc.matrix = delete(self.lxc.matrix, to_forget, axis=1)
+            self.categories = list(delete(self.categories, to_forget))
+
+    def discrimination_game(self, context, topic):
+        self.store_ds_result(Perception.Result.FAILURE)
+        category = self.discriminate(context, topic)
+        self.reinforce(category, context[topic])
+        self.forget(category)
+        self.switch_ds_result()
+        return self.categories.index(category)
 
     # TODO deprecated
     def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):

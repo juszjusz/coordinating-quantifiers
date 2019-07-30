@@ -92,7 +92,7 @@ class Agent:
 
 
 class Speaker(Agent):
-    def __init__(self, agent: Agent):
+    def __init__(self, agent):
         Agent.__init__(self, agent.id, agent.language, agent.communicative_success, agent.cs_scores)
 
     def update_on_success(self, word, category):
@@ -109,7 +109,7 @@ class Speaker(Agent):
 
 
 class Hearer(Agent):
-    def __init__(self, agent: Agent):
+    def __init__(self, agent):
         Agent.__init__(self, agent.id, agent.language, agent.communicative_success, agent.cs_scores)
 
     def get_topic(self, context, category):
