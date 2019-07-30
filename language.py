@@ -1,6 +1,5 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
-
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
@@ -13,8 +12,6 @@ from numpy import zeros
 from numpy import row_stack
 from numpy import linspace
 from numpy import delete
-from numpy.random import choice
-from numpy import array_equal
 from fractions import Fraction
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
@@ -27,10 +24,12 @@ from gibberish import Gibberish
 class Language(Perception):
     gibberish = Gibberish()
 
-    def __init__(self):
-        Perception.__init__(self)
+    def __init__(self, params):
+        Perception.__init__(self, params)
         self.lexicon = []
         self.lxc = AssociativeMatrix()
+        self.delta_inc = params['delta_inc']
+        self.delta_dec = params['delta_dec']
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -99,22 +98,22 @@ class Language(Perception):
         word_index = self.lexicon.index(word)
         self.lxc.set_value(word_index, category_index, .5)
 
-    def increment_word2category_connection(self, word, category_index, delta=.1):
+    def increment_word2category_connection(self, word, category_index):
         word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
-        self.lxc.set_value(word_index, category_index, value + delta * value)
+        self.lxc.set_value(word_index, category_index, value + self.delta_inc * value)
 
-    def decrement_word2category_connection(self, word, category_index, delta=.1):
+    def decrement_word2category_connection(self, word, category_index):
         word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
-        self.lxc.set_value(word_index, category_index, value - delta * value)
+        self.lxc.set_value(word_index, category_index, value - self.delta_dec * value)
 
     def forget(self, category):
         category_index = self.categories.index(category)
         for c in self.categories:
             c.weights = [w - self.alpha * w for w in c.weights]
         to_forget = [j for j in range(len(self.categories))
-                     if min(self.categories[j].weights) < 0.01 and j != category_index]
+                     if min(self.categories[j].weights) < self.super_alpha and j != category_index]
 
         if len(to_forget):
             self.lxc.matrix = delete(self.lxc.matrix, to_forget, axis=1)

@@ -140,16 +140,15 @@ class Perception:
         SUCCESS = 1
         FAILURE = 0
 
-    discriminative_threshold = 0.95
-    # TODO handle this with parameters
-    alpha = 0.1  # forgetting
-    beta = 1.0  # learning rate
-
-    def __init__(self):
+    def __init__(self, params):
         self.categories = []
         self.ds_scores = deque([0])
         self.discriminative_success = .0
         self._id_ = 0
+        self.discriminative_threshold = params['discriminative_threshold']
+        self.alpha = params['alpha']  # forgetting
+        self.beta = params['beta']  # learning rate
+        self.super_alpha = params['super_alpha']
 
     def get_cat_id(self):
         self._id_ = self._id_ + 1
