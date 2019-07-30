@@ -7,12 +7,7 @@ from scipy.interpolate import interp1d
 
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
-from visualization import Viewable
-from numpy import linspace
-from matplotlib.ticker import ScalarFormatter
-import seaborn as sns
 from collections import deque
-import logging
 
 
 class Stimulus:
