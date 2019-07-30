@@ -7,12 +7,7 @@ from scipy.interpolate import interp1d
 
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
-from visualization import Viewable
-from numpy import linspace
-from matplotlib.ticker import ScalarFormatter
-import seaborn as sns
 from collections import deque
-import logging
 
 
 class Stimulus:
@@ -87,7 +82,8 @@ class ReactiveUnit:
 
 class Category:
 
-    def __init__(self):
+    def __init__(self, id):
+        self.id = id
         self.weights = []
         self.reactive_units = []
         self.x_left = float("inf")
@@ -139,20 +135,24 @@ class Category:
         return []
 
 
-class Perception(Viewable):
+class Perception:
     class Result:
         SUCCESS = 1
         FAILURE = 0
 
-    discriminative_threshold = 0.95
-    # TODO handle this with parameters
-    alpha = 0.1  # forgetting
-    beta = 1.0  # learning rate
-
-    def __init__(self):
+    def __init__(self, params):
         self.categories = []
         self.ds_scores = deque([0])
         self.discriminative_success = .0
+        self._id_ = 0
+        self.discriminative_threshold = params['discriminative_threshold']
+        self.alpha = params['alpha']  # forgetting
+        self.beta = params['beta']  # learning rate
+        self.super_alpha = params['super_alpha']
+
+    def get_cat_id(self):
+        self._id_ = self._id_ + 1
+        return self._id_ - 1
 
     def store_ds_result(self, result):
         if len(self.ds_scores) == 50:
@@ -168,14 +168,6 @@ class Perception(Viewable):
     def switch_ds_result(self):
         self.ds_scores[-1] = 1 - self.ds_scores[-1]
         self.discriminative_success = (sum(self.ds_scores) / len(self.ds_scores)) * 100
-
-    def discrimination_game(self, context, topic):
-        self.store_ds_result(Perception.Result.FAILURE)
-        category_index = self.discriminate(context, topic)
-        self.reinforce(category_index, context[topic])
-        self.forget()
-        self.switch_ds_result()
-        return category_index
 
     def discriminate(self, context, topic):
         if not self.categories:
@@ -216,15 +208,11 @@ class Perception(Viewable):
 
         # discrimination successful
         # self.store_ds_result(Perception.Result.SUCCESS)
-        return i if topic == 0 else j
-
-    def forget(self):
-        for c in self.categories:
-            c.weights = [w - self.alpha * w for w in c.weights]
+        return self.categories[i] if topic == 0 else self.categories[j]
 
     # TODO check
-    def reinforce(self, category_index, stimulus):
-        c = self.categories[category_index]
+    def reinforce(self, category, stimulus):
+        c = category
         c.weights = [w + self.beta * ru.response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
 
     # TODO adhoc implementation of noticeable difference between stimuli
@@ -240,23 +228,3 @@ class Perception(Viewable):
         p2 = (stimulus2.a / stimulus2.b)
         ds = min(0.3 * p1, 0.3 * p2)
         return abs(p1 - p2) > ds
-
-    # def plot(self, filename=None, x_left=0, x_right=100, mode=''):
-    #     plt.title("categories")
-    #     ax = plt.gca()
-    #     plt.xscale("symlog")
-    #     ax.xaxis.set_major_formatter(ScalarFormatter())
-    #     plt.yscale("symlog")
-    #     ax.yaxis.set_major_formatter(ScalarFormatter())
-    #     colors = sns.color_palette()
-    #     # sns.set_palette(colors)
-    #     x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
-    #     num_of_categories = len(self.categories)
-    #     for i in range(num_of_categories):
-    #         plt.plot(x, [self.categories[i].fun(x_0) for x_0 in x],
-    #                  color=colors[i % len(colors)], linestyle=self.line_styles[i // len(colors)],
-    #                  label="%d" % (i + 1))
-    #     plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-    #     plt.tight_layout(pad=0)
-    #     plt.savefig(filename)
-    #     plt.close()
