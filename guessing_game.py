@@ -9,8 +9,9 @@ from random import choice
 
 class GuessingGame:
 
-    def __init__(self):
+    def __init__(self, is_stage7_on):
         self.completed = False
+        self.is_stage7_on = is_stage7_on
         self.context = [Stimulus(), Stimulus()]
         while not Perception.noticeable_difference(self.context[0], self.context[1]):
             self.context = [Stimulus(), Stimulus()]
@@ -84,7 +85,7 @@ class GuessingGame:
             speaker.update_on_failure(speaker_word, speaker_category)
 
         # STAGE 7
-        if self.completed and not success:
+        if self.is_stage7_on and self.completed and not success:
             word, word_categories = hearer.select_word(category=hearer_category)
             success = word == speaker_word
 
