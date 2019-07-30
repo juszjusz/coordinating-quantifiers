@@ -60,7 +60,7 @@ class Data:
 
     def store_ds(self, agents):
         for i in range(self._population_size_):
-            self.ds_per_agent[i] = agents[i].discriminative_success
+            self.ds_per_agent[i] = agents[i].get_discriminative_success()
         self.ds.append(self.get_ds())
 
     def store_cs(self, cs_result):
