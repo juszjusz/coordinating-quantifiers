@@ -38,7 +38,7 @@ class Data:
         self.step = 0
         self.pickle_step = 10
         self.pickle_count = 0
-        self._shape_ = {}
+        self._shape_ = {a: (0, 0) for a in range(population_size)}
         self.ds = []
         self.cs = []
 
@@ -49,8 +49,7 @@ class Data:
             #     lxc = agents[i].lxc
             #     if lxc.size:
             #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
-            shapes = {i: agents[i].language.lxc.matrix.shape for i in range(self._population_size_)}
-            pickle.dump(shapes, open("./simulation_results/data/info.p", "wb"))
+            pickle.dump(self._shape_, open("./simulation_results/data/info.p", "wb"))
 
             pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"))
             self.pickle_count = self.pickle_count + 1
@@ -60,7 +59,7 @@ class Data:
 
     def store_ds(self, agents):
         for i in range(self._population_size_):
-            self.ds_per_agent[i] = agents[i].discriminative_success
+            self.ds_per_agent[i] = agents[i].get_discriminative_success()
         self.ds.append(self.get_ds())
 
     def store_cs(self, cs_result):
@@ -82,7 +81,7 @@ class Data:
             self.cats[i].append([])
             a = agents[i]
             for cat_index in range(len(a.get_categories())):
-                self.cats[i][-1].append([a.get_categories()[cat_index].fun(x_0) for x_0 in self.x])
+                self.cats[i][-1].append((a.get_categories()[cat_index].id,[a.get_categories()[cat_index].fun(x_0) for x_0 in self.x]))
 
     def plot_cats(self):
         for i in range(len(self.cats)):
@@ -96,9 +95,11 @@ class Data:
                 colors = sns.color_palette()
                 num_of_cats = len(self.cats[i][step])
                 for j in range(num_of_cats):
-                    plt.plot(self.x, self.cats[i][step][j],
-                             color=colors[j % len(colors)], linestyle=line_styles[j // len(colors)],
-                             label="%d" % (j + 1))
+                    cat_id = self.cats[i][step][j][0]
+                    cat_y = self.cats[i][step][j][1]
+                    plt.plot(self.x, cat_y,
+                             color=colors[cat_id % len(colors)], linestyle=line_styles[cat_id // len(colors)],
+                             label="%d" % (cat_id + 1))
                 plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
                 plt.tight_layout(pad=0)
                 plt.savefig("./simulation_results/cats/categories%d_%d" % (i, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
@@ -119,7 +120,7 @@ class Data:
                 if m == 0:
                     continue
                 else:
-                    max_form_indices = [i for i, w in enumerate(a.language.get_words_by_category(j)) if w == m]
+                    max_form_indices = [ind for ind, w in enumerate(a.language.get_words_by_category(j)) if w == m]
                     form = a.get_lexicon()[max_form_indices[0]]
                     forms_to_categories[form].append(j)
             for w in range(len(a.get_lexicon())):
@@ -135,13 +136,13 @@ class Data:
         for i in range(len(agents)):
             lex = agents[i].get_lexicon()
             lxc = agents[i].language.lxc.matrix
-            self._shape_[i] = lxc.shape
-            self.matrices[i].append((list(lex), array(lxc)))
+            ids = [c.id for c in agents[i].language.categories]
+            self._shape_[i] = (max(self._shape_[i][0], lxc.shape[0]), max(self._shape_[i][1], lxc.shape[1]))
+            self.matrices[i].append((list(lex), array(lxc), ids))
             # if lxc.size:
             #     self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
 
     def plot_matrices(self):
-        print("printing matrices")
         for l in range(self._population_size_):
             n_rows = self._shape_[l][0]
             n_cols = self._shape_[l][1]
@@ -161,7 +162,7 @@ class Data:
                 ax.set_xticks(arange(n_cols + 1))
                 ax.set_yticks(arange(n_rows))
                 # ... and label them with the respective list entries
-                x_tick_labels = [str(j + 1) for j in arange(n_categories)]
+                x_tick_labels = [str(cid + 1) for cid in self.matrices[l][m][2]]
                 for t in range(n_categories,n_cols):
                     x_tick_labels.append('-')
                 x_tick_labels.append("s")

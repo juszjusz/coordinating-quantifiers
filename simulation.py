@@ -2,19 +2,11 @@ from __future__ import division  # force python 3 division in python 2
 import logging, sys
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from agent import Population
 from guessing_game import GuessingGame
-from language import Language
 from data import Data
+from params import params
 # import cProfile
-
-params = {"population_size": int(sys.argv[1]),
-          "learning_rate": 0,  # co to?
-          "discriminative_threshold": 0.95,
-          "weight_decay": 0.1,
-          "steps": int(sys.argv[2]),
-          "runs": 1}
 
 
 class Simulation:
@@ -25,7 +17,7 @@ class Simulation:
 
     def run(self):
 
-        population = Population(self.params['population_size'])
+        population = Population(self.params)
 
         for step in range(self.params["steps"]):
             logging.debug("\n------------\nSTEP %d" % step)

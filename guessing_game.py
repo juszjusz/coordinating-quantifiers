@@ -18,7 +18,7 @@ class GuessingGame:
         self.exception_handler = ExceptionHandler()
 
     # guessing game
-    def play(self, speaker: Speaker, hearer: Hearer):
+    def play(self, speaker, hearer):
         logging.debug("--")
         logging.debug(
             "Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a / self.context[0].b))
@@ -50,7 +50,7 @@ class GuessingGame:
         except NO_DISCRIMINATION_LOWER_2:
             self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker, context=self.context)
         except NO_WORD_FOR_CATEGORY:
-            self.exception_handler.on_NO_WORD_FOR_CATEGORY(agent=speaker, agent_category=speaker_category)
+            self.exception_handler.on_NO_WORD_FOR_CATEGORY(speaker=speaker, agent_category=speaker_category)
         except NO_ASSOCIATED_CATEGORIES:
             self.exception_handler.on_NO_ASSOCIATED_CATEGORIES(context=self.context,
                                                                topic=self.topic,
@@ -62,7 +62,7 @@ class GuessingGame:
                                                                                    topic=self.topic,
                                                                                    speaker_word=speaker_word)
         except NO_SUCH_WORD:
-            hearer_category = self.exception_handler.on_NO_SUCH_WORD(agent=hearer, context=self.context,
+            hearer_category = self.exception_handler.on_NO_SUCH_WORD(hearer=hearer, context=self.context,
                                                                      topic=self.topic,
                                                                      speaker_word=speaker_word)
         except ERROR:
@@ -146,67 +146,67 @@ class ExceptionHandler:
         pass
 
     # to be move to Speaker subclass
-    def on_NO_WORD_FOR_CATEGORY(self, agent: Speaker, agent_category):
-        logging.debug("%s(%d) has no word for his category" % (agent, agent.id))
-        new_word = agent.add_new_word()
+    def on_NO_WORD_FOR_CATEGORY(self, speaker, agent_category):
+        logging.debug("%s(%d) has no word for his category" % (speaker, speaker.id))
+        new_word = speaker.add_new_word()
         # TODO speaker_word instead new_word_index?
-        logging.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.id, new_word))
-        agent.learn_word_category(new_word, agent_category)
-        logging.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.id, new_word))
+        logging.debug("%s(%d) introduces new word \"%s\"" % (speaker, speaker.id, new_word))
+        speaker.learn_word_category(new_word, agent_category)
+        logging.debug("%s(%d) associates \"%s\" with his category" % (speaker, speaker.id, new_word))
 
     # to be move to Hearer subclass
-    def on_NO_SUCH_WORD(self, agent: Hearer, context, topic, speaker_word):
-        logging.debug("Hearer(%d) adds word \"%s\"" % (agent.id, speaker_word))
-        agent.add_word(speaker_word)
-        logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
+    def on_NO_SUCH_WORD(self, hearer, context, topic, speaker_word):
+        logging.debug("Hearer(%d) adds word \"%s\"" % (hearer.id, speaker_word))
+        hearer.add_word(speaker_word)
+        logging.debug("Hearer(%d) plays the discrimination game" % hearer.id)
         # TODO discrimination_game czy discriminate?
         category = None
         try:
-            category = agent.discrimination_game(context, topic)
-            logging.debug("Hearer(%d) category %d" % (agent.id,
+            category = hearer.discrimination_game(context, topic)
+            logging.debug("Hearer(%d) category %d" % (hearer.id,
                                                       -1 if category is None else category))
             logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
-                agent.id, speaker_word, category))
-            agent.learn_word_category(speaker_word, category)
+                hearer.id, speaker_word, category))
+            hearer.learn_word_category(speaker_word, category)
             return category
         except NO_CATEGORY:
-            self.on_NO_CATEGORY(agent=agent, context=context, topic=topic)
+            self.on_NO_CATEGORY(agent=hearer, context=context, topic=topic)
             # TODO discuss
         except NO_NOTICEABLE_DIFFERENCE:
             self.on_NO_NOTICEABLE_DIFFERENCE()
             # TODO do wywalenia?
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_1:
-            self.on_NO_POSITIVE_RESPONSE_1(agent=agent, context=context)
+            self.on_NO_POSITIVE_RESPONSE_1(agent=hearer, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_POSITIVE_RESPONSE_2:
-            self.on_NO_POSITIVE_RESPONSE_2(agent=agent, context=context)
+            self.on_NO_POSITIVE_RESPONSE_2(agent=hearer, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_1:
-            self.on_NO_DISCRIMINATION_LOWER_1(agent=agent, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_1(agent=hearer, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
         except NO_DISCRIMINATION_LOWER_2:
-            self.on_NO_DISCRIMINATION_LOWER_2(agent=agent, context=context)
+            self.on_NO_DISCRIMINATION_LOWER_2(agent=hearer, context=context)
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
 
         logging.debug("Hearer(%d) category %-1")
-        logging.debug("Hearer(%d) plays the discrimination game" % agent.id)
+        logging.debug("Hearer(%d) plays the discrimination game" % hearer.id)
 
         try:
-            category = agent.discrimination_game(context, topic)
-            logging.debug("Hearer(%d) category %d" % (agent.id,
+            category = hearer.discrimination_game(context, topic)
+            logging.debug("Hearer(%d) category %d" % (hearer.id,
                                                       -1 if category is None else category))
             logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
-                agent.id, speaker_word, category))
-            agent.learn_word_category(speaker_word, category)
+                hearer.id, speaker_word, category))
+            hearer.learn_word_category(speaker_word, category)
             return category
         except PerceptionError:
-            logging.debug("Hearer(%d) - discrimination failure" % agent.id)
-            logging.debug("Hearer(%d) does not associate \"%s\" with any category" % (agent.id, speaker_word))
+            logging.debug("Hearer(%d) - discrimination failure" % hearer.id)
+            logging.debug("Hearer(%d) does not associate \"%s\" with any category" % (hearer.id, speaker_word))
             return None
 
     # HEArER
