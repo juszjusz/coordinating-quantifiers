@@ -32,13 +32,12 @@ class Simulation:
             for speaker, hearer in selected_pairs:
                 game = GuessingGame(self.params['is_stage7_on'])
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
-                result = game.play(speaker=speaker, hearer=hearer)
-
+                game.play(speaker=speaker, hearer=hearer)
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
-                self.data.store_cs(result)
 
             self.data.store_ds(population.agents)
+            self.data.store_cs(population.agents)
             self.data.store_matrices(population.agents)
             self.data.store_langs(population.agents)
             self.data.store_cats(population.agents)
@@ -52,7 +51,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
-    parser.add_argument('--discriminative_threshold', '-d', help='discriminative threshold', type=float, default=.95)
+    parser.add_argument('--discriminative_threshold', '-d', help='discriminative threshold', type=float, default=.90)
     parser.add_argument('--delta_inc', '-di', help='delta increment', type=float, default=.1)
     parser.add_argument('--delta_dec', '-dd', help='delta decrement', type=float, default=.1)
     parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.1)

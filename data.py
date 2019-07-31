@@ -28,7 +28,7 @@ class Data:
         self._population_size_ = population_size
         # self._max_weight_ = {a: .0 for a in range(population_size)}
         self.ds_per_agent = [.0 for a in range(population_size)]
-        self.cs_scores = deque([0])  # {a: deque([0]) for a in range(population_size)}
+        self.cs_per_agent = [.0 for a in range(population_size)]
         self.matrices = {a: [] for a in range(population_size)}
         self.langs = {a: [] for a in range(population_size)}
         self.cats = {a: [] for a in range(population_size)}
@@ -62,19 +62,16 @@ class Data:
             self.ds_per_agent[i] = agents[i].get_discriminative_success()
         self.ds.append(self.get_ds())
 
-    def store_cs(self, cs_result):
-        if len(self.cs_scores) == 50:
-            self.cs_scores.rotate(-1)
-            self.cs_scores[-1] = int(cs_result)
-        else:
-            self.cs_scores.append(int(cs_result))
+    def store_cs(self, agents):
+        for i in range(self._population_size_):
+            self.cs_per_agent[i] = agents[i].get_communicative_success()
         self.cs.append(self.get_cs())
 
     def get_ds(self):
-        return sum(self.ds_per_agent)/self._population_size_
+        return sum(self.ds_per_agent) / self._population_size_
 
     def get_cs(self):
-        return sum(self.cs_scores) / len(self.cs_scores) * 100
+        return sum(self.cs_per_agent) / self._population_size_
 
     def store_cats(self, agents):
         for i in range(len(agents)):
@@ -252,7 +249,7 @@ class Data:
         plt.xlabel("step")
         plt.ylabel("success")
         x_ex = range(0, step + 3)
-        th = [95 for i in x_ex]
+        th = [90 for i in x_ex]
         plt.plot(x_ex, th, ':', linewidth=0.2)
         plt.plot(x, self.ds, '--', label="discriminative success")
         plt.plot(x, self.cs, '-', label="communicative success")

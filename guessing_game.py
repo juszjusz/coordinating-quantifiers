@@ -71,39 +71,38 @@ class GuessingGame:
 
         # logging.debug("discrimination success" if error == Agent.Error.NO_ERROR else "discrimination failure")
 
-        success = self.topic == hearer_topic
+        success1 = self.topic == hearer_topic
 
-        if self.completed and success:
-            logging.debug("guessing game success!")
-            speaker.store_cs_result(Agent.Result.SUCCESS)
-            hearer.store_cs_result(Agent.Result.SUCCESS)
+        if success1:
+            logging.debug("guessing game 1 success!")
+        else:
+            logging.debug("guessing game 1 failed!")
 
+        speaker.store_cs_result(Agent.Result.SUCCESS if success1 else Agent.Result.FAILURE)
+        hearer.store_cs_result(Agent.Result.SUCCESS if success1 else Agent.Result.FAILURE)
+
+        if self.completed and success1:
             speaker.update_on_success(speaker_word, speaker_category)
             hearer.update_on_success(speaker_word, hearer_category)
         elif self.completed:
             hearer.update_on_failure(speaker_word, hearer_category)
             speaker.update_on_failure(speaker_word, speaker_category)
 
+        success2 = False
         # STAGE 7
-        if self.is_stage7_on and self.completed and not success:
+        if self.is_stage7_on and self.completed and not success1:
             word, word_categories = hearer.select_word(category=hearer_category)
-            success = word == speaker_word
+            success2 = word == speaker_word
 
-            if success:
+            # speaker.store_cs2_result(Agent.Result.SUCCESS if success2 else Agent.Result.FAILURE)
+            # hearer.store_cs2_result(Agent.Result.SUCCESS if success2 else Agent.Result.FAILURE)
+
+            if success2:
+                logging.debug("guessing game 2 success!")
                 speaker.update_on_success_stage7(speaker_word, speaker_category)
                 hearer.update_on_success_stage7(word, word_categories)
-
-        success_result = self.completed and success
-
-        if not success_result:
-            logging.debug("guessing game failed!")
-            speaker.store_cs_result(Agent.Result.FAILURE)
-            hearer.store_cs_result(Agent.Result.FAILURE)
-
-        return success_result
-
-    def get_stats(self):
-        return None
+            else:
+                logging.debug("guessing game 2 failed!")
 
 
 class ExceptionHandler:

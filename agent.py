@@ -14,7 +14,7 @@ class Population:
 
     def __init__(self, params):
         self.population_size = params['population_size']
-        self.agents = [Agent(agent_id, Language(params), 0, deque([0])) for agent_id in range(self.population_size)]
+        self.agents = [Agent(agent_id, Language(params), 0.0, deque([])) for agent_id in range(self.population_size)]
 
     def select_pairs_per_round(self, games_per_round):
         agents_per_game = sample(self.agents, games_per_round * 2)
@@ -38,6 +38,7 @@ class Agent:
             self.cs_scores[-1] = int(result)
         else:
             self.cs_scores.append(int(result))
+        # self.communicative_success = (sum(self.cs_scores) / len(self.cs_scores)) * 100
 
     def learn_word_category(self, word, category_index):
         self.language.initialize_word2category_connection(word, category_index)
@@ -47,6 +48,9 @@ class Agent:
 
     def get_discriminative_success(self):
         return self.language.discriminative_success
+
+    def get_communicative_success(self):
+        return (sum(self.cs_scores) / len(self.cs_scores)) * 100
 
     def get_most_connected_word(self, category):
         return self.language.get_most_connected_word(category)
