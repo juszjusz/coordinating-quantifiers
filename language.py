@@ -30,6 +30,7 @@ class Language(Perception):
         self.lxc = AssociativeMatrix()
         self.delta_inc = params['delta_inc']
         self.delta_dec = params['delta_dec']
+        self.delta_inh = params['delta_inh']
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -50,7 +51,7 @@ class Language(Perception):
         return self.lxc.col_count() - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
-        # print("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
+        logging.debug("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
         self.categories[i].add_reactive_unit(stimulus)
 
     def get_most_connected_word(self, category):
@@ -102,6 +103,21 @@ class Language(Perception):
         word_index = self.lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
         self.lxc.set_value(word_index, category_index, value + self.delta_inc * value)
+
+    def inhibit_word2category_connection(self, word, category_index):
+        word_index = self.lexicon.index(word)
+        value = self.lxc.get_value(word_index, category_index)
+        self.lxc.set_value(word_index, category_index, value - self.delta_inh * value)
+
+    def inhibit_word2categories_connections(self, word, category_index):
+        for k_index, _ in self.get_categories_sorted_by_val(word):
+            if k_index != category_index:
+                self.inhibit_word2category_connection(word, k_index)
+
+    def inhibit_category2words_connections(self, word, category_index):
+        for v in self.get_words_sorted_by_val(category_index):
+            if v != word:
+                self.inhibit_word2category_connection(word=v, category_index=category_index)
 
     def decrement_word2category_connection(self, word, category_index):
         word_index = self.lexicon.index(word)

@@ -6,7 +6,7 @@ from numpy import arange
 from numpy import array
 from numpy import zeros
 from numpy import amax
-from collections import deque
+from numpy import log
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 import pickle
@@ -153,7 +153,8 @@ class Data:
                 lxc[0:n_forms, 0:n_categories] = self.matrices[l][m][1]
                 fig, ax = plt.subplots()
                 lxc_ex = column_stack((lxc, linspace(amax(lxc), 0, n_rows)))
-                im = ax.imshow(lxc_ex, aspect='auto')
+                lxc_ex_log = log(lxc_ex + 1.0)
+                im = ax.imshow(lxc_ex_log, aspect='auto')
                 lexicon = self.matrices[l][m][0]
                 # We want to show all ticks...
                 ax.set_xticks(arange(n_cols + 1))
@@ -242,14 +243,14 @@ class Data:
             data.plot_langs()
             d = d + 1
 
-    def plot_success(self, step):
+    def plot_success(self, dt, step):
         x = range(1, step + 2)
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
         plt.ylabel("success")
         x_ex = range(0, step + 3)
-        th = [90 for i in x_ex]
+        th = [dt*100 for i in x_ex]
         plt.plot(x_ex, th, ':', linewidth=0.2)
         plt.plot(x, self.ds, '--', label="discriminative success")
         plt.plot(x, self.cs, '-', label="communicative success")
