@@ -101,9 +101,7 @@ class Speaker(Agent):
 
     def update_on_success(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
-        for k_index, _ in self.language.get_categories_sorted_by_val(word):
-            if k_index != category:
-                self.language.decrement_word2category_connection(word=word, category_index=k_index)
+        self.language.inhibit_word2categories_connections(word=word, category_index=category)
 
     def update_on_success_stage7(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
@@ -146,9 +144,7 @@ class Hearer(Agent):
 
     def update_on_success(self, speaker_word, hearer_category):
         self.language.increment_word2category_connection(word=speaker_word, category_index=hearer_category)
-        for v in self.language.get_words_sorted_by_val(hearer_category):
-            if v != speaker_word:
-                self.language.decrement_word2category_connection(word=v, category_index=hearer_category)
+        self.language.inhibit_category2words_connections(word=speaker_word, category_index=hearer_category)
 
     def update_on_success_stage7(self, word, word_categories):
         for c_index, _ in word_categories:

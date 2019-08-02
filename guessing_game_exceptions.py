@@ -32,12 +32,17 @@ class NO_CATEGORY(PerceptionError):
 
 # agent has categories but is unable to discriminate, lower response for stimulus 1
 class NO_DISCRIMINATION_LOWER_1(PerceptionError):
-    pass
+
+    def __init__(self, i):
+        self.i = i
+
 
 
 # agent has categories but is unable to discriminate, lower response for stimulus 2
 class NO_DISCRIMINATION_LOWER_2(PerceptionError):
-    pass
+
+    def __init__(self, i):
+        self.i = i
 
 
 # agent fails to select topic using category bcs it produces the same responses for both stimuli
