@@ -160,14 +160,14 @@ class Perception:
             self.ds_scores[-1] = result
         else:
             self.ds_scores.append(result)
-        self.discriminative_success = (sum(self.ds_scores) / len(self.ds_scores)) * 100
+        self.discriminative_success = sum(self.ds_scores) / len(self.ds_scores)
 
     def store_ds_failure(self):
         self.store_ds_result(Perception.Result.FAILURE)
 
     def switch_ds_result(self):
         self.ds_scores[-1] = 1 - self.ds_scores[-1]
-        self.discriminative_success = (sum(self.ds_scores) / len(self.ds_scores)) * 100
+        self.discriminative_success = sum(self.ds_scores) / len(self.ds_scores)
 
     def discriminate(self, context, topic):
         if not self.categories:
@@ -203,8 +203,8 @@ class Perception:
 
         if i == j:
             # self.store_ds_result(Perception.Result.FAILURE)
-            raise NO_DISCRIMINATION_LOWER_1 if max1 < max2 else \
-                NO_DISCRIMINATION_LOWER_2
+            raise NO_DISCRIMINATION_LOWER_1(i) if max1 < max2 else \
+                NO_DISCRIMINATION_LOWER_2(i)
 
         # discrimination successful
         # self.store_ds_result(Perception.Result.SUCCESS)

@@ -59,7 +59,7 @@ class Data:
 
     def store_ds(self, agents):
         for i in range(self._population_size_):
-            self.ds_per_agent[i] = agents[i].get_discriminative_success()
+            self.ds_per_agent[i] = agents[i].get_discriminative_success()*100
         self.ds.append(self.get_ds())
 
     def store_cs(self, agents):
@@ -252,9 +252,9 @@ class Data:
         x_ex = range(0, step + 3)
         th = [dt*100 for i in x_ex]
         plt.plot(x_ex, th, ':', linewidth=0.2)
-        plt.plot(x, self.ds, '--', label="discriminative success")
-        plt.plot(x, self.cs, '-', label="communicative success")
-        plt.legend(['line', 'line', 'line'], loc='best')
+        plt.plot(x, self.ds, '--')
+        plt.plot(x, self.cs, '-')
+        plt.legend(['dt', 'ds', 'gg1s'], loc='best')
         plt.savefig("./simulation_results/success.pdf")
         plt.close()
 

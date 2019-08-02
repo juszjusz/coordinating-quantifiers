@@ -50,14 +50,14 @@ class GuessingGame:
             self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=speaker,
                                                              context=self.context,
                                                              category_index=speaker_category)
-        except NO_DISCRIMINATION_LOWER_1:
+        except NO_DISCRIMINATION_LOWER_1 as e:
             self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=speaker,
                                                                 context=self.context,
-                                                                category_index=speaker_category)
-        except NO_DISCRIMINATION_LOWER_2:
+                                                                category_index=e.i)
+        except NO_DISCRIMINATION_LOWER_2 as e:
             self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=speaker,
                                                                 context=self.context,
-                                                                category_index=speaker_category)
+                                                                category_index=e.i)
         except NO_WORD_FOR_CATEGORY:
             self.exception_handler.on_NO_WORD_FOR_CATEGORY(speaker=speaker, agent_category=speaker_category)
         except NO_ASSOCIATED_CATEGORIES:

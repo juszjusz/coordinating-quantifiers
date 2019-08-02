@@ -52,7 +52,7 @@ class Language(Perception):
 
     def update_category(self, i, stimulus):
         logging.debug("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
-        self.categories[i].add_reactive_unit(stimulus)
+        self.categories[i].add_reactive_unit(ReactiveUnit(stimulus))
 
     def get_most_connected_word(self, category):
         if category is None:
