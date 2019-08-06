@@ -1,4 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
+
+import logging
 from random import randint
 import scipy.integrate
 import numpy as np
@@ -40,6 +42,7 @@ class ReactiveUnit:
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
         try:
             self.interp = interp1d(x, y)  # radial basis interpolation?
+            self.interp_new = lambda val: np.interp(val, x, y)  # radial basis interpolation?
         except ValueError:
             print("x and y arrays must have at least 2 entries")
             print(x)
@@ -50,7 +53,7 @@ class ReactiveUnit:
     def sample(self, quantity):
         return np.array(np.random.normal(quantity, self.sigma * quantity, self.sample_size), dtype=np.float)
 
-    def fun(self, x):
+    def reactive_fun(self, x):
         # TODO refactor
         if type(x) is np.ndarray:
             y = np.empty_like(x)
@@ -60,12 +63,19 @@ class ReactiveUnit:
         else:
             return 0 if x < self.x_left or x > self.x_right else self.interp(x)
 
+    def reactive_new_fun(self, x):
+        return 0 if x < self.x_left or x > self.x_right else self.interp_new(x)
+
     # TODO code repetition
     def response(self, stimulus):
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        return scipy.integrate.quad(lambda x: s.fun(x) * self.fun(x), x_left, x_right)[0]
+        val1 = scipy.integrate.quad(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)[0]
+        val2 = scipy.integrate.quad(lambda x: s.reactive_new_fun(x) * self.reactive_new_fun(x), x_left, x_right, limit=5)[0]
+        if abs(val1 - val2) > .01:
+            logging.debug('%s =?= %s', val1, val2)
+        return val2
 
     def show(self, how="spline"):
         plt.title("Reactive unit for " + str(self.a) + "/" + str(self.b) + " = " + str(self.a / self.b))
@@ -74,7 +84,7 @@ class ReactiveUnit:
             plt.show()
         elif how == "spline":
             x = np.linspace(self.x_left, self.x_right)
-            plt.plot(x, self.fun(x), 'o', x, self.fun(x), '--')
+            plt.plot(x, self.reactive_fun(x), 'o', x, self.reactive_fun(x), '--')
             plt.legend(['data', 'cubic'], loc='best')
             plt.hist(self.ratio_samples, bins=50)
             plt.show()
@@ -94,7 +104,11 @@ class Category:
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        return scipy.integrate.quad(lambda x: s.fun(x) * self.fun(x), x_left, x_right)[0]
+        val1 = scipy.integrate.quad(lambda x: s.reactive_fun(x) * self.fun(x), x_left, x_right)[0]
+        val2 = scipy.integrate.quad(lambda x: s.reactive_new_fun(x) * self.fun(x), x_left, x_right, limit=5)[0]
+        if abs(val1 - val2) > .01:
+            logging.debug('%s =?= %s', val1, val2)
+        return val2
 
     def add_reactive_unit(self, reactive_unit, weight=0.5):
         self.weights.append(weight)
@@ -105,7 +119,7 @@ class Category:
     def fun(self, x):
         # performance?
         return 0 if len(self.reactive_units) == 0 \
-            else sum([r.fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
+            else sum([r.reactive_new_fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
 
     def select(self, stimuli):
         # TODO what if the same stimuli?
