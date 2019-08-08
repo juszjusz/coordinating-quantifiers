@@ -1,15 +1,14 @@
 from __future__ import division  # force python 3 division in python 2
 
-import logging
 from random import randint
-import scipy.integrate
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import interp1d
 
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
+
+from math_utils import interpolate, integrate
 
 
 class Stimulus:
@@ -41,8 +40,7 @@ class ReactiveUnit:
         y, bin_edges = np.histogram(self.ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
         try:
-            self.interp = interp1d(x, y)  # radial basis interpolation?
-            self.interp_new = lambda val: np.interp(val, x, y)  # radial basis interpolation?
+            self.interp = interpolate(x, y)  # radial basis interpolation?
         except ValueError:
             print("x and y arrays must have at least 2 entries")
             print(x)
@@ -54,28 +52,14 @@ class ReactiveUnit:
         return np.array(np.random.normal(quantity, self.sigma * quantity, self.sample_size), dtype=np.float)
 
     def reactive_fun(self, x):
-        # TODO refactor
-        if type(x) is np.ndarray:
-            y = np.empty_like(x)
-            for i in range(len(x)):
-                y[i] = 0 if x[i] < self.x_left or x[i] > self.x_right else self.interp(x[i])
-            return y
-        else:
-            return 0 if x < self.x_left or x > self.x_right else self.interp(x)
-
-    def reactive_new_fun(self, x):
-        return 0 if x < self.x_left or x > self.x_right else self.interp_new(x)
+        return 0 if x < self.x_left or x > self.x_right else self.interp(x)
 
     # TODO code repetition
-    def response(self, stimulus):
+    def reactive_response(self, stimulus):
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        val1 = scipy.integrate.quad(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)[0]
-        val2 = scipy.integrate.quad(lambda x: s.reactive_new_fun(x) * self.reactive_new_fun(x), x_left, x_right, limit=5)[0]
-        if abs(val1 - val2) > .01:
-            logging.debug('%s =?= %s', val1, val2)
-        return val2
+        return integrate(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)
 
     def show(self, how="spline"):
         plt.title("Reactive unit for " + str(self.a) + "/" + str(self.b) + " = " + str(self.a / self.b))
@@ -104,11 +88,7 @@ class Category:
         s = ReactiveUnit(stimulus)
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
-        val1 = scipy.integrate.quad(lambda x: s.reactive_fun(x) * self.fun(x), x_left, x_right)[0]
-        val2 = scipy.integrate.quad(lambda x: s.reactive_new_fun(x) * self.fun(x), x_left, x_right, limit=5)[0]
-        if abs(val1 - val2) > .01:
-            logging.debug('%s =?= %s', val1, val2)
-        return val2
+        return integrate(lambda x: s.reactive_fun(x) * self.fun(x), x_left, x_right)
 
     def add_reactive_unit(self, reactive_unit, weight=0.5):
         self.weights.append(weight)
@@ -119,7 +99,7 @@ class Category:
     def fun(self, x):
         # performance?
         return 0 if len(self.reactive_units) == 0 \
-            else sum([r.reactive_new_fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
+            else sum([r.reactive_fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
 
     def select(self, stimuli):
         # TODO what if the same stimuli?
@@ -227,7 +207,7 @@ class Perception:
     # TODO check
     def reinforce(self, category, stimulus):
         c = category
-        c.weights = [w + self.beta * ru.response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
+        c.weights = [w + self.beta * ru.reactive_response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
 
     # TODO adhoc implementation of noticeable difference between stimuli
     # TODO doesnt seem to work, try out simulation
