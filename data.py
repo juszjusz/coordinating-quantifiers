@@ -1,4 +1,12 @@
 from __future__ import division  # force python 3 division in python 2
+
+import argparse
+import logging
+import multiprocessing
+import sys
+import time
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 from numpy import column_stack
 from numpy import linspace
@@ -78,29 +86,37 @@ class Data:
             self.cats[i].append([])
             a = agents[i]
             for cat_index in range(len(a.get_categories())):
-                self.cats[i][-1].append((a.get_categories()[cat_index].id,[a.get_categories()[cat_index].fun(x_0) for x_0 in self.x]))
+                self.cats[i][-1].append(
+                    (a.get_categories()[cat_index].id, [a.get_categories()[cat_index].fun(x_0) for x_0 in self.x]))
 
     def plot_cats(self):
-        for i in range(len(self.cats)):
-            for step in range(len(self.cats[i])):
-                plt.title("categories")
-                ax = plt.gca()
-                plt.xscale("symlog")
-                ax.xaxis.set_major_formatter(ScalarFormatter())
-                plt.yscale("symlog")
-                ax.yaxis.set_major_formatter(ScalarFormatter())
-                colors = sns.color_palette()
-                num_of_cats = len(self.cats[i][step])
-                for j in range(num_of_cats):
-                    cat_id = self.cats[i][step][j][0]
-                    cat_y = self.cats[i][step][j][1]
-                    plt.plot(self.x, cat_y,
-                             color=colors[cat_id % len(colors)], linestyle=line_styles[cat_id // len(colors)],
-                             label="%d" % (cat_id + 1))
-                plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-                plt.tight_layout(pad=0)
-                plt.savefig("./simulation_results/cats/categories%d_%d" % (i, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
-                plt.close()
+        with multiprocessing.Pool() as executor:
+            executor.map(self.plot_cat, [category_index for category_index in range(len(self.cats))])
+
+    def plot_cat(self, category_index):
+        cat = self.cats[category_index]
+        for step in range(len(cat)):
+            plt.title("categories")
+            ax = plt.gca()
+            plt.xscale("symlog")
+            ax.xaxis.set_major_formatter(ScalarFormatter())
+            plt.yscale("symlog")
+            ax.yaxis.set_major_formatter(ScalarFormatter())
+            colors = sns.color_palette()
+            num_of_cats = len(cat[step])
+            for j in range(num_of_cats):
+                cat_id = cat[step][j][0]
+                cat_y = cat[step][j][1]
+                plt.plot(self.x, cat_y,
+                         color=colors[cat_id % len(colors)],
+                         linestyle=line_styles[cat_id // len(colors)],
+                         label="%d" % (cat_id + 1))
+            plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+            plt.tight_layout(pad=0)
+
+            plt.savefig("./simulation_results/cats/categories%d_%d" % (
+                category_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
+            plt.close()
 
     def store_langs(self, agents):
         for i in range(len(agents)):
@@ -184,29 +200,34 @@ class Data:
                 plt.close()
 
     def plot_langs(self):
-        for i in range(len(self.langs)):
-            # sns.set_palette(colors)
-            for step in range(len(self.langs[i])):
-                plt.title("language")
-                plt.xscale("symlog")
-                plt.yscale("symlog")
-                ax = plt.gca()
-                ax.xaxis.set_major_formatter(ScalarFormatter())
-                ax.yaxis.set_major_formatter(ScalarFormatter())
-                colors = sns.color_palette()
-                for word_cats_index in range(len(self.langs[i][step])):
-                    num_words = len(self.langs[i][step])
-                    word_cats = self.langs[i][step][word_cats_index]
-                    f = word_cats[0]
-                    ls = line_styles[word_cats_index // len(colors)]
-                    ci = word_cats_index % len(colors)
-                    for y in word_cats[1::]:
-                        plt.plot(self.x, y, color=colors[ci], linestyle=ls)
-                    plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
-                plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-                plt.tight_layout(pad=0)
-                plt.savefig("./simulation_results/langs/language%d_%d.png" % (i, step if not self.pickle_mode else self.step - self.pickle_step + step+1))
-                plt.close()
+        with multiprocessing.Pool() as executor:
+            executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
+
+    def plot_lang(self, lang_index):
+        # sns.set_palette(colors)
+        lang = self.langs[lang_index]
+        for step in range(len(lang)):
+            plt.title("language")
+            plt.xscale("symlog")
+            plt.yscale("symlog")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(ScalarFormatter())
+            ax.yaxis.set_major_formatter(ScalarFormatter())
+            colors = sns.color_palette()
+            for word_cats_index in range(len(self.langs[lang_index][step])):
+                num_words = len(self.langs[lang_index][step])
+                word_cats = self.langs[lang_index][step][word_cats_index]
+                f = word_cats[0]
+                ls = line_styles[word_cats_index // len(colors)]
+                ci = word_cats_index % len(colors)
+                for y in word_cats[1::]:
+                    plt.plot(self.x, y, color=colors[ci], linestyle=ls)
+                plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
+            plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+            plt.tight_layout(pad=0)
+            plt.savefig("./simulation_results/langs/language%d_%d.png" % (
+                lang_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
+            plt.close()
 
     @staticmethod
     def plot_pickled_matrices():
@@ -219,28 +240,6 @@ class Data:
                 break
             data._shape_ = shape
             data.plot_matrices()
-            d = d + 1
-
-    @staticmethod
-    def plot_pickled_cats():
-        d = 0
-        while True:
-            try:
-                data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
-            except Exception:
-                break
-            data.plot_cats()
-            d = d + 1
-
-    @staticmethod
-    def plot_pickled_langs():
-        d = 0
-        while True:
-            try:
-                data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
-            except Exception:
-                break
-            data.plot_langs()
             d = d + 1
 
     def plot_success(self, dt, step):
@@ -258,7 +257,50 @@ class Data:
         plt.savefig("./simulation_results/success.pdf")
         plt.close()
 
+
 class RoundStatistics:
     discriminative_success = 0
     guessing_topic_success = 0
     guessing_word_success = 0
+
+
+class DataPostprocessor:
+    def __init__(self, root="./simulation_results"):
+        self.root = Path(root)
+        self.commands = []
+
+    def add_command(self, command):
+        self.commands.append(command)
+
+    def execute_commands(self):
+        data_paths = self.root.glob("data/[0-9]*.p")
+        data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
+        for data in data_unpickled:
+            for command_exec in self.commands:
+                command_exec(data)
+
+
+if __name__ == '__main__':
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
+    parser = argparse.ArgumentParser(prog='plotting data')
+
+    parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
+                        default="./simulation_results/data/%d.p")
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
+
+    parsed_params = vars(parser.parse_args())
+
+    start_time = time.time()
+    data_provider = DataPostprocessor()
+
+    if parsed_params['plot_cats']:
+        data_provider.add_command(lambda x: x.plot_cats())
+    if parsed_params['plot_langs']:
+        data_provider.add_command(lambda x: x.plot_langs())
+    if parsed_params['plot_matrices']:
+        pass # TODO
+    data_provider.execute_commands()
+    logging.debug('execution time %dsec', time.time() - start_time)
