@@ -155,49 +155,60 @@ class Data:
             # if lxc.size:
             #     self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
 
-    def plot_matrices(self):
-        for l in range(self._population_size_):
-            n_rows = self._shape_[l][0]
-            n_cols = self._shape_[l][1]
-            for m in range(len(self.matrices[l])):
-                if not self.matrices[l][m][1].size:
-                    continue
-                n_categories = self.matrices[l][m][1].shape[1]
-                n_forms = len(self.matrices[l][m][0])
-                #lxc = self.languages[l][m][1].resize((n_rows, n_cols), refcheck=False)
-                lxc = zeros(self._shape_[l])
-                lxc[0:n_forms, 0:n_categories] = self.matrices[l][m][1]
-                fig, ax = plt.subplots()
-                lxc_ex = column_stack((lxc, linspace(amax(lxc), 0, n_rows)))
-                lxc_ex_log = log(lxc_ex + 1.0)
-                im = ax.imshow(lxc_ex_log, aspect='auto')
-                lexicon = self.matrices[l][m][0]
-                # We want to show all ticks...
-                ax.set_xticks(arange(n_cols + 1))
-                ax.set_yticks(arange(n_rows))
-                # ... and label them with the respective list entries
-                x_tick_labels = [str(cid + 1) for cid in self.matrices[l][m][2]]
-                for t in range(n_categories,n_cols):
-                    x_tick_labels.append('-')
-                x_tick_labels.append("s")
-                ax.set_xticklabels(x_tick_labels, fontdict={'fontsize':8})
-                for t in range(len(lexicon), n_rows):
-                    x_tick_labels.append('-')
-                ax.set_yticklabels(lexicon, fontdict={'fontsize':8})
-                # Rotate the tick labels and set their alignment.
-                plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-                         rotation_mode="anchor")
-                # for i in range(len(lexicon)):
-                #     for j in range(n_categories):
-                #         text = ax.text(j, i, round(lxc_ex[i, j], 3),
-                #                        ha="center", va="center", color="w")
-                # for i in range(n_rows):
-                #     ax.text(n_cols, i, round(lxc_ex[i, n_cols], 2), ha="center", va="center", color="w")
+    def plot_matrices(self, max_shapes):
+        for agent in range(self._population_size_):
+            max_shape = max_shapes[agent]
+            agent_matrices = self.matrices[agent]
+            for simulation_step in range(len(agent_matrices)):
+                output_name = "./simulation_results/matrices/matrix%d_%d" % (
+                    agent,
+                    simulation_step if not self.pickle_mode else self.step - self.pickle_step + simulation_step + 1
+                )
+                lang, matrix, cats = agent_matrices[simulation_step]
+                self.plot_matrix(lang, matrix, cats, max_shape, output_name)
 
-                ax.set_title("Association matrix")
-                fig.tight_layout()
-                plt.savefig("./simulation_results/matrices/matrix%d_%d" % (l, m if not self.pickle_mode else self.step - self.pickle_step + m + 1))
-                plt.close()
+    @staticmethod
+    def plot_matrix(lang, matrix, cats, max_shape, output_name):
+        if not matrix.size:
+            return
+        n_rows = max_shape[0]
+        n_cols = max_shape[1]
+        n_categories = matrix.shape[1]
+        n_forms = len(lang)
+        # lxc = self.languages[l][m][1].resize((n_rows, n_cols), refcheck=False)
+        lxc = zeros(max_shape)
+        lxc[0:n_forms, 0:n_categories] = matrix
+        fig, ax = plt.subplots()
+        lxc_ex = column_stack((lxc, linspace(amax(lxc), 0, n_rows)))
+        lxc_ex_log = log(lxc_ex + 1.)
+        im = ax.imshow(lxc_ex_log, aspect='auto')
+        lexicon = lang
+        # We want to show all ticks...
+        ax.set_xticks(arange(n_cols + 1))
+        ax.set_yticks(arange(n_rows))
+        # ... and label them with the respective list entries
+        x_tick_labels = [str(cid + 1) for cid in cats]
+        for _ in range(n_categories, n_cols):
+            x_tick_labels.append('-')
+        x_tick_labels.append("s")
+        ax.set_xticklabels(x_tick_labels, fontdict={'fontsize': 8})
+        for _ in range(len(lexicon), n_rows):
+            x_tick_labels.append('-')
+        ax.set_yticklabels(lexicon, fontdict={'fontsize': 8})
+        # Rotate the tick labels and set their alignment.
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                 rotation_mode="anchor")
+        # for i in range(len(lexicon)):
+        #     for j in range(n_categories):
+        #         text = ax.text(j, i, round(lxc_ex[i, j], 3),
+        #                        ha="center", va="center", color="w")
+        # for i in range(n_rows):
+        #     ax.text(n_cols, i, round(lxc_ex[i, n_cols], 2), ha="center", va="center", color="w")
+
+        ax.set_title("Association matrix")
+        fig.tight_layout()
+        plt.savefig(output_name)
+        plt.close()
 
     def plot_langs(self):
         with multiprocessing.Pool() as executor:
@@ -229,19 +240,6 @@ class Data:
                 lang_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
             plt.close()
 
-    @staticmethod
-    def plot_pickled_matrices():
-        d = 0
-        shape = pickle.load(open("./simulation_results/data/info.p", "rb"))
-        while True:
-            try:
-                data = pickle.load(open("./simulation_results/data/%d.p" % d, "rb"))
-            except Exception:
-                break
-            data._shape_ = shape
-            data.plot_matrices()
-            d = d + 1
-
     def plot_success(self, dt, step):
         x = range(1, step + 2)
         plt.ylim(bottom=0)
@@ -265,7 +263,7 @@ class RoundStatistics:
 
 
 class DataPostprocessor:
-    def __init__(self, root="./simulation_results"):
+    def __init__(self, root="./simulation_results/data"):
         self.root = Path(root)
         self.commands = []
 
@@ -273,11 +271,12 @@ class DataPostprocessor:
         self.commands.append(command)
 
     def execute_commands(self):
-        data_paths = self.root.glob("data/[0-9]*.p")
+        max_shape = pickle.load(self.root.joinpath("info.p").open("rb"))
+        data_paths = self.root.glob("[0-9]*.p")
         data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
         for data in data_unpickled:
             for command_exec in self.commands:
-                command_exec(data)
+                command_exec({'data': data, 'max_shape': max_shape})
 
 
 if __name__ == '__main__':
@@ -295,12 +294,11 @@ if __name__ == '__main__':
 
     start_time = time.time()
     data_provider = DataPostprocessor()
-
     if parsed_params['plot_cats']:
-        data_provider.add_command(lambda x: x.plot_cats())
+        data_provider.add_command(lambda x: x['data'].plot_cats())
     if parsed_params['plot_langs']:
-        data_provider.add_command(lambda x: x.plot_langs())
+        data_provider.add_command(lambda x: x['data'].plot_langs())
     if parsed_params['plot_matrices']:
-        pass # TODO
+        data_provider.add_command(lambda x: x['data'].plot_matrices(x['max_shape']))
     data_provider.execute_commands()
-    logging.debug('execution time %dsec', time.time() - start_time)
+    logging.debug('execution time %dsec, with params %s', time.time() - start_time, parsed_params)
