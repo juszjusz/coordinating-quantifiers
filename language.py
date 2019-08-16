@@ -223,7 +223,7 @@ class Language(Perception):
             plt.close()
 
 
-class AssociativeMatrix():
+class AssociativeMatrix:
     def __init__(self):
         self.matrix = empty(shape=(0, 0))
 
@@ -238,18 +238,16 @@ class AssociativeMatrix():
 
     # returns row vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
     def get_index2row_sorted_by_value(self, column):
-        indices = range(self.row_count())
-        row = self.get_row_by_col(column)
-        return sorted(zip(indices, row), key=lambda index2row: index2row[1], reverse=True)
+        index2rows = enumerate(self.get_row_by_col(column))
+        return sorted(index2rows, key=lambda index2row: index2row[1], reverse=True)
 
     def get_col_by_row(self, row):
         return self.matrix[row, 0::]
 
     # returns col vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
     def get_index2col_sorted_by_value(self, row):
-        indices = range(self.col_count())
-        col = self.get_col_by_row(row)
-        return sorted(zip(indices, col), key=lambda index2col: index2col[1], reverse=True)
+        index2cols = enumerate(self.get_col_by_row(row))
+        return sorted(index2cols, key=lambda index2col: index2col[1], reverse=True)
 
     def col_count(self):
         return self.matrix.shape[1]
