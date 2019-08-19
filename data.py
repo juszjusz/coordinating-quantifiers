@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 from __future__ import division  # force python 3 division in python 2
 
 import argparse
@@ -14,8 +16,6 @@ from numpy import log
 from pathlib import Path
 import seaborn as sns
 import pickle
-import matplotlib
-matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
