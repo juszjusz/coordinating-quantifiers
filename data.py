@@ -271,9 +271,13 @@ class DataPostprocessor:
         self.commands.append(command)
 
     def execute_commands(self):
-        max_shape = pickle.load(self.root.joinpath("info.p").open("rb"))
-        data_paths = self.root.glob("[0-9]*.p")
-        data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
+        # max_shape = pickle.load(self.root.joinpath("info.p").open("rb"))
+        max_shape = pickle.load(open("./simulation_results/data/info.p", "rb"))
+        # data_paths = self.root.glob("[0-9]*.p")
+        x = pickle.load(open("./simulation_results/data/1.p", "rb"))
+        y = pickle.load(open("./simulation_results/data/2.p", "rb"))
+        data_unpickled = [x, y]
+        # data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
         for data in data_unpickled:
             logging.debug('-> data %s', data)
             for command_exec in self.commands:
