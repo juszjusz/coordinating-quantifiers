@@ -4,9 +4,6 @@ import argparse
 import logging
 import sys
 import time
-from pathlib import Path
-
-import matplotlib.pyplot as plt
 from numpy import column_stack
 from numpy import linspace
 from numpy import arange
@@ -14,11 +11,15 @@ from numpy import array
 from numpy import zeros
 from numpy import amax
 from numpy import log
-from matplotlib.ticker import ScalarFormatter
+from pathlib import Path
 import seaborn as sns
 import pickle
 import matplotlib
 matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
+
 line_styles = {0: 'solid',
                1: 'dotted',
                2: 'dashed',
