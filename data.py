@@ -275,12 +275,9 @@ class DataPostprocessor:
         data_paths = self.root.glob("[0-9]*.p")
         data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
         for data in data_unpickled:
-            try:
-                logging.debug('-> data %s', data)
-                for command_exec in self.commands:
-                    command_exec({'data': data, 'max_shape': max_shape})
-            except Exception as e:
-                logging.error('-ERROR-> %s', str(e))
+            logging.debug('-> data %s', data)
+            for command_exec in self.commands:
+                command_exec({'data': data, 'max_shape': max_shape})
 
 
 if __name__ == '__main__':
