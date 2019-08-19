@@ -1,6 +1,6 @@
+from __future__ import division  # force python 3 division in python 2
 import matplotlib
 matplotlib.use('Agg')
-from __future__ import division  # force python 3 division in python 2
 
 import argparse
 import logging
