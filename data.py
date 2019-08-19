@@ -57,9 +57,9 @@ class Data:
             #     lxc = agents[i].lxc
             #     if lxc.size:
             #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
-            pickle.dump(self._shape_, open("./simulation_results/data/info.p", "wb"))
+            pickle.dump(self._shape_, open("./simulation_results/data/info.p", "wb"), protocol=2)
 
-            pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"))
+            pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"), protocol=2)
             self.pickle_count = self.pickle_count + 1
             self.matrices = {a: [] for a in range(self._population_size_)}
             self.langs = {a: [] for a in range(self._population_size_)}
