@@ -2,7 +2,6 @@ from __future__ import division  # force python 3 division in python 2
 
 import argparse
 import logging
-import multiprocessing
 import sys
 import time
 from pathlib import Path
@@ -18,7 +17,8 @@ from numpy import log
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 import pickle
-
+import matplotlib
+matplotlib.use('Agg')
 line_styles = {0: 'solid',
                1: 'dotted',
                2: 'dashed',
@@ -90,8 +90,11 @@ class Data:
                     (a.get_categories()[cat_index].id, [a.get_categories()[cat_index].fun(x_0) for x_0 in self.x]))
 
     def plot_cats(self):
-        with multiprocessing.Pool() as executor:
-            executor.map(self.plot_cat, [category_index for category_index in range(len(self.cats))])
+        # multiprocessing.Pool - python3
+        # with multiprocessing.Pool() as executor:
+        #     executor.map(self.plot_cat, [category_index for category_index in range(len(self.cats))])
+        for category_index in range(len(self.cats)):
+            self.plot_cat(category_index)
 
     def plot_cat(self, category_index):
         cat = self.cats[category_index]
@@ -211,10 +214,11 @@ class Data:
         plt.close()
 
     def plot_langs(self):
-        for lang_index in range(len(self.langs)):
-            self.plot_lang(lang_index)
+        # multiprocessing.Pool - python3
         # with multiprocessing.Pool() as executor:
         #     executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
+        for lang_index in range(len(self.langs)):
+            self.plot_lang(lang_index)
 
     def plot_lang(self, lang_index):
         # sns.set_palette(colors)
@@ -273,15 +277,10 @@ class DataPostprocessor:
         self.commands.append(command)
 
     def execute_commands(self):
-        # max_shape = pickle.load(self.root.joinpath("info.p").open("rb"))
-        max_shape = pickle.load(open("./simulation_results/data/info.p", "rb"))
-        # data_paths = self.root.glob("[0-9]*.p")
-        x = pickle.load(open("./simulation_results/data/1.p", "rb"))
-        y = pickle.load(open("./simulation_results/data/2.p", "rb"))
-        data_unpickled = [x, y]
-        # data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
+        max_shape = pickle.load(self.root.joinpath("info.p").open("rb"))
+        data_paths = self.root.glob("[0-9]*.p")
+        data_unpickled = (pickle.load(data_path.open('rb')) for data_path in data_paths)
         for data in data_unpickled:
-            logging.debug('-> data %s', data)
             for command_exec in self.commands:
                 command_exec({'data': data, 'max_shape': max_shape})
 
@@ -293,9 +292,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="./simulation_results/data/%d.p")
-    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
 
     parsed_params = vars(parser.parse_args())
 
