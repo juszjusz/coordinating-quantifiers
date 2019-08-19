@@ -211,8 +211,10 @@ class Data:
         plt.close()
 
     def plot_langs(self):
-        with multiprocessing.Pool() as executor:
-            executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
+        for lang_index in range(len(self.langs)):
+            self.plot_lang(lang_index)
+        # with multiprocessing.Pool() as executor:
+        #     executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
 
     def plot_lang(self, lang_index):
         # sns.set_palette(colors)
@@ -291,9 +293,9 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="./simulation_results/data/%d.p")
-    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
 
     parsed_params = vars(parser.parse_args())
 
