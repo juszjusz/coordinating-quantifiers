@@ -1,13 +1,11 @@
 from __future__ import division  # force python 3 division in python 2
+import matplotlib
+matplotlib.use('Agg')
 
 import argparse
 import logging
-import multiprocessing
 import sys
 import time
-from pathlib import Path
-
-import matplotlib.pyplot as plt
 from numpy import column_stack
 from numpy import linspace
 from numpy import arange
@@ -15,11 +13,12 @@ from numpy import array
 from numpy import zeros
 from numpy import amax
 from numpy import log
-from matplotlib.ticker import ScalarFormatter
+from pathlib import Path
 import seaborn as sns
 import pickle
 from collections import deque
-
+import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 class Data:
 
@@ -51,9 +50,9 @@ class Data:
             #     lxc = agents[i].lxc
             #     if lxc.size:
             #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
-            pickle.dump(self._shape_, open("./simulation_results/data/info.p", "wb"))
+            pickle.dump(self._shape_, open("./simulation_results/data/info.p", "wb"), protocol=2)
 
-            pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"))
+            pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"), protocol=2)
             self.pickle_count = self.pickle_count + 1
             self.matrices = {a: [] for a in range(self._population_size_)}
             self.langs = {a: [] for a in range(self._population_size_)}
@@ -98,8 +97,11 @@ class Data:
                      self.cats_to_linestyles[i][a.get_categories()[cat_index].id]))
 
     def plot_cats(self):
-        with multiprocessing.Pool() as executor:
-            executor.map(self.plot_cat, [category_index for category_index in range(len(self.cats))])
+        # multiprocessing.Pool - python3
+        # with multiprocessing.Pool() as executor:
+        #     executor.map(self.plot_cat, [category_index for category_index in range(len(self.cats))])
+        for category_index in range(len(self.cats)):
+            self.plot_cat(category_index)
 
     def plot_cat(self, category_index):
         cat = self.cats[category_index]
@@ -218,8 +220,11 @@ class Data:
         plt.close()
 
     def plot_langs(self):
-        with multiprocessing.Pool() as executor:
-            executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
+        # multiprocessing.Pool - python3
+        # with multiprocessing.Pool() as executor:
+        #     executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
+        for lang_index in range(len(self.langs)):
+            self.plot_lang(lang_index)
 
     def plot_lang(self, lang_index):
         # sns.set_palette(colors)
