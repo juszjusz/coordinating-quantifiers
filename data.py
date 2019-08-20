@@ -16,19 +16,9 @@ from numpy import log
 from pathlib import Path
 import seaborn as sns
 import pickle
-
+from collections import deque
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
-
-line_styles = {0: 'solid',
-               1: 'dotted',
-               2: 'dashed',
-               3: 'dashdot',
-               4: 'loosely dotted',
-               5: 'loosely dashed',
-               6: 'densely dashed',
-               7: 'loosely dashdotted'}
-
 
 class Data:
 
@@ -45,11 +35,13 @@ class Data:
         self.x_right = 100
         self.x = linspace(self.x_left, self.x_right, 20 * (self.x_right - self.x_left), False)
         self.step = 0
-        self.pickle_step = 10
+        self.pickle_step = 100
         self.pickle_count = 0
         self._shape_ = {a: (0, 0) for a in range(population_size)}
         self.ds = []
         self.cs = []
+        self.cat_linestyles = {a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in range(population_size)}
+        self.cats_to_linestyles = {a: {} for a in range(population_size)}
 
     def pickle(self, step, agents):
         self.step = step
@@ -86,9 +78,23 @@ class Data:
         for i in range(len(agents)):
             self.cats[i].append([])
             a = agents[i]
+            current_cats = set([c.id for c in a.get_categories()])
+            previous_cats = set(self.cats_to_linestyles[i].keys())
+            forgotten_cats = previous_cats - current_cats
+            new_cats = current_cats - previous_cats
+
+            for fc in forgotten_cats:
+                self.cat_linestyles[i].append(self.cats_to_linestyles[i][fc])
+                self.cats_to_linestyles[i].pop(fc)
+
+            for nc in new_cats:
+                self.cats_to_linestyles[i][nc] = self.cat_linestyles[i].popleft()
+
             for cat_index in range(len(a.get_categories())):
                 self.cats[i][-1].append(
-                    (a.get_categories()[cat_index].id, [a.get_categories()[cat_index].fun(x_0) for x_0 in self.x]))
+                    (a.get_categories()[cat_index].id,
+                     [a.get_categories()[cat_index].fun(x_0) for x_0 in self.x],
+                     self.cats_to_linestyles[i][a.get_categories()[cat_index].id]))
 
     def plot_cats(self):
         # multiprocessing.Pool - python3
@@ -106,14 +112,13 @@ class Data:
             ax.xaxis.set_major_formatter(ScalarFormatter())
             plt.yscale("symlog")
             ax.yaxis.set_major_formatter(ScalarFormatter())
-            colors = sns.color_palette()
             num_of_cats = len(cat[step])
             for j in range(num_of_cats):
                 cat_id = cat[step][j][0]
                 cat_y = cat[step][j][1]
                 plt.plot(self.x, cat_y,
-                         color=colors[cat_id % len(colors)],
-                         linestyle=line_styles[cat_id // len(colors)],
+                         color=cat[step][j][2][0],
+                         linestyle=cat[step][j][2][1],
                          label="%d" % (cat_id + 1))
             plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
             plt.tight_layout(pad=0)
@@ -294,8 +299,8 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="./simulation_results/data/%d.p")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
 
     parsed_params = vars(parser.parse_args())
 
