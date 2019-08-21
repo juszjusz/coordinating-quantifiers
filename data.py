@@ -20,6 +20,7 @@ from collections import deque
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 
+
 class Data:
 
     def __init__(self, population_size, pickle_mode=True):
@@ -42,6 +43,8 @@ class Data:
         self.cs = []
         self.cat_linestyles = {a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in range(population_size)}
         self.cats_to_linestyles = {a: {} for a in range(population_size)}
+        self.word_linestyles = {a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in range(population_size)}
+        self.words_to_linestyles = {a: {} for a in range(population_size)}
 
     def pickle(self, step, agents):
         self.step = step
@@ -131,7 +134,22 @@ class Data:
         for i in range(len(agents)):
             self.langs[i].append([])
             a = agents[i]
+
+            current_words = set(a.get_lexicon())
+            previous_words = set(self.words_to_linestyles[i].keys())
+            forgotten_words = previous_words - current_words
+            new_words = current_words - previous_words
+
+            for fw in forgotten_words:
+                self.word_linestyles[i].append(self.words_to_linestyles[i][fw])
+                self.words_to_linestyles[i].pop(fw)
+
+            for nw in new_words:
+                self.words_to_linestyles[i][nw] = self.word_linestyles[i].popleft()
+
             forms_to_categories = {}
+
+
             if not a.language.lxc.matrix.size:
                 continue
             for f in a.get_lexicon():
@@ -241,11 +259,11 @@ class Data:
                 num_words = len(self.langs[lang_index][step])
                 word_cats = self.langs[lang_index][step][word_cats_index]
                 f = word_cats[0]
-                ls = line_styles[word_cats_index // len(colors)]
+                ls = self.words_to_linestyles[lang_index][f]
                 ci = word_cats_index % len(colors)
                 for y in word_cats[1::]:
-                    plt.plot(self.x, y, color=colors[ci], linestyle=ls)
-                plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
+                    plt.plot(self.x, y, color=ls[0], linestyle=ls[1])
+                plt.plot([], [], color=ls[0], linestyle=ls[1], label=f)
             plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
             plt.tight_layout(pad=0)
             plt.savefig("./simulation_results/langs/language%d_%d.png" % (
@@ -299,8 +317,8 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="./simulation_results/data/%d.p")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
 
     parsed_params = vars(parser.parse_args())
 
