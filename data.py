@@ -1,5 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
 import matplotlib
+
 matplotlib.use('Agg')
 
 import argparse
@@ -19,6 +20,7 @@ import pickle
 from collections import deque
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
+
 
 class Data:
 
@@ -40,7 +42,9 @@ class Data:
         self._shape_ = {a: (0, 0) for a in range(population_size)}
         self.ds = []
         self.cs = []
-        self.cat_linestyles = {a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in range(population_size)}
+        self.cat_linestyles = {
+            a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in
+            range(population_size)}
         self.cats_to_linestyles = {a: {} for a in range(population_size)}
 
     def pickle(self, step, agents):
@@ -60,7 +64,7 @@ class Data:
 
     def store_ds(self, agents):
         for i in range(self._population_size_):
-            self.ds_per_agent[i] = agents[i].get_discriminative_success()*100
+            self.ds_per_agent[i] = agents[i].get_discriminative_success() * 100
         self.ds.append(self.get_ds())
 
     def store_cs(self, agents):
@@ -127,9 +131,13 @@ class Data:
                 category_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
             plt.close()
 
-    def store_langs(self, agents):
+    @staticmethod
+    def store_langs(population):
+        agents = population.agents
+        x = Data.get_x()
+        langs = {a: [] for a in range(len(agents))}
         for i in range(len(agents)):
-            self.langs[i].append([])
+            langs[i].append([])
             a = agents[i]
             forms_to_categories = {}
             if not a.language.lxc.matrix.size:
@@ -150,9 +158,16 @@ class Data:
                 if len(forms_to_categories[f]) == 0:
                     continue
                 else:
-                    self.langs[i][-1].append([f])
+                    langs[i][-1].append([f])
                     for j in forms_to_categories[f]:
-                        self.langs[i][-1][-1].append([a.get_categories()[j].fun(x_0) for x_0 in self.x])
+                        langs[i][-1][-1].append([a.get_categories()[j].fun(x_0) for x_0 in x])
+        return langs
+
+    @staticmethod
+    def get_x():
+        x_left = 0
+        x_right = 100
+        return linspace(x_left, x_right, 20 * (x_right - x_left), False)
 
     def store_matrices(self, agents):
         for i in range(len(agents)):
@@ -219,53 +234,60 @@ class Data:
         plt.savefig(output_name)
         plt.close()
 
-    def plot_langs(self):
+    @staticmethod
+    def plot_langs(step, population):
         # multiprocessing.Pool - python3
         # with multiprocessing.Pool() as executor:
         #     executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
-        for lang_index in range(len(self.langs)):
-            self.plot_lang(lang_index)
+        langs = Data.store_langs(population)
 
-    def plot_lang(self, lang_index):
+        for lang_index in range(len(langs)):
+            Data.plot_lang(step, langs, lang_index)
+
+    @staticmethod
+    def plot_lang(step, langs, lang_index):
         # sns.set_palette(colors)
-        lang = self.langs[lang_index]
-        for step in range(len(lang)):
-            plt.title("language")
-            plt.xscale("symlog")
-            plt.yscale("symlog")
-            ax = plt.gca()
-            ax.xaxis.set_major_formatter(ScalarFormatter())
-            ax.yaxis.set_major_formatter(ScalarFormatter())
-            colors = sns.color_palette()
-            for word_cats_index in range(len(self.langs[lang_index][step])):
-                num_words = len(self.langs[lang_index][step])
-                word_cats = self.langs[lang_index][step][word_cats_index]
-                f = word_cats[0]
-                ls = line_styles[word_cats_index // len(colors)]
-                ci = word_cats_index % len(colors)
-                for y in word_cats[1::]:
-                    plt.plot(self.x, y, color=colors[ci], linestyle=ls)
-                plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
-            plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-            plt.tight_layout(pad=0)
-            plt.savefig("./simulation_results/langs/language%d_%d.png" % (
-                lang_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
-            plt.close()
-
-    def plot_success(self, dt, step):
-        x = range(1, step + 2)
-        plt.ylim(bottom=0)
-        plt.ylim(top=100)
-        plt.xlabel("step")
-        plt.ylabel("success")
-        x_ex = range(0, step + 3)
-        th = [dt*100 for i in x_ex]
-        plt.plot(x_ex, th, ':', linewidth=0.2)
-        plt.plot(x, self.ds, '--')
-        plt.plot(x, self.cs, '-')
-        plt.legend(['dt', 'ds', 'gg1s'], loc='best')
-        plt.savefig("./simulation_results/success.pdf")
+        lang = langs[lang_index]
+        x = Data.get_x()
+        # for step in range(len(lang)):
+        plt.title("language")
+        plt.xscale("symlog")
+        plt.yscale("symlog")
+        ax = plt.gca()
+        ax.xaxis.set_major_formatter(ScalarFormatter())
+        ax.yaxis.set_major_formatter(ScalarFormatter())
+        colors = sns.color_palette()
+        for word_cats_index in range(len(lang)):
+            num_words = len(lang)
+            word_cats = lang[word_cats_index]
+            f = word_cats[0]
+            ls = line_styles[word_cats_index // len(colors)]
+            ci = word_cats_index % len(colors)
+            for y in word_cats[1::]:
+                plt.plot(x, y, color=colors[ci], linestyle=ls)
+            plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
+        plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+        plt.tight_layout(pad=0)
+        plt.savefig("./simulation_results/langs/language%d_%d.png" % (
+            lang_index, step))
+        # if not self.pickle_mode else self.step - self.pickle_step + step + 1))
         plt.close()
+
+
+def plot_success(self, dt, step):
+    x = range(1, step + 2)
+    plt.ylim(bottom=0)
+    plt.ylim(top=100)
+    plt.xlabel("step")
+    plt.ylabel("success")
+    x_ex = range(0, step + 3)
+    th = [dt * 100 for i in x_ex]
+    plt.plot(x_ex, th, ':', linewidth=0.2)
+    plt.plot(x, self.ds, '--')
+    plt.plot(x, self.cs, '-')
+    plt.legend(['dt', 'ds', 'gg1s'], loc='best')
+    plt.savefig("./simulation_results/success.pdf")
+    plt.close()
 
 
 class RoundStatistics:
