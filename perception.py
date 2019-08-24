@@ -36,8 +36,8 @@ class ReactiveUnit:
         self.a = stimulus.a
         self.b = stimulus.b
         r = a_samples / b_samples
-        self.ratio_samples = r.tolist()
-        y, bin_edges = np.histogram(self.ratio_samples, bins="auto", density=True)
+        ratio_samples = r.tolist()
+        y, bin_edges = np.histogram(ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
         try:
             self.interp = interpolate(x, y)  # radial basis interpolation?
@@ -60,18 +60,6 @@ class ReactiveUnit:
         x_left = min(s.x_left, self.x_left)
         x_right = max(s.x_right, self.x_right)
         return integrate(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)
-
-    def show(self, how="spline"):
-        plt.title("Reactive unit for " + str(self.a) + "/" + str(self.b) + " = " + str(self.a / self.b))
-        if how == "hist":
-            plt.hist(self.ratio_samples, bins="auto")
-            plt.show()
-        elif how == "spline":
-            x = np.linspace(self.x_left, self.x_right)
-            plt.plot(x, self.reactive_fun(x), 'o', x, self.reactive_fun(x), '--')
-            plt.legend(['data', 'cubic'], loc='best')
-            plt.hist(self.ratio_samples, bins=50)
-            plt.show()
 
 
 class Category:

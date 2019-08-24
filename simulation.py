@@ -2,7 +2,9 @@ from __future__ import division  # force python 3 division in python 2
 
 import argparse
 import logging, sys
+import pickle
 import time
+import dill
 
 import matplotlib
 
@@ -36,13 +38,16 @@ class Simulation:
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
-            self.data.store_ds(population.agents)
-            self.data.store_cs(population.agents)
-            self.data.store_matrices(population.agents)
-            self.data.store_langs(population.agents)
-            self.data.store_cats(population.agents)
-            self.data.pickle(step, population.agents)
-            self.data.plot_success(dt=self.params['discriminative_threshold'], step=step)
+            pickle_file = open("./simulation_results/data/%d.p" % step, "wb")
+            pickle.dump({'step': step, 'population': population}, pickle_file)
+
+            # self.data.store_ds(population.agents)
+            # self.data.store_cs(population.agents)
+            # self.data.store_matrices(population.agents)
+            # self.data.store_langs(population.agents)
+            # self.data.store_cats(population.agents)
+            # self.data.pickle(step, population.agents)
+            # self.data.plot_success(dt=self.params['discriminative_threshold'], step=step)
 
 
 if __name__ == "__main__":
@@ -56,11 +61,13 @@ if __name__ == "__main__":
     parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.1)
     parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.1)
     parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.1)
-    parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights', type=float, default=.01)
+    parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
+                        type=float, default=.01)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=1.)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=15)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=200)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
-    parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool, default=False)
+    parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
+                        default=False)
 
     parsed_params = vars(parser.parse_args())
 
