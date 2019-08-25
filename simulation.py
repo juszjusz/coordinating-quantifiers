@@ -47,7 +47,7 @@ class Simulation:
             self.data.store_langs(self.population.agents)
             self.data.store_cats(self.population.agents)
             self.data.pickle(step, self.population.agents)
-            # self.data.plot_success(dt=self.params['discriminative_threshold'], step=step)
+            self.data.plot_success(dt=self.params['discriminative_threshold'], step=step)
 
 
 if __name__ == "__main__":
