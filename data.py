@@ -183,7 +183,7 @@ class Data:
                 f = a.get_lexicon()[w]
                 #print("storing %s" % f)
                 self.langs2[i][-1].append([f])
-                fy = [sum([c.fun(x_0)*w for c, w in zip(a.get_categories(), a.language.lxc.matrix[w, :])]) for x_0 in self.x]
+                fy = [sum([cat.fun(x)*wei for cat, wei in zip(a.get_categories(), a.language.lxc.matrix[w])]) for x in self.x]
                 #print(fy)
                 self.langs2[i][-1][-1].append(fy)
 
