@@ -20,6 +20,7 @@ from collections import deque
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 
+
 class Data:
 
     def __init__(self, population_size, pickle_mode=True):
@@ -30,18 +31,21 @@ class Data:
         self.cs_per_agent = [.0 for a in range(population_size)]
         self.matrices = {a: [] for a in range(population_size)}
         self.langs = {a: [] for a in range(population_size)}
+        self.langs2 = {a: [] for a in range(population_size)}
         self.cats = {a: [] for a in range(population_size)}
         self.x_left = 0
         self.x_right = 100
         self.x = linspace(self.x_left, self.x_right, 20 * (self.x_right - self.x_left), False)
         self.step = 0
-        self.pickle_step = 100
+        self.pickle_step = 10
         self.pickle_count = 0
         self._shape_ = {a: (0, 0) for a in range(population_size)}
         self.ds = []
         self.cs = []
         self.cat_linestyles = {a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in range(population_size)}
         self.cats_to_linestyles = {a: {} for a in range(population_size)}
+        self.word_linestyles = {a: deque([(c, s) for s in ['solid', 'dotted', 'dashed', 'dashdot'] for c in sns.color_palette()]) for a in range(population_size)}
+        self.words_to_linestyles = {a: {} for a in range(population_size)}
 
     def pickle(self, step, agents):
         self.step = step
@@ -56,6 +60,7 @@ class Data:
             self.pickle_count = self.pickle_count + 1
             self.matrices = {a: [] for a in range(self._population_size_)}
             self.langs = {a: [] for a in range(self._population_size_)}
+            self.langs2 = {a: [] for a in range(self._population_size_)}
             self.cats = {a: [] for a in range(self._population_size_)}
 
     def store_ds(self, agents):
@@ -130,8 +135,24 @@ class Data:
     def store_langs(self, agents):
         for i in range(len(agents)):
             self.langs[i].append([])
+            self.langs2[i].append([])
             a = agents[i]
+
+            current_words = set(a.get_lexicon())
+            previous_words = set(self.words_to_linestyles[i].keys())
+            forgotten_words = previous_words - current_words
+            new_words = current_words - previous_words
+
+            for fw in forgotten_words:
+                self.word_linestyles[i].append(self.words_to_linestyles[i][fw])
+                self.words_to_linestyles[i].pop(fw)
+
+            for nw in new_words:
+                self.words_to_linestyles[i][nw] = self.word_linestyles[i].popleft()
+
+            #  lang
             forms_to_categories = {}
+
             if not a.language.lxc.matrix.size:
                 continue
             for f in a.get_lexicon():
@@ -153,6 +174,18 @@ class Data:
                     self.langs[i][-1].append([f])
                     for j in forms_to_categories[f]:
                         self.langs[i][-1][-1].append([a.get_categories()[j].fun(x_0) for x_0 in self.x])
+
+            #  lang2
+            #print("storing lang2")
+            if not a.language.lxc.matrix.size:
+                continue
+            for w in range(len(a.get_lexicon())):
+                f = a.get_lexicon()[w]
+                #print("storing %s" % f)
+                self.langs2[i][-1].append([f])
+                fy = [sum([cat.fun(x)*wei for cat, wei in zip(a.get_categories(), a.language.lxc.matrix[w])]) for x in self.x]
+                #print(fy)
+                self.langs2[i][-1][-1].append(fy)
 
     def store_matrices(self, agents):
         for i in range(len(agents)):
@@ -226,8 +259,15 @@ class Data:
         for lang_index in range(len(self.langs)):
             self.plot_lang(lang_index)
 
+    def plot_langs2(self):
+        # print("plot langs 2")
+        # multiprocessing.Pool - python3
+        # with multiprocessing.Pool() as executor:
+        #     executor.map(self.plot_lang, [lang_index for lang_index in range(len(self.langs))])
+        for lang_index in range(len(self.langs2)):
+            self.plot_lang2(lang_index)
+
     def plot_lang(self, lang_index):
-        # sns.set_palette(colors)
         lang = self.langs[lang_index]
         for step in range(len(lang)):
             plt.title("language")
@@ -241,14 +281,39 @@ class Data:
                 num_words = len(self.langs[lang_index][step])
                 word_cats = self.langs[lang_index][step][word_cats_index]
                 f = word_cats[0]
-                ls = line_styles[word_cats_index // len(colors)]
+                ls = self.words_to_linestyles[lang_index][f]
                 ci = word_cats_index % len(colors)
                 for y in word_cats[1::]:
-                    plt.plot(self.x, y, color=colors[ci], linestyle=ls)
-                plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
+                    plt.plot(self.x, y, color=ls[0], linestyle=ls[1])
+                plt.plot([], [], color=ls[0], linestyle=ls[1], label=f)
             plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
             plt.tight_layout(pad=0)
             plt.savefig("./simulation_results/langs/language%d_%d.png" % (
+                lang_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
+            plt.close()
+
+    def plot_lang2(self, lang_index):
+        lang = self.langs2[lang_index]
+        for step in range(len(lang)):
+            plt.title("language2")
+            plt.xscale("symlog")
+            plt.yscale("symlog")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(ScalarFormatter())
+            ax.yaxis.set_major_formatter(ScalarFormatter())
+            colors = sns.color_palette()
+            for fy_ind in range(len(self.langs2[lang_index][step])):
+                num_words = len(self.langs2[lang_index][step])
+                fy = self.langs2[lang_index][step][fy_ind]
+                f = fy[0]
+                y = fy[1]
+                # print("Agent %d, word %s" % (lang_index, f))
+                ls = self.words_to_linestyles[lang_index][f]
+                plt.plot(self.x, y, color=ls[0], linestyle=ls[1])
+                plt.plot([], [], color=ls[0], linestyle=ls[1], label=f)
+            plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
+            plt.tight_layout(pad=0)
+            plt.savefig("./simulation_results/langs2/language%d_%d.png" % (
                 lang_index, step if not self.pickle_mode else self.step - self.pickle_step + step + 1))
             plt.close()
 
@@ -299,8 +364,9 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="./simulation_results/data/%d.p")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
+    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
 
     parsed_params = vars(parser.parse_args())
 
@@ -310,6 +376,8 @@ if __name__ == '__main__':
         data_provider.add_command(lambda x: x['data'].plot_cats())
     if parsed_params['plot_langs']:
         data_provider.add_command(lambda x: x['data'].plot_langs())
+    if parsed_params['plot_langs2']:
+        data_provider.add_command(lambda x: x['data'].plot_langs2())
     if parsed_params['plot_matrices']:
         data_provider.add_command(lambda x: x['data'].plot_matrices(x['max_shape']))
     data_provider.execute_commands()
