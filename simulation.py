@@ -51,7 +51,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
-    parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.90)
+    parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.85)
     parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.1)
     parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.1)
     parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.1)
