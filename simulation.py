@@ -39,7 +39,7 @@ class Simulation:
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
             with open("./simulation_results/data/step%d.p" % step_with_offset, "wb") as write_handle:
-                pickle.dump((parsed_params, step_with_offset, self.population), write_handle)
+                dill.dump((parsed_params, step_with_offset, self.population), write_handle)
 
             self.data.store_ds(self.population.agents)
             self.data.store_cs(self.population.agents)
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
                         default=False)
-    parser.add_argument('--load_simulation', '-l', help='load and rerun simulation', type=str)
+    parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step', type=str)
 
     parsed_params = vars(parser.parse_args())
 
