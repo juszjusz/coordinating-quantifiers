@@ -29,7 +29,7 @@ class Simulation:
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
             logging.debug("\n------------\nSTEP %d" % step_with_offset)
-            selected_pairs = self.population.select_pairs_per_round(self.params['population_size'] // 2)
+            selected_pairs = self.population.select_pairs_per_round(self.population.population_size // 2)
 
             for speaker, hearer in selected_pairs:
                 game = GuessingGame(self.params['is_stage7_on'])
