@@ -20,6 +20,8 @@ class Population:
         agents_per_game = sample(self.agents, games_per_round * 2)
         return [(Speaker(a1), Hearer(a2)) for a1, a2 in zip(agents_per_game[::2], agents_per_game[1::2])]
 
+    def __iter__(self):
+        return iter(self.agents)
 
 class Agent:
     class Result:
