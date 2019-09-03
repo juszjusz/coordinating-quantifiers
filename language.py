@@ -129,7 +129,7 @@ class Language(Perception):
         for c in self.categories:
             c.weights = [w - self.alpha * w for w in c.weights]
         to_forget = [j for j in range(len(self.categories))
-                     if min(self.categories[j].weights) < self.super_alpha and j != category_index]
+                     if max(self.categories[j].weights) < self.super_alpha and j != category_index]
 
         if len(to_forget):
             self.lxc.matrix = delete(self.lxc.matrix, to_forget, axis=1)
