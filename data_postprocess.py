@@ -11,9 +11,6 @@ import seaborn as sns
 from numpy import linspace, zeros, column_stack, arange, log, amax
 from pathlib import Path
 
-from agent import Agent
-
-
 class PlotCategory:
     def __init__(self):
         x_left = 0
