@@ -5,7 +5,7 @@ from perception import Perception
 from perception import Category
 from perception import ReactiveUnit
 from perception import Stimulus
-from numpy import empty
+from numpy import empty, array
 from numpy import arange
 from numpy import column_stack
 from numpy import zeros
@@ -64,9 +64,10 @@ class Language(Perception):
 
         return self.get_words_sorted_by_val(category)[0]
 
-    def get_words_sorted_by_val(self, category):
+    def get_words_sorted_by_val(self, category, threshold=-1):
         # https://stackoverflow.com/questions/1286167/is-the-order-of-results-coming-from-a-list-comprehension-guaranteed/1286180
-        return [self.lexicon[index] for index, _ in self.lxc.get_index2row_sorted_by_value(category)]
+        return [self.lexicon[index] for index, weigth in self.lxc.get_index2row_sorted_by_value(category) if
+                weigth > threshold]
 
     def get_categories_sorted_by_val(self, word):
         word_index = self.lexicon.index(word)
@@ -132,7 +133,7 @@ class Language(Perception):
                      if max(self.categories[j].weights) < self.super_alpha and j != category_index]
 
         if len(to_forget):
-            self.lxc.matrix = delete(self.lxc.matrix, to_forget, axis=1)
+            self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)
             self.categories = list(delete(self.categories, to_forget))
 
     def discrimination_game(self, context, topic):
@@ -224,17 +225,20 @@ class Language(Perception):
 
 
 class AssociativeMatrix:
-    def __init__(self):
-        self.matrix = empty(shape=(0, 0))
+    def __init__(self, initial_size=(0, 0)):
+        self.__matrix__ = empty(shape=initial_size)
+        self.__max_shape__ = initial_size
 
     def add_row(self):
-        self.matrix = row_stack((self.matrix, zeros(self.col_count())))
+        self.__matrix__ = row_stack((self.__matrix__, zeros(self.col_count())))
+        self.__max_shape__ = (max(self.__matrix__.shape[0], self.__max_shape__[0]), self.__max_shape__[1])
 
     def add_col(self):
-        self.matrix = column_stack((self.matrix, zeros(self.row_count())))
+        self.__matrix__ = column_stack((self.__matrix__, zeros(self.row_count())))
+        self.__max_shape__ = (self.__max_shape__[0], max(self.__matrix__.shape[1], self.__max_shape__[1]))
 
     def get_row_by_col(self, column):
-        return self.matrix[0::, column]
+        return self.__matrix__[0::, column]
 
     # returns row vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
     def get_index2row_sorted_by_value(self, column):
@@ -242,7 +246,7 @@ class AssociativeMatrix:
         return sorted(index2rows, key=lambda index2row: index2row[1], reverse=True)
 
     def get_col_by_row(self, row):
-        return self.matrix[row, 0::]
+        return self.__matrix__[row, 0::]
 
     # returns col vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
     def get_index2col_sorted_by_value(self, row):
@@ -250,16 +254,31 @@ class AssociativeMatrix:
         return sorted(index2cols, key=lambda index2col: index2col[1], reverse=True)
 
     def col_count(self):
-        return self.matrix.shape[1]
+        return self.__matrix__.shape[1]
 
     def row_count(self):
-        return self.matrix.shape[0]
+        return self.__matrix__.shape[0]
 
     def get_value(self, row, col):
-        return self.matrix[row][col]
+        return self.__matrix__[row][col]
 
     def set_value(self, row, col, value):
-        self.matrix[row][col] = value
+        self.__matrix__[row][col] = value
 
     def size(self):
-        return self.size()
+        return self.__matrix__.size
+
+    def max_shape(self):
+        return self.__max_shape__
+
+    def delete_col(self, col):
+        self.__matrix__ = delete(self.__matrix__, col, axis=1)
+
+    def delete_row(self, row):
+        self.__matrix__ = delete(self.__matrix__, row, axis=0)
+
+    def to_array(self):
+        return array(self.__matrix__)
+
+    def to_matrix(self):
+        return self.__matrix__
