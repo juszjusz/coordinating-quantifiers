@@ -1,15 +1,18 @@
 import argparse
 import logging
+import multiprocessing
 import pickle
 import re
 import sys
 import time
+from multiprocessing import Process
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, zeros, column_stack, arange, log, amax
 from pathlib import Path
+
 
 class PlotCategory:
     def __init__(self):
@@ -185,10 +188,6 @@ class PlotMatrix:
 
 class PlotSuccess:
     def plot_success(self, population, step, dt):
-
-        # _ds = population.ds[0:step + 1]
-        # _cs = population.cs[0:step + 1]
-
         x = range(1, step + 1)
         plt.ylim(bottom=0)
         plt.ylim(top=100)
@@ -206,25 +205,32 @@ class PlotSuccess:
 
 class CommandExecutor:
     def __init__(self):
-        self.agent_commands = []
-        self.population_commands = []
+        self.commands = []
 
-    def add_agent_command(self, command):
-        self.agent_commands.append(command)
+    def add_command(self, command):
+        self.commands.append(command)
 
-    def add_population_command(self, command):
-        self.population_commands.append(command)
+    def execute_commands(self, agent_index, agent_tuple, step):
+        for command_exec in self.commands:
+            if agent_tuple[0].language.lxc.size():
+                command_exec(agent_index, agent_tuple, step)
 
-    def execute_commands(self, params, population, step):
-        for command_exec in self.population_commands:
-            command_exec(params, population, step)
 
-        for agent_index, agent_tuple in enumerate(zip(population, last_population)):
-            # assert that zip between agent at current and last step is valid
-            assert agent_tuple[0].id == agent_tuple[1].id
-            for command_exec in self.agent_commands:
-                if agent_tuple[0].language.lxc.size():
-                    command_exec(agent_index, agent_tuple, step)
+class Task(Process):
+
+    def __init__(self, chunk, last_population, command_executor):
+        super(Task, self).__init__()
+        self.data_paths = chunk
+        self.last_population = last_population
+        self.command_executor = command_executor
+
+    def run(self):
+        for path in self.data_paths:
+            params, step, population = pickle.load(path.open('rb'))
+            for agent_index, agent_tuple in enumerate(zip(population, self.last_population)):
+                # assert that zip between agent at current and last step is valid
+                assert agent_tuple[0].id == agent_tuple[1].id
+                self.command_executor.execute_commands(agent_index, agent_tuple, step)
 
 
 class PathProvider:
@@ -242,6 +248,11 @@ class PathProvider:
         return path1no - path2no
 
 
+def chunks(list, chunk_size):
+    for i in range(0, len(list), chunk_size):
+        yield list[i:i + chunk_size]
+
+
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
@@ -249,11 +260,12 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default=".\simulation_results\data")
-    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
-    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
+    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
+    parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=5)
 
     parsed_params = vars(parser.parse_args())
 
@@ -263,14 +275,13 @@ if __name__ == '__main__':
     command_executor = CommandExecutor()
 
     if parsed_params['plot_cats']:
-        command_executor.add_agent_command(PlotCategory().plot_category)
+        command_executor.add_command(PlotCategory().plot_category)
     if parsed_params['plot_langs']:
-        command_executor.add_agent_command(PlotLanguage().plot_language)
+        command_executor.add_command(PlotLanguage().plot_language)
     if parsed_params['plot_langs2']:
-        command_executor.add_agent_command(PlotLanguage2().plot_language)
+        command_executor.add_command(PlotLanguage2().plot_language)
     if parsed_params['plot_matrices']:
-        command_executor.add_agent_command(PlotMatrix().plot_matrix)
-
+        command_executor.add_command(PlotMatrix().plot_matrix)
 
     data_paths = PathProvider(parsed_params['data_path']).get_sorted_paths()
     data_last_step_path = data_paths[-1]
@@ -279,18 +290,11 @@ if __name__ == '__main__':
     if parsed_params['plot_success']:
         PlotSuccess().plot_success(last_population, last_step, params['discriminative_threshold'])
 
+    chunk_size = len(data_paths) / parsed_params['parallelism']
+    logging.debug('starting execution with chunk size {}'.format(chunk_size))
     start_time = time.time()
 
-    logging.debug('execution time %dsec, with params %s', time.time() - start_time, parsed_params)
-
-    for path in data_paths:
-
-        params, step, population = pickle.load(path.open('rb'))
-
-        for agent_index, agent_tuple in enumerate(zip(population, last_population)):
-            # assert that zip between agent at current and last step is valid
-            assert agent_tuple[0].id == agent_tuple[1].id
-            command_executor.execute_commands(agent_index, agent_tuple, step)
-
+    for data_path_chunk in chunks(data_paths, chunk_size):
+        Task(chunk=data_path_chunk, last_population=last_population, command_executor=command_executor).start()
 
     logging.debug('execution time %dsec, with params %s', time.time() - start_time, parsed_params)
