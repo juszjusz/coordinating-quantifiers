@@ -206,22 +206,40 @@ class PlotSuccess:
 
 class CommandExecutor:
     def __init__(self):
-        self.commands = []
+        self.agent_commands = []
+        self.population_commands = []
 
-    def add_command(self, command):
-        self.commands.append(command)
+    def add_agent_command(self, command):
+        self.agent_commands.append(command)
 
-    def execute_commands(self, agent_index, agent_tuple, step):
-        for command_exec in self.commands:
-            if agent_tuple[0].language.lxc.size():
-                command_exec(agent_index, agent_tuple, step)
+    def add_population_command(self, command):
+        self.population_commands.append(command)
+
+    def execute_commands(self, params, population, step):
+        for command_exec in self.population_commands:
+            command_exec(params, population, step)
+
+        for agent_index, agent_tuple in enumerate(zip(population, last_population)):
+            # assert that zip between agent at current and last step is valid
+            assert agent_tuple[0].id == agent_tuple[1].id
+            for command_exec in self.agent_commands:
+                if agent_tuple[0].language.lxc.size():
+                    command_exec(agent_index, agent_tuple, step)
 
 
-# compare files stepA.p, stepB.p by its numerals A, B
-def cmp(path1, path2):
-    path1no = int(re.search('step(\d+)\.p', path1.name).group(1))
-    path2no = int(re.search('step(\d+)\.p', path2.name).group(1))
-    return path1no - path2no
+class PathProvider:
+    def __init__(self, root):
+        self.root = Path(root)
+
+    def get_sorted_paths(self):
+        data_paths = list(self.root.glob('step[0-9]*.p'))
+        return sorted(data_paths, cmp=self.cmp)
+
+    # compare files stepA.p, stepB.p by its numerals A, B
+    def cmp(self, path1, path2):
+        path1no = int(re.search('step(\d+)\.p', path1.name).group(1))
+        path2no = int(re.search('step(\d+)\.p', path2.name).group(1))
+        return path1no - path2no
 
 
 if __name__ == '__main__':
@@ -245,26 +263,28 @@ if __name__ == '__main__':
     command_executor = CommandExecutor()
 
     if parsed_params['plot_cats']:
-        command_executor.add_command(PlotCategory().plot_category)
+        command_executor.add_agent_command(PlotCategory().plot_category)
     if parsed_params['plot_langs']:
-        command_executor.add_command(PlotLanguage().plot_language)
+        command_executor.add_agent_command(PlotLanguage().plot_language)
     if parsed_params['plot_langs2']:
-        command_executor.add_command(PlotLanguage2().plot_language)
+        command_executor.add_agent_command(PlotLanguage2().plot_language)
     if parsed_params['plot_matrices']:
-        command_executor.add_command(PlotMatrix().plot_matrix)
+        command_executor.add_agent_command(PlotMatrix().plot_matrix)
 
-    start_time = time.time()
 
-    data_paths = list(Path(parsed_params['data_path']).glob("step[0-9]*.p"))
-    data_paths = sorted(data_paths, cmp=cmp)
-
+    data_paths = PathProvider(parsed_params['data_path']).get_sorted_paths()
     data_last_step_path = data_paths[-1]
     params, last_step, last_population = pickle.load(data_last_step_path.open('rb'))
 
     if parsed_params['plot_success']:
         PlotSuccess().plot_success(last_population, last_step, params['discriminative_threshold'])
 
+    start_time = time.time()
+
+    logging.debug('execution time %dsec, with params %s', time.time() - start_time, parsed_params)
+
     for path in data_paths:
+
         params, step, population = pickle.load(path.open('rb'))
 
         for agent_index, agent_tuple in enumerate(zip(population, last_population)):
