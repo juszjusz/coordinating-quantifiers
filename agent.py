@@ -36,6 +36,7 @@ class Population:
 
 
 class Agent:
+
     class Result:
         SUCCESS = 1
         FAILURE = 0
@@ -84,20 +85,9 @@ class Agent:
     def get_words_by_category(self, category):
         return self.language.get_words_by_category(category)
 
-    # def learn_word_topic(self, word: str, context: list, topic: int):
-    #     c_j = self.discriminate(context, topic)
-    #     w_i = len(self.lexicon)
-    #     self.lexicon.append(word)
-    #     rows_cnt, cols_cnt = self.lxc.shape
-    #     self.lxc.resize((rows_cnt + 1, cols_cnt), refcheck=False)
-    #     if c_j is None:
-    #         # TODO question: is this ok or maybe learn_topic?
-    #         return
-    #     else:
-
     def learn_stimulus(self, context, n, category=None):
         logging.debug(" learns stimulus %d by " % (n + 1))
-        if self.language.discriminative_success >= self.language.discriminative_threshold and category is not None:
+        if (self.language.discriminative_success >= self.language.discriminative_threshold) and (category is not None):
             logging.debug("updating category")
             self.language.update_category(category, context[n])
             return category
@@ -107,6 +97,7 @@ class Agent:
 
     def update_on_failure(self, word, category):
         self.language.decrement_word2category_connection(word, category)
+        #self.language.forget_words(word)
 
 
 class Speaker(Agent):
@@ -116,6 +107,7 @@ class Speaker(Agent):
     def update_on_success(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
         self.language.inhibit_word2categories_connections(word=word, category_index=category)
+        #self.language.forget_words(word)
 
     def update_on_success_stage7(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
@@ -159,6 +151,7 @@ class Hearer(Agent):
     def update_on_success(self, speaker_word, hearer_category):
         self.language.increment_word2category_connection(word=speaker_word, category_index=hearer_category)
         self.language.inhibit_category2words_connections(word=speaker_word, category_index=hearer_category)
+        #self.language.forget_words(speaker_word)
 
     def update_on_success_stage7(self, word, word_categories):
         for c_index, _ in word_categories:
