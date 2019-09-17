@@ -13,7 +13,6 @@ from agent import Population
 from guessing_game import GuessingGame
 from data import Data
 
-
 # import cProfile
 
 
@@ -77,7 +76,7 @@ if __name__ == "__main__":
         logging.debug("loading pickled simulation from %s file", pickled_simulation_file)
         with open(pickled_simulation_file, 'rb') as read_handle:
             _, step, population = pickle.load(read_handle)
-        simulation = Simulation(params=parsed_params, step_offset=step, population=population)
+        simulation = Simulation(params=parsed_params, step_offset=step+1, population=population)
     else:
         population = Population(parsed_params)
         simulation = Simulation(params=parsed_params, step_offset=0, population=population)

@@ -50,12 +50,7 @@ class Data:
     def pickle(self, step, agents):
         self.step = step
         if self.pickle_mode and (step + 1) % self.pickle_step == 0:
-            # for i in range(self._population_size_):
-            #     lxc = agents[i].lxc
-            #     if lxc.size:
-            #         self._max_weight_[i] = max(self._max_weight_[i], amax(lxc))
             pickle.dump(self._shape_, open("./simulation_results/data/info.p", "wb"), protocol=2)
-
             pickle.dump(self, open("./simulation_results/data/%d.p" % self.pickle_count, "wb"), protocol=2)
             self.pickle_count = self.pickle_count + 1
             self.matrices = {a: [] for a in range(self._population_size_)}
@@ -172,20 +167,19 @@ class Data:
                     continue
                 else:
                     self.langs[i][-1].append([f])
+                    self.langs[i][-1][-1].append(self.words_to_linestyles[i][f])
                     for j in forms_to_categories[f]:
                         self.langs[i][-1][-1].append([a.get_categories()[j].fun(x_0) for x_0 in self.x])
 
             #  lang2
-            #print("storing lang2")
             if not a.language.lxc.matrix.size:
                 continue
             for w in range(len(a.get_lexicon())):
                 f = a.get_lexicon()[w]
-                #print("storing %s" % f)
                 self.langs2[i][-1].append([f])
                 fy = [sum([cat.fun(x)*wei for cat, wei in zip(a.get_categories(), a.language.lxc.matrix[w])]) for x in self.x]
-                #print(fy)
                 self.langs2[i][-1][-1].append(fy)
+                self.langs2[i][-1][-1].append(self.words_to_linestyles[i][f])
 
     def store_matrices(self, agents):
         for i in range(len(agents)):
@@ -278,12 +272,13 @@ class Data:
             ax.yaxis.set_major_formatter(ScalarFormatter())
             colors = sns.color_palette()
             for word_cats_index in range(len(self.langs[lang_index][step])):
-                num_words = len(self.langs[lang_index][step])
+                #num_words = len(self.langs[lang_index][step])
                 word_cats = self.langs[lang_index][step][word_cats_index]
                 f = word_cats[0]
-                ls = self.words_to_linestyles[lang_index][f]
-                ci = word_cats_index % len(colors)
-                for y in word_cats[1::]:
+                ls = word_cats[1]
+                #ls = self.words_to_linestyles[lang_index][f]
+                #ci = word_cats_index % len(colors)
+                for y in word_cats[2::]:
                     plt.plot(self.x, y, color=ls[0], linestyle=ls[1])
                 plt.plot([], [], color=ls[0], linestyle=ls[1], label=f)
             plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
@@ -301,16 +296,17 @@ class Data:
             ax = plt.gca()
             ax.xaxis.set_major_formatter(ScalarFormatter())
             ax.yaxis.set_major_formatter(ScalarFormatter())
-            colors = sns.color_palette()
-            for fy_ind in range(len(self.langs2[lang_index][step])):
-                num_words = len(self.langs2[lang_index][step])
-                fy = self.langs2[lang_index][step][fy_ind]
-                f = fy[0]
-                y = fy[1]
+            #colors = sns.color_palette()
+            for fys_ind in range(len(self.langs2[lang_index][step])):
+                #num_words = len(self.langs2[lang_index][step])
+                fys = self.langs2[lang_index][step][fys_ind]
+                f = fys[0]
+                y = fys[1]
+                s = fys[2]
                 # print("Agent %d, word %s" % (lang_index, f))
-                ls = self.words_to_linestyles[lang_index][f]
-                plt.plot(self.x, y, color=ls[0], linestyle=ls[1])
-                plt.plot([], [], color=ls[0], linestyle=ls[1], label=f)
+                #ls = self.words_to_linestyles[lang_index][f]
+                plt.plot(self.x, y, color=s[0], linestyle=s[1])
+                plt.plot([], [], color=s[0], linestyle=s[1], label=f)
             plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
             plt.tight_layout(pad=0)
             plt.savefig("./simulation_results/langs2/language%d_%d.png" % (
