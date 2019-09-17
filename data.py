@@ -153,7 +153,7 @@ class Data:
             #  lang
             forms_to_categories = {}
 
-            if not a.language.lxc.matrix.size:
+            if not a.language.lxc.size():
                 continue
             for f in a.get_lexicon():
                 forms_to_categories[f] = []
@@ -177,20 +177,20 @@ class Data:
 
             #  lang2
             #print("storing lang2")
-            if not a.language.lxc.matrix.size:
+            if not a.language.lxc.size():
                 continue
             for w in range(len(a.get_lexicon())):
                 f = a.get_lexicon()[w]
                 #print("storing %s" % f)
                 self.langs2[i][-1].append([f])
-                fy = [sum([cat.fun(x)*wei for cat, wei in zip(a.get_categories(), a.language.lxc.matrix[w])]) for x in self.x]
+                fy = [sum([cat.fun(x)*wei for cat, wei in zip(a.get_categories(), a.language.lxc.to_matrix()[w])]) for x in self.x]
                 #print(fy)
                 self.langs2[i][-1][-1].append(fy)
 
     def store_matrices(self, agents):
         for i in range(len(agents)):
             lex = agents[i].get_lexicon()
-            lxc = agents[i].language.lxc.matrix
+            lxc = agents[i].language.lxc.to_matrix()
             ids = [c.id for c in agents[i].language.categories]
             self._shape_[i] = (max(self._shape_[i][0], lxc.shape[0]), max(self._shape_[i][1], lxc.shape[1]))
             self.matrices[i].append((list(lex), array(lxc), ids))
@@ -354,7 +354,6 @@ class DataPostprocessor:
         for data in data_unpickled:
             for command_exec in self.commands:
                 command_exec({'data': data, 'max_shape': max_shape})
-
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)

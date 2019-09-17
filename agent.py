@@ -15,10 +15,24 @@ class Population:
     def __init__(self, params):
         self.population_size = params['population_size']
         self.agents = [Agent(agent_id, Language(params), 0.0, deque([])) for agent_id in range(self.population_size)]
+        self.ds = []
+        self.cs = []
 
     def select_pairs_per_round(self, games_per_round):
         agents_per_game = sample(self.agents, games_per_round * 2)
         return [(Speaker(a1), Hearer(a2)) for a1, a2 in zip(agents_per_game[::2], agents_per_game[1::2])]
+
+    def __iter__(self):
+        return iter(self.agents)
+
+    def __len__(self):
+        return len(self.agents)
+
+    def update_ds(self):
+        self.ds.append(sum((map(lambda agent: agent.get_discriminative_success() * 100, self.agents))) / len(self.agents))
+
+    def update_cs(self):
+        self.cs.append(sum(map(Agent.get_communicative_success, self.agents)) / len(self.agents))
 
 
 class Agent:

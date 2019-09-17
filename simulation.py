@@ -49,6 +49,9 @@ class Simulation:
             self.data.pickle(step, self.population.agents)
             self.data.plot_success(dt=self.params['discriminative_threshold'], step=step)
 
+            self.population.update_cs()
+            self.population.update_ds()
+
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
