@@ -1,12 +1,11 @@
 import argparse
 import logging
-import multiprocessing
 import pickle
 import re
 import sys
 import time
-from multiprocessing import Process
 
+from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
@@ -210,27 +209,32 @@ class CommandExecutor:
     def add_command(self, command):
         self.commands.append(command)
 
-    def execute_commands(self, agent_index, agent_tuple, step):
+    def new_chunked_task(self, chunk, last_population):
+        return Task(self.execute_commands, chunk=chunk, last_population=last_population)
+
+    def execute_commands(self, data_paths, last_population):
+        for path in data_paths:
+            params, step, population = pickle.load(path.open('rb'))
+            for agent_index, agent_tuple in enumerate(zip(population, last_population)):
+                # assert that zip between agent at current and last step is valid
+                assert agent_tuple[0].id == agent_tuple[1].id
+                self.__execute_commands_per_agent(agent_index, agent_tuple, step)
+
+    def __execute_commands_per_agent(self, agent_index, agent_tuple, step):
         for command_exec in self.commands:
             if agent_tuple[0].language.lxc.size():
                 command_exec(agent_index, agent_tuple, step)
 
 
 class Task(Process):
-
-    def __init__(self, chunk, last_population, command_executor):
+    def __init__(self, execute_commands, chunk, last_population):
         super(Task, self).__init__()
-        self.data_paths = chunk
+        self.chunk = chunk
         self.last_population = last_population
-        self.command_executor = command_executor
+        self.execute_commands = execute_commands
 
     def run(self):
-        for path in self.data_paths:
-            params, step, population = pickle.load(path.open('rb'))
-            for agent_index, agent_tuple in enumerate(zip(population, self.last_population)):
-                # assert that zip between agent at current and last step is valid
-                assert agent_tuple[0].id == agent_tuple[1].id
-                self.command_executor.execute_commands(agent_index, agent_tuple, step)
+        self.execute_commands(self.chunk, self.last_population)
 
 
 class PathProvider:
@@ -290,11 +294,20 @@ if __name__ == '__main__':
     if parsed_params['plot_success']:
         PlotSuccess().plot_success(last_population, last_step, params['discriminative_threshold'])
 
-    chunk_size = len(data_paths) / parsed_params['parallelism']
+    if parsed_params['parallelism']:
+        chunk_size = max(len(data_paths) / parsed_params['parallelism'], 1)
+    else:
+        chunk_size = max(200 / len(last_population), 1)
+
     logging.debug('starting execution with chunk size {}'.format(chunk_size))
     start_time = time.time()
 
+    tasks = []
     for data_path_chunk in chunks(data_paths, chunk_size):
-        Task(chunk=data_path_chunk, last_population=last_population, command_executor=command_executor).start()
+        tasks.append(command_executor.new_chunked_task(data_path_chunk, last_population))
+        tasks[-1].start()
 
-    logging.debug('execution time %dsec, with params %s', time.time() - start_time, parsed_params)
+    for task in tasks:
+        task.join()
+
+    logging.debug('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))
