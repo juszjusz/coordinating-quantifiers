@@ -12,6 +12,7 @@ from numpy import zeros
 from numpy import row_stack
 from numpy import linspace
 from numpy import delete
+from numpy import divide
 from fractions import Fraction
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
@@ -125,8 +126,8 @@ class Language(Perception):
         value = self.lxc.get_value(word_index, category_index)
         self.lxc.set_value(word_index, category_index, value - self.delta_dec * value)
 
-    def forget(self, category):
-        category_index = self.categories.index(category)
+    def forget_categories(self, category_in_use):
+        category_index = self.categories.index(category_in_use)
         for c in self.categories:
             c.weights = [w - self.alpha * w for w in c.weights]
         to_forget = [j for j in range(len(self.categories))
@@ -136,92 +137,18 @@ class Language(Perception):
             self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)
             self.categories = list(delete(self.categories, to_forget))
 
+    def forget_words(self, word_in_use):
+        word_index = self.lexicon.index(word_in_use)
+        to_forget = self.lxc.forget(self.alpha, self.super_alpha, word_index)
+        self.lexicon = list(delete(self.lexicon, to_forget))
+
     def discrimination_game(self, context, topic):
         self.store_ds_result(Perception.Result.FAILURE)
-        category = self.discriminate(context, topic)
-        self.reinforce(category, context[topic])
-        self.forget(category)
+        category_in_use = self.discriminate(context, topic)
+        self.reinforce(category_in_use, context[topic])
+        self.forget_categories(category_in_use)
         self.switch_ds_result()
-        return self.categories.index(category)
-
-    # TODO deprecated
-    def plot(self, filename=None, x_left=0, x_right=100, mode="Franek"):
-        if not self.lxc.size():
-            logging.debug("Language is empty")
-            return
-        if mode == 'Franek':
-            forms_to_categories = {}
-            for f in self.lexicon:
-                forms_to_categories[f] = []
-            for c in self.categories:
-                j = self.categories.index(c)
-                m = max(self.lxc.get_row_by_col(j))
-                if m == 0:
-                    continue
-                else:
-                    max_form_indices = [i for i, w in enumerate(self.lxc.get_row_by_col(j)) if w == m]
-                    form = self.lexicon[max_form_indices[0]]
-                    forms_to_categories[form].append(j)
-
-            plt.title("language")
-            plt.xscale("symlog")
-            plt.yscale("symlog")
-            ax = plt.gca()
-            ax.xaxis.set_major_formatter(ScalarFormatter())
-            ax.yaxis.set_major_formatter(ScalarFormatter())
-            x = linspace(x_left, x_right, 20 * (x_right - x_left), False)
-            colors = sns.color_palette()
-            # sns.set_palette(colors)
-            for i in range(len(self.lexicon)):
-                f = self.lexicon[i]
-                if len(forms_to_categories[f]) == 0:
-                    continue
-                else:
-                    for j in forms_to_categories[f]:
-                        ls = self.line_styles[i // len(colors)]
-                        ci = i % len(colors)
-                        plt.plot(x, [self.categories[j].fun(x_0) for x_0 in x],
-                                 color=colors[ci], linestyle=ls)
-                    plt.plot([], [], color=colors[ci], linestyle=ls, label=f)
-            plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-            plt.tight_layout(pad=0)
-            plt.savefig(filename)
-            plt.close()
-        else:
-            x = arange(x_left + 0.01, x_right, 0.01)
-            logging.debug(x)
-            f = [Fraction(int(100 * p), 100) for p in x]
-            words = []
-            n = 1
-            for u in range(len(f)):
-                fraction = f[u]
-                s = Stimulus(fraction.numerator, fraction.denominator)
-                responses = [c.response(s) for c in self.categories]
-                m = max(responses)
-                if m == 0:
-                    words.append(0)
-                else:
-                    m_indices = [j for j, r in enumerate(responses) if r == m]
-                    if len(m_indices) > 1:
-                        logging.debug("more than one category responds with max")
-                        logging.debug(len(m_indices))
-                    m_i = m_indices[0]
-                    w, e = self.get_most_connected_word(m_i)
-                    words.append(e if w is None else self.lexicon.index(w) + 1)
-            plt.xlabel("ratio")
-            plt.ylabel("word")
-            plt.ylim(bottom=Language.Error._END_)
-            plt.ylim(top=len(self.lexicon))
-            plt.xlim(left=x_left)
-            plt.xlim(right=x_right)
-            # locs, labels = plt.yticks()
-            plt.plot(x, words, 'o')
-            plt.legend(['data'], loc='best')
-            if filename is None:
-                plt.show()
-            else:
-                plt.savefig(filename)
-            plt.close()
+        return self.categories.index(category_in_use)
 
 
 class AssociativeMatrix:
@@ -264,6 +191,19 @@ class AssociativeMatrix:
 
     def set_value(self, row, col, value):
         self.__matrix__[row][col] = value
+        if max(self.__matrix__.flat) > 1.0:
+            self.__matrix__ = divide(self.__matrix__, max(self.__matrix__.flat))
+
+    def forget(self, forgetting_factor, super_alpha, word_index):
+        self.__matrix__ = self.__matrix__ - self.__matrix__ * forgetting_factor
+
+        to_forget = [j for j in range(self.__matrix__.shape[0])
+                     if max(self.__matrix__[j]) < super_alpha and j != word_index]
+
+        if len(to_forget):
+            self.__matrix__ = delete(self.__matrix__, to_forget, axis=0)
+
+        return to_forget
 
     def size(self):
         return self.__matrix__.size
