@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use('Agg')
+
 import argparse
 import logging
 import pickle
@@ -11,6 +14,7 @@ from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, zeros, column_stack, arange, log, amax
 from pathlib import Path
+import os
 
 
 class PlotCategory:
@@ -239,7 +243,7 @@ class Task(Process):
 
 class PathProvider:
     def __init__(self, root):
-        self.root = Path(root)
+        self.root = Path(os.path.abspath(root))
 
     def get_sorted_paths(self):
         data_paths = list(self.root.glob('step[0-9]*.p'))
@@ -263,12 +267,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='plotting data')
 
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
-                        default=".\simulation_results\data")
+                        default="simulation_results/data")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=5)
 
     parsed_params = vars(parser.parse_args())
