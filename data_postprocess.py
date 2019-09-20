@@ -306,12 +306,15 @@ if __name__ == '__main__':
     logging.debug('starting execution with chunk size {}'.format(chunk_size))
     start_time = time.time()
 
-    tasks = []
-    for data_path_chunk in chunks(data_paths, chunk_size):
-        tasks.append(command_executor.new_chunked_task(data_path_chunk, last_population))
-        tasks[-1].start()
+    if parsed_params['parallelism'] == 1:
+        command_executor.execute_commands(data_paths, last_population)
+    else:
+        tasks = []
+        for data_path_chunk in chunks(data_paths, chunk_size):
+            tasks.append(command_executor.new_chunked_task(data_path_chunk, last_population))
+            tasks[-1].start()
 
-    for task in tasks:
-        task.join()
+        for task in tasks:
+            task.join()
 
     logging.debug('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))
