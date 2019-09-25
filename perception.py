@@ -1,6 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 
 from random import randint
+from scipy.stats import norm
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,49 +11,91 @@ from collections import deque
 
 from math_utils import interpolate, integrate
 
+class ContextFactoryTemplate:
+    def __call__(self, *args, **kwargs):
+        s1 = self.new_stimulus()
+        s2 = self.new_stimulus()
 
-class Stimulus:
+        while not self.is_noticeable_difference(s1, s2):
+            s1 = self.new_stimulus()
+            s2 = self.new_stimulus()
+
+        return [s1, s2]
+
+    def new_stimulus(self):
+        raise NotImplementedError
+
+    def is_noticeable_difference(self, s1, s2):
+        raise NotImplementedError
+
+class QuotientBasedStimulusFactory(ContextFactoryTemplate):
+    def __init__(self, a_factory=lambda: randint(1, 101), b_factory=lambda: randint(1, 101), sigma=.1):
+        self.a_factory = a_factory
+        self.b_factory = b_factory
+        self.sigma = sigma
+
+    def new_stimulus(self):
+        a = self.a_factory()
+        b = self.b_factory()
+        return QuotientBasedStimulus(a, b, self.sigma)
+
+    def is_noticeable_difference(self, stimulus1, stimulus2):
+        p1 = (stimulus1.a / stimulus1.b)
+        p2 = (stimulus2.a / stimulus2.b)
+        ds = min(0.3 * p1, 0.3 * p2)
+        return abs(p1 - p2) > ds
+
+
+class QuotientBasedStimulus:
     # stimulus represents a perceptual situation where two exact quantities are given
+    def __init__(self, a, b, sigma):
+        self.a = a
+        self.b = b
+        self.sigma = sigma
 
-    def __init__(self, a=None, b=None):
-        if a is None:
-            self.a = randint(1, 101)
-        else:
-            self.a = a
-        if b is None:
-            self.b = randint(1, 101)
-        else:
-            self.b = b
-
-
-class ReactiveUnit:
-    sigma = 0.1
-    sample_size = 10000
-
-    def __init__(self, stimulus):
+    def pdf(self):
         # TODO consider different interpolation methods
-        a_samples = self.sample(stimulus.a)
-        b_samples = self.sample(stimulus.b)
-        self.a = stimulus.a
-        self.b = stimulus.b
+        a_samples = self.__sample(self.a)
+        b_samples = self.__sample(self.b)
         r = a_samples / b_samples
         ratio_samples = r.tolist()
         y, bin_edges = np.histogram(ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
-        try:
-            self.interp = interpolate(x, y)  # radial basis interpolation?
-        except ValueError:
-            print("x and y arrays must have at least 2 entries")
-            print(x)
-            print(y)
-        self.x_left = x[0]
-        self.x_right = x[-1]
 
-    def sample(self, quantity):
-        return np.array(np.random.normal(quantity, self.sigma * quantity, self.sample_size), dtype=np.float)
+        return x[0], x[-1], interpolate(x, y)
+
+    def __sample(self, quantity, sample_size=10000):
+        return np.array(np.random.normal(quantity, self.sigma * quantity, sample_size), dtype=np.float)
+
+class NumericBasedStimulus:
+    def __init__(self, a, sigma):
+        self.a = a
+        self.sigma = sigma
+
+    def pdf(self):
+        return None, None, norm(self.a, self.sigma).pdf
+
+class NumericBasedStimulusFactory(ContextFactoryTemplate):
+    def __init__(self, a_factory=lambda: randint(1, 101), sigma=.1):
+        self.a_factory = a_factory
+        self.sigma = sigma
+
+    def new_stimulus(self):
+        return NumericBasedStimulus(self.a_factory(), self.sigma)
+
+    def is_noticeable_difference(self, s1, s2):
+        return True
+
+
+class ReactiveUnit:
+    def __init__(self, stimulus):
+        x_left, x_right, pdf = stimulus.pdf()
+        self.x_left = x_left
+        self.x_right = x_right
+        self.pdf = pdf
 
     def reactive_fun(self, x):
-        return 0 if x < self.x_left or x > self.x_right else self.interp(x)
+        return 0 if x < self.x_left or x > self.x_right else self.pdf(x)
 
     # TODO code repetition
     def reactive_response(self, stimulus):

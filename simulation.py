@@ -8,7 +8,9 @@ import dill
 
 import matplotlib
 
+
 matplotlib.use('Agg')
+from perception import QuotientBasedStimulusFactory
 from agent import Population
 from guessing_game import GuessingGame
 from data import Data
@@ -23,6 +25,7 @@ class Simulation:
         self.population = population
         self.step_offset = step_offset
         self.params = params
+        self.new_context = QuotientBasedStimulusFactory()
 
     def run(self):
         for step in range(self.params["steps"]):
@@ -31,7 +34,7 @@ class Simulation:
             selected_pairs = self.population.select_pairs_per_round(self.population.population_size // 2)
 
             for speaker, hearer in selected_pairs:
-                game = GuessingGame(self.params['is_stage7_on'])
+                game = GuessingGame(self.params['is_stage7_on'], self.new_context())
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
                 game.play(speaker=speaker, hearer=hearer)
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
