@@ -4,19 +4,12 @@ from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, 
 from perception import Perception
 from perception import Category
 from perception import ReactiveUnit
-from perception import Stimulus
 from numpy import empty, array
-from numpy import arange
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
-from numpy import linspace
 from numpy import delete
 from numpy import divide
-from fractions import Fraction
-import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
-import seaborn as sns
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
