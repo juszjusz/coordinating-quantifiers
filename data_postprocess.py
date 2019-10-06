@@ -17,13 +17,13 @@ from pathlib import Path
 import os
 
 
-class PlotCategory:
+class PlotCategoryCommand:
     def __init__(self):
         x_left = 0
         x_right = 100
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
 
-    def plot_category(self, agent_index, agent_tuple, step):
+    def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
         plt.title("categories")
         ax = plt.gca()
@@ -56,13 +56,13 @@ def new_linestyles(seq):
     return dict(zip(seq, linestyles))
 
 
-class PlotLanguage:
+class PlotLanguageCommand:
     def __init__(self):
         x_left = 0
         x_right = 100
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
 
-    def plot_language(self, agent_index, agent_tuple, step):
+    def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
         categories = agent.get_categories()
         forms_to_categories = dict()
@@ -98,13 +98,13 @@ class PlotLanguage:
         plt.close()
 
 
-class PlotLanguage2:
+class PlotLanguage2Command:
     def __init__(self):
         x_left = 0
         x_right = 100
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
 
-    def plot_language(self, agent_index, agent_tuple, step):
+    def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
         lexicon = agent.get_lexicon()
 
@@ -133,8 +133,8 @@ class PlotLanguage2:
         plt.close()
 
 
-class PlotMatrix:
-    def plot_matrix(self, agent_index, agent_tuple, step):
+class PlotMatrixCommand:
+    def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
         agent_last = agent_tuple[1]
         matrix = agent.language.lxc.to_array()
@@ -189,8 +189,8 @@ class PlotMatrix:
         plt.close()
 
 
-class PlotSuccess:
-    def plot_success(self, population, step, dt):
+class PlotSuccessCommand:
+    def __call__(self, population, step, dt):
         x = range(1, step + 1)
         plt.ylim(bottom=0)
         plt.ylim(top=100)
@@ -213,21 +213,40 @@ class CommandExecutor:
     def add_command(self, command):
         self.commands.append(command)
 
-    def new_chunked_task(self, chunk, last_population):
-        return Task(self.execute_commands, chunk=chunk, last_population=last_population)
+    def execute_commands_in_parallel(self, data_paths, last_population, parallelism=0):
+        def chunks(list, chunk_size):
+            for i in range(0, len(list), chunk_size):
+                yield list[i:i + chunk_size]
+        def new_chunked_task(execute_commands, chunk, last_population):
+            return Task(execute_commands, chunk=chunk, last_population=last_population)
+
+        # for 0 parallelism is unbounded, we require that len(population) * chunk_size == 200
+        if parallelism == 0:
+            chunk_size = max(200 / len(last_population), 1)
+        else:
+            chunk_size = max(len(data_paths) / parallelism, 1)
+
+        tasks = []
+        for data_path_chunk in chunks(data_paths, chunk_size):
+            tasks.append(new_chunked_task(self.execute_commands, data_path_chunk, last_population))
+            tasks[-1].start()
+
+        for task in tasks:
+            task.join()
 
     def execute_commands(self, data_paths, last_population):
+        def execute_commands_per_agent(self, agent_index, agent_tuple, step):
+            for command_exec in self.commands:
+                if agent_tuple[0].language.lxc.size():
+                    command_exec(agent_index, agent_tuple, step)
+
         for path in data_paths:
             params, step, population = pickle.load(path.open('rb'))
             for agent_index, agent_tuple in enumerate(zip(population, last_population)):
                 # assert that zip between agent at current and last step is valid
                 assert agent_tuple[0].id == agent_tuple[1].id
-                self.__execute_commands_per_agent(agent_index, agent_tuple, step)
+                execute_commands_per_agent(self, agent_index, agent_tuple, step)
 
-    def __execute_commands_per_agent(self, agent_index, agent_tuple, step):
-        for command_exec in self.commands:
-            if agent_tuple[0].language.lxc.size():
-                command_exec(agent_index, agent_tuple, step)
 
 
 class Task(Process):
@@ -246,19 +265,15 @@ class PathProvider:
         self.root = Path(os.path.abspath(root))
 
     def get_sorted_paths(self):
+        # compare files stepA.p, stepB.p by its numerals A, B
+        def cmp(path1, path2):
+            path1no = int(re.search('step(\d+)\.p', path1.name).group(1))
+            path2no = int(re.search('step(\d+)\.p', path2.name).group(1))
+            return path1no - path2no
+
         data_paths = list(self.root.glob('step[0-9]*.p'))
-        return sorted(data_paths, cmp=self.cmp)
+        return sorted(data_paths, cmp=cmp)
 
-    # compare files stepA.p, stepB.p by its numerals A, B
-    def cmp(self, path1, path2):
-        path1no = int(re.search('step(\d+)\.p', path1.name).group(1))
-        path2no = int(re.search('step(\d+)\.p', path2.name).group(1))
-        return path1no - path2no
-
-
-def chunks(list, chunk_size):
-    for i in range(0, len(list), chunk_size):
-        yield list[i:i + chunk_size]
 
 
 if __name__ == '__main__':
@@ -269,11 +284,11 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="simulation_results/data")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
-    parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=5)
+    parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
 
@@ -283,38 +298,25 @@ if __name__ == '__main__':
     command_executor = CommandExecutor()
 
     if parsed_params['plot_cats']:
-        command_executor.add_command(PlotCategory().plot_category)
+        command_executor.add_command(PlotCategoryCommand())
     if parsed_params['plot_langs']:
-        command_executor.add_command(PlotLanguage().plot_language)
+        command_executor.add_command(PlotLanguageCommand())
     if parsed_params['plot_langs2']:
-        command_executor.add_command(PlotLanguage2().plot_language)
+        command_executor.add_command(PlotLanguage2Command())
     if parsed_params['plot_matrices']:
-        command_executor.add_command(PlotMatrix().plot_matrix)
+        command_executor.add_command(PlotMatrixCommand())
 
     data_paths = PathProvider(parsed_params['data_path']).get_sorted_paths()
     data_last_step_path = data_paths[-1]
     params, last_step, last_population = pickle.load(data_last_step_path.open('rb'))
 
     if parsed_params['plot_success']:
-        PlotSuccess().plot_success(last_population, last_step, params['discriminative_threshold'])
+        PlotSuccessCommand()(last_population, last_step, params['discriminative_threshold'])
 
-    if parsed_params['parallelism']:
-        chunk_size = max(len(data_paths) / parsed_params['parallelism'], 1)
-    else:
-        chunk_size = max(200 / len(last_population), 1)
-
-    logging.debug('starting execution with chunk size {}'.format(chunk_size))
     start_time = time.time()
-
     if parsed_params['parallelism'] == 1:
         command_executor.execute_commands(data_paths, last_population)
     else:
-        tasks = []
-        for data_path_chunk in chunks(data_paths, chunk_size):
-            tasks.append(command_executor.new_chunked_task(data_path_chunk, last_population))
-            tasks[-1].start()
-
-        for task in tasks:
-            task.join()
+        command_executor.execute_commands_in_parallel(data_paths, last_population, parsed_params['parallelism'])
 
     logging.debug('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))
