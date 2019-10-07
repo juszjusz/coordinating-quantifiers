@@ -1,10 +1,12 @@
 import matplotlib
+
+from path_provider import PathProvider
+
 matplotlib.use('Agg')
 
 import argparse
 import logging
 import pickle
-import re
 import sys
 import time
 
@@ -13,15 +15,14 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, zeros, column_stack, arange, log, amax
-from pathlib import Path
-import os
 
 
 class PlotCategoryCommand:
-    def __init__(self):
+    def __init__(self, categories_path):
         x_left = 0
         x_right = 100
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+        self.categories_path = categories_path
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -46,8 +47,8 @@ class PlotCategoryCommand:
 
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
-
-        plt.savefig("./simulation_results/cats/categories%d_%d" % (agent_index, step))
+        new_path = self.categories_path.joinpath('categories{}_{}.png'.format(agent_index, step))
+        plt.savefig(str(new_path))
         plt.close()
 
 
@@ -57,10 +58,11 @@ def new_linestyles(seq):
 
 
 class PlotLanguageCommand:
-    def __init__(self):
+    def __init__(self, lang_path):
         x_left = 0
         x_right = 100
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+        self.lang_path = lang_path
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -94,15 +96,17 @@ class PlotLanguageCommand:
 
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
-        plt.savefig("./simulation_results/langs/language%d_%d.png" % (agent_index, step))
+        new_path = self.lang_path.joinpath('language{}_{}.png'.format(agent_index, step))
+        plt.savefig(str(new_path))
         plt.close()
 
 
 class PlotLanguage2Command:
-    def __init__(self):
+    def __init__(self, lang2_path):
         x_left = 0
         x_right = 100
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+        self.lang2_path = lang2_path
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -128,12 +132,16 @@ class PlotLanguage2Command:
             plt.plot([], [], color=color, linestyle=linestyle, label=form)
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
-        plt.savefig("./simulation_results/langs2/language%d_%d.png" % (agent_index, step))
+        new_path = self.lang2_path.joinpath('language{}_{}.png'.format(agent_index, step))
+        plt.savefig(str(new_path))
         # if not self.pickle_mode else self.step - self.pickle_step + step + 1))
         plt.close()
 
 
 class PlotMatrixCommand:
+    def __init__(self, matrices_path):
+        self.root_path = matrices_path
+
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
         agent_last = agent_tuple[1]
@@ -184,12 +192,15 @@ class PlotMatrixCommand:
 
         ax.set_title("Association matrix")
         fig.tight_layout()
-        output_name = "./simulation_results/matrices/matrix%d_%d" % (agent_index, step)
-        plt.savefig(output_name)
+        new_path = self.root_path.joinpath('matrix{}_{}.png'.format(agent_index, step))
+        plt.savefig(str(new_path))
         plt.close()
 
 
 class PlotSuccessCommand:
+    def __init__(self, root_path):
+        self.root_path = root_path
+
     def __call__(self, population, step, dt):
         x = range(1, step + 1)
         plt.ylim(bottom=0)
@@ -202,7 +213,8 @@ class PlotSuccessCommand:
         plt.plot(x, population.ds, '--')
         plt.plot(x, population.cs, '-')
         plt.legend(['dt', 'ds', 'gg1s'], loc='best')
-        plt.savefig("./simulation_results/success.pdf")
+        new_path = self.root_path.joinpath('success.pdf')
+        plt.savefig(str(new_path))
         plt.close()
 
 
@@ -260,29 +272,13 @@ class Task(Process):
         self.execute_commands(self.chunk, self.last_population)
 
 
-class PathProvider:
-    def __init__(self, root):
-        self.root = Path(os.path.abspath(root))
-
-    def get_sorted_paths(self):
-        # compare files stepA.p, stepB.p by its numerals A, B
-        def cmp(path1, path2):
-            path1no = int(re.search('step(\d+)\.p', path1.name).group(1))
-            path2no = int(re.search('step(\d+)\.p', path2.name).group(1))
-            return path1no - path2no
-
-        data_paths = list(self.root.glob('step[0-9]*.p'))
-        return sorted(data_paths, cmp=cmp)
-
-
-
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
     parser = argparse.ArgumentParser(prog='plotting data')
 
-    parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
-                        default="simulation_results/data")
+    parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
+                        default="simulation_results")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
@@ -292,28 +288,31 @@ if __name__ == '__main__':
 
     parsed_params = vars(parser.parse_args())
 
-    logging.debug("loading pickled simulation from %s file", parsed_params['data_path'])
+    logging.debug("loading pickled simulation from %s file", parsed_params['data_root'])
 
     # set commands to be executed
+    path_provider = PathProvider(parsed_params['data_root'])
     command_executor = CommandExecutor()
-
     if parsed_params['plot_cats']:
-        command_executor.add_command(PlotCategoryCommand())
+        command_executor.add_command(PlotCategoryCommand(path_provider.cats_path))
     if parsed_params['plot_langs']:
-        command_executor.add_command(PlotLanguageCommand())
+        command_executor.add_command(PlotLanguageCommand(path_provider.lang_path))
     if parsed_params['plot_langs2']:
-        command_executor.add_command(PlotLanguage2Command())
+        command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path))
     if parsed_params['plot_matrices']:
-        command_executor.add_command(PlotMatrixCommand())
+        command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
 
-    data_paths = PathProvider(parsed_params['data_path']).get_sorted_paths()
+    path_provider.create_directories()
+    data_paths = path_provider.get_sorted_paths()
     data_last_step_path = data_paths[-1]
     params, last_step, last_population = pickle.load(data_last_step_path.open('rb'))
 
     if parsed_params['plot_success']:
-        PlotSuccessCommand()(last_population, last_step, params['discriminative_threshold'])
+        plot_success_command = PlotSuccessCommand(path_provider.root_path)
+        plot_success_command(last_population, last_step, params['discriminative_threshold'])
 
     start_time = time.time()
+
     if parsed_params['parallelism'] == 1:
         command_executor.execute_commands(data_paths, last_population)
     else:
