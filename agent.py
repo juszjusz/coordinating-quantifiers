@@ -97,7 +97,6 @@ class Agent:
 
     def update_on_failure(self, word, category):
         self.language.decrement_word2category_connection(word, category)
-        #self.language.forget_words(word)
 
 
 class Speaker(Agent):
@@ -107,7 +106,14 @@ class Speaker(Agent):
     def update_on_success(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
         self.language.inhibit_word2categories_connections(word=word, category_index=category)
-        #self.language.forget_words(word)
+
+    def update_on_success2c(self, word, category):
+        #logging.debug("Incrementing connections for %s, agent %d" % (word, self.id))
+        csimilarities = [self.language.csimilarity(word, c) for c in self.language.categories]
+        #logging.debug("Speaker successful category %d, its similarity %f to %s meaning" % (category, csimilarities[category], word))
+        #logging.debug("Similarities: %s" % str(csimilarities))
+        self.language.increment_word2category_connections_by_csimilarity(word, csimilarities)
+        self.language.inhibit_word2categories_connections(word=word, category_index=category)
 
     def update_on_success_stage7(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
@@ -132,8 +138,11 @@ class Hearer(Agent):
 
     # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
     def select_word(self, category):
-        threshold = .005  # todo
+        threshold = .000  # todo
         words_by_category = self.language.get_words_sorted_by_val(category=category)
+
+        if not len(words_by_category):
+            return None, None
 
         word0 = words_by_category[0]
         categories0 = list(
@@ -146,12 +155,20 @@ class Hearer(Agent):
         categories1 = list(
             filter(lambda cat2propensity: cat2propensity[1] > threshold, self.language.get_categories_sorted_by_val(word1)))
 
+        logging.debug("Two words sorted by cardinality: %s, %s" % (word0, word1) if len(categories0) > len(categories1) else (word1, word0))
         return (word0, categories0) if len(categories0) > len(categories1) else (word1, categories1)
 
     def update_on_success(self, speaker_word, hearer_category):
         self.language.increment_word2category_connection(word=speaker_word, category_index=hearer_category)
         self.language.inhibit_category2words_connections(word=speaker_word, category_index=hearer_category)
-        #self.language.forget_words(speaker_word)
+
+    def update_on_success2c(self, word, category):
+        #logging.debug("Incrementing connections for %s, agent %d" % (word, self.id))
+        csimilarities = [self.language.csimilarity(word, c) for c in self.language.categories]
+        #logging.debug("Hearer successful category %d, its similarity %f to %s meaning" % (self.get_categories()[category].id, csimilarities[category], word))
+        #logging.debug("c Similarities: %s" % str(csimilarities))
+        self.language.increment_word2category_connections_by_csimilarity(word, csimilarities)
+        self.language.inhibit_category2words_connections(word=word, category_index=category)
 
     def update_on_success_stage7(self, word, word_categories):
         for c_index, _ in word_categories:

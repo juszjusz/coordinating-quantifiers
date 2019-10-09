@@ -31,12 +31,17 @@ class GuessingGame:
         speaker_category = None
         speaker_word = None
         hearer_category = None
+        hearer_category2 = None
 
         try:
             speaker_category = speaker.discrimination_game(self.context, self.topic)
+            logging.debug("Speaker(%d)'s discriminative category: %d" % (speaker.id, speaker.get_categories()[speaker_category].id))
             speaker_word = speaker.get_most_connected_word(speaker_category)
+            logging.debug("Speaker(%d) says: %s" % (speaker.id, speaker_word))
             hearer_category = hearer.get_most_connected_category(speaker_word)
+            logging.debug("Hearer(%d)'s category: %d" % (hearer.id, hearer.get_categories()[hearer_category].id))
             hearer_topic = hearer.get_topic(context=self.context, category=hearer_category)
+            logging.debug("Topic according to hearer(%d): %d" % (hearer.id, hearer_topic+1))
             self.completed = True
         except NO_CATEGORY:
             self.exception_handler.on_NO_CATEGORY(agent=speaker, context=self.context, topic=self.topic)
@@ -98,12 +103,42 @@ class GuessingGame:
 
         success2 = False
         # STAGE 7
+
         if self.is_stage7_on and self.completed and not success1:
-            word, word_categories = hearer.select_word(category=hearer_category)
+            logging.debug("guessing game 2 starts!")
+            word = None
+            try:
+                hearer_category2 = hearer.discrimination_game(self.context, self.topic)
+                word, word_categories = hearer.select_word(category=hearer_category2)
+            except NO_CATEGORY:
+                self.exception_handler.on_NO_CATEGORY(agent=hearer, context=self.context, topic=self.topic)
+            except NO_NOTICEABLE_DIFFERENCE:
+                self.exception_handler.on_NO_NOTICEABLE_DIFFERENCE()
+            except NO_POSITIVE_RESPONSE_1:
+                self.exception_handler.on_NO_POSITIVE_RESPONSE_1(agent=hearer,
+                                                                 context=self.context,
+                                                                 category_index=hearer_category2)
+            except NO_POSITIVE_RESPONSE_2:
+                self.exception_handler.on_NO_POSITIVE_RESPONSE_2(agent=hearer,
+                                                                 context=self.context,
+                                                                 category_index=hearer_category2)
+            except NO_DISCRIMINATION_LOWER_1 as e:
+                self.exception_handler.on_NO_DISCRIMINATION_LOWER_1(agent=hearer,
+                                                                    context=self.context,
+                                                                    category_index=e.i)
+            except NO_DISCRIMINATION_LOWER_2 as e:
+                self.exception_handler.on_NO_DISCRIMINATION_LOWER_2(agent=hearer,
+                                                                    context=self.context,
+                                                                    category_index=e.i)
+            except ERROR:
+                self.exception_handler.on_LANGUAGE_ERROR()
+
+
             success2 = word == speaker_word
 
-            # speaker.store_cs2_result(Agent.Result.SUCCESS if success2 else Agent.Result.FAILURE)
-            # hearer.store_cs2_result(Agent.Result.SUCCESS if success2 else Agent.Result.FAILURE)
+            logging.debug("Hearer(%d) says %s" % (hearer.id, word))
+            #speaker.store_cs2_result(Agent.Result.SUCCESS if success2 else Agent.Result.FAILURE)
+            #hearer.store_cs2_result(Agent.Result.SUCCESS if success2 else Agent.Result.FAILURE)
 
             if success2:
                 logging.debug("guessing game 2 success!")
@@ -112,6 +147,8 @@ class GuessingGame:
             else:
                 logging.debug("guessing game 2 failed!")
 
+            speaker.language.forget_words()
+            hearer.language.forget_words()
 
 class ExceptionHandler:
     # to be move to Speaker Hearer subclass
@@ -151,6 +188,7 @@ class ExceptionHandler:
 
     # to be move to Speaker and Hearer subclass
     def on_LANGUAGE_ERROR(self):
+        logging.debug("Unknown error")
         pass
 
     # to be move to Speaker subclass
@@ -172,9 +210,9 @@ class ExceptionHandler:
         try:
             category = hearer.discrimination_game(context, topic)
             logging.debug("Hearer(%d) category %d" % (hearer.id,
-                                                      -1 if category is None else category))
+                                                      -1 if category is None else hearer.get_categories()[category].id))
             logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
-                hearer.id, speaker_word, category))
+                hearer.id, speaker_word, hearer.get_categories()[category].id))
             hearer.learn_word_category(speaker_word, category)
             return category
         except NO_CATEGORY:
@@ -201,15 +239,15 @@ class ExceptionHandler:
             # TODO discuss
             # raise Exception("Wow, there should be no error here.")
 
-        logging.debug("Hearer(%d) category %-1")
+        logging.debug("Hearer(%d) category %d" % (hearer.id, -1))
         logging.debug("Hearer(%d) plays the discrimination game" % hearer.id)
 
         try:
             category = hearer.discrimination_game(context, topic)
             logging.debug("Hearer(%d) category %d" % (hearer.id,
-                                                      -1 if category is None else category))
+                                                      -1 if category is None else hearer.get_categories()[category].id))
             logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
-                hearer.id, speaker_word, category))
+                hearer.id, speaker_word, hearer.get_categories()[category].id))
             hearer.learn_word_category(speaker_word, category)
             return category
         except PerceptionError:
@@ -225,7 +263,7 @@ class ExceptionHandler:
         category = None
         try:
             category = hearer.discrimination_game(context, topic)
-            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, category + 1))
+            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, hearer.get_categories()[category].id))
             hearer.learn_word_category(speaker_word, category)
             return category
         except NO_CATEGORY:
@@ -251,7 +289,7 @@ class ExceptionHandler:
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = hearer.discrimination_game(context, topic)
-            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, category + 1))
+            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, hearer.get_categories()[category].id))
             hearer.learn_word_category(speaker_word, category)
             return category
         except PerceptionError:
@@ -265,7 +303,7 @@ class ExceptionHandler:
         category = None
         try:
             category = hearer.discrimination_game(context, topic)
-            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, category + 1))
+            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, hearer.get_categories()[category].id))
             hearer.learn_word_category(speaker_word, category)
             return category
         except NO_CATEGORY:
@@ -292,7 +330,7 @@ class ExceptionHandler:
             logging.debug("Hearer plays the discrimination game")
             # TODO discrimination_game czy discriminate?
             category = hearer.discrimination_game(context, topic)
-            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, category + 1))
+            logging.debug("Hearer(%d) associates \"%s\" with category %d" % (hearer.id, speaker_word, hearer.get_categories()[category].id))
             hearer.learn_word_category(speaker_word, category)
             return category
         except PerceptionError:

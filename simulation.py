@@ -40,14 +40,6 @@ class Simulation:
             with open("./simulation_results/data/step%d.p" % step_with_offset, "wb") as write_handle:
                 dill.dump((parsed_params, step_with_offset, self.population), write_handle)
 
-            self.data.store_ds(self.population.agents)
-            self.data.store_cs(self.population.agents)
-            self.data.store_matrices(self.population.agents)
-            self.data.store_langs(self.population.agents)
-            self.data.store_cats(self.population.agents)
-            self.data.pickle(step, self.population.agents)
-            self.data.plot_success(dt=self.params['discriminative_threshold'], step=step)
-
             self.population.update_cs()
             self.population.update_ds()
 

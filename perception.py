@@ -1,5 +1,5 @@
 from __future__ import division  # force python 3 division in python 2
-
+# import logging
 from random import randint
 import numpy as np
 import matplotlib.pyplot as plt
@@ -195,6 +195,9 @@ class Perception:
     # TODO check
     def reinforce(self, category, stimulus):
         c = category
+        #logging.debug("REINFORCEMENT.Category id=%d responses to stimulus %f" % (category.id, stimulus.a/stimulus.b))
+        #for w, ru in zip(c.weights, c.reactive_units):
+        #    logging.debug("Reactive unit response %f, weight %f" % (ru.reactive_response(stimulus), w))
         c.weights = [w + self.beta * ru.reactive_response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
 
     # TODO adhoc implementation of noticeable difference between stimuli
