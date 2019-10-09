@@ -1,6 +1,5 @@
 from __future__ import division  # force python 3 division in python 2
-# import logging
-from random import randint
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -8,51 +7,18 @@ from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONS
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
 
-from math_utils import interpolate, integrate
-
-
-class Stimulus:
-    # stimulus represents a perceptual situation where two exact quantities are given
-
-    def __init__(self, a=None, b=None):
-        if a is None:
-            self.a = randint(1, 101)
-        else:
-            self.a = a
-        if b is None:
-            self.b = randint(1, 101)
-        else:
-            self.b = b
+from math_utils import integrate
 
 
 class ReactiveUnit:
-    sigma = 0.1
-    sample_size = 10000
-
     def __init__(self, stimulus):
-        # TODO consider different interpolation methods
-        a_samples = self.sample(stimulus.a)
-        b_samples = self.sample(stimulus.b)
-        self.a = stimulus.a
-        self.b = stimulus.b
-        r = a_samples / b_samples
-        ratio_samples = r.tolist()
-        y, bin_edges = np.histogram(ratio_samples, bins="auto", density=True)
-        x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
-        try:
-            self.interp = interpolate(x, y)  # radial basis interpolation?
-        except ValueError:
-            print("x and y arrays must have at least 2 entries")
-            print(x)
-            print(y)
-        self.x_left = x[0]
-        self.x_right = x[-1]
-
-    def sample(self, quantity):
-        return np.array(np.random.normal(quantity, self.sigma * quantity, self.sample_size), dtype=np.float)
+        _pdf = stimulus.pdf()
+        self.x_left = _pdf.x_left
+        self.x_right = _pdf.x_right
+        self.pdf = _pdf.pdf
 
     def reactive_fun(self, x):
-        return 0 if x < self.x_left or x > self.x_right else self.interp(x)
+        return 0 if x < self.x_left or x > self.x_right else self.pdf(x)
 
     # TODO code repetition
     def reactive_response(self, stimulus):

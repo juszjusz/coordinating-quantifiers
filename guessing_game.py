@@ -2,19 +2,15 @@ from __future__ import division  # force python 3 division in python 2
 import logging
 from agent import Agent, Hearer, Speaker
 from guessing_game_exceptions import *
-from perception import Perception
-from perception import Stimulus
 from random import choice
 
 
 class GuessingGame:
 
-    def __init__(self, is_stage7_on):
+    def __init__(self, is_stage7_on, context):
         self.completed = False
         self.is_stage7_on = is_stage7_on
-        self.context = [Stimulus(), Stimulus()]
-        while not Perception.noticeable_difference(self.context[0], self.context[1]):
-            self.context = [Stimulus(), Stimulus()]
+        self.context = context
         self.topic = choice([0, 1])
         self.exception_handler = ExceptionHandler()
 

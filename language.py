@@ -5,7 +5,6 @@ from perception import Perception
 from perception import Category
 from perception import ReactiveUnit
 from numpy import empty, array
-from numpy import arange
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
