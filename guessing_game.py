@@ -18,9 +18,9 @@ class GuessingGame:
     def play(self, speaker, hearer):
         logging.debug("--")
         logging.debug(
-            "Stimulus 1: %d/%d = %f" % (self.context[0].a, self.context[0].b, self.context[0].a / self.context[0].b))
+            "Stimulus 1: %s" % self.context[0])
         logging.debug(
-            "Stimulus 2: %d/%d = %f" % (self.context[1].a, self.context[1].b, self.context[1].a / self.context[1].b))
+            "Stimulus 2: %s" % self.context[1])
         logging.debug("topic = %d" % (self.topic + 1))
 
         hearer_topic = None

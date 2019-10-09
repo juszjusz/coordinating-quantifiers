@@ -13,7 +13,7 @@ class ContextFactory:
         s1 = self.stimulus_factory._new_stimulus()
         s2 = self.stimulus_factory._new_stimulus()
 
-        while not self.stimulus_factory._is_noticeable_difference(s1, s2):
+        while not s1.is_noticeably_different_from(s2):
             s1 = self.stimulus_factory._new_stimulus()
             s2 = self.stimulus_factory._new_stimulus()
 
@@ -30,12 +30,6 @@ class QuotientBasedStimulusFactory():
         a = self.a_factory()
         b = self.b_factory()
         return QuotientBasedStimulus(a, b, self.sigma)
-
-    def _is_noticeable_difference(self, stimulus1, stimulus2):
-        p1 = (stimulus1.a / stimulus1.b)
-        p2 = (stimulus2.a / stimulus2.b)
-        ds = min(0.3 * p1, 0.3 * p2)
-        return abs(p1 - p2) > ds
 
 
 class QuotientBasedStimulus:
@@ -62,17 +56,28 @@ class QuotientBasedStimulus:
     def __str__(self):
         return str({'value': '{}/{}'.format(self.a, self.b), 'sigma': self.sigma})
 
+    def is_noticeably_different_from(self, stimulus):
+        p1 = (self.a / self.b)
+        p2 = (stimulus.a / stimulus.b)
+        ds = min(0.3 * p1, 0.3 * p2)
+        return abs(p1 - p2) > ds
+
 
 class NumericBasedStimulus:
     def __init__(self, value, sigma):
         self.value = value
-        self.sigma = sigma
+        self.sigma = self.value * sigma
 
     def pdf(self):
-        return ProbabilityDensityFunction(None, None, norm(self.value, self.sigma).pdf)
+        return ProbabilityDensityFunction(self.value - 3.0 * self.sigma, self.value + 3.0 * self.sigma, norm(self.value, self.sigma).pdf)
 
     def __str__(self):
         return str({'value': self.value, 'sigma': self.sigma})
+
+    def is_noticeably_different_from(self, stimulus):
+        delta_i1 = 0.1 * self.value  # addition required for a change to be perceived, Weber constant 0.1
+        delta_i2 = 0.1 * stimulus.value
+        return abs(self.value - stimulus.value) > min(delta_i1, delta_i2)
 
 
 class NumericBasedStimulusFactory():
@@ -82,9 +87,6 @@ class NumericBasedStimulusFactory():
 
     def _new_stimulus(self):
         return NumericBasedStimulus(self.a_factory(), self.sigma)
-
-    def _is_noticeable_difference(self, s1, s2):
-        return abs(s1.value - s2.value)
 
 
 class ProbabilityDensityFunction:

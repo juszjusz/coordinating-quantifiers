@@ -92,7 +92,7 @@ class Agent:
             self.language.update_category(category, context[n])
             return category
         else:
-            logging.debug("adding new category centered on %f" % (context[n].a / context[n].b))
+            logging.debug("adding new category centered on %s" % context[n])
             return self.language.add_category(context[n])
 
     def update_on_failure(self, word, category):

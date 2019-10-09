@@ -1,5 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
 
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -125,7 +126,7 @@ class Perception:
         s1, s2 = context[0], context[1]
 
         # TODO do wywalnie prawdopodobnie, ze wzgledu na sposob generowania kontekstow
-        if not Perception.noticeable_difference(s1, s2):
+        if not s1.is_noticeably_different_from(s2):
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_NOTICEABLE_DIFFERENCE
 

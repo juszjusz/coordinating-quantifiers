@@ -283,11 +283,11 @@ if __name__ == '__main__':
     parser.add_argument('--data_path', '-d', help='pickeled input data path', type=str,
                         default="simulation_results/data")
 
-    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
-    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
+    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
