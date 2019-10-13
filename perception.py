@@ -1,5 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
 
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -125,7 +126,7 @@ class Perception:
         s1, s2 = context[0], context[1]
 
         # TODO do wywalnie prawdopodobnie, ze wzgledu na sposob generowania kontekstow
-        if not Perception.noticeable_difference(s1, s2):
+        if not s1.is_noticeably_different_from(s2):
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_NOTICEABLE_DIFFERENCE
 
@@ -161,6 +162,9 @@ class Perception:
     # TODO check
     def reinforce(self, category, stimulus):
         c = category
+        #logging.debug("REINFORCEMENT.Category id=%d responses to stimulus %f" % (category.id, stimulus.a/stimulus.b))
+        #for w, ru in zip(c.weights, c.reactive_units):
+        #    logging.debug("Reactive unit response %f, weight %f" % (ru.reactive_response(stimulus), w))
         c.weights = [w + self.beta * ru.reactive_response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
 
     # TODO adhoc implementation of noticeable difference between stimuli

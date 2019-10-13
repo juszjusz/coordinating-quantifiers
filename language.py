@@ -10,6 +10,7 @@ from numpy import zeros
 from numpy import row_stack
 from numpy import delete
 from numpy import divide
+from scipy import integrate
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
@@ -60,8 +61,8 @@ class Language(Perception):
 
     def get_words_sorted_by_val(self, category, threshold=-1):
         # https://stackoverflow.com/questions/1286167/is-the-order-of-results-coming-from-a-list-comprehension-guaranteed/1286180
-        return [self.lexicon[index] for index, weigth in self.lxc.get_index2row_sorted_by_value(category) if
-                weigth > threshold]
+        return [self.lexicon[index] for index, weight in self.lxc.get_index2row_sorted_by_value(category) if
+                weight > threshold]
 
     def get_categories_sorted_by_val(self, word):
         word_index = self.lexicon.index(word)
@@ -130,9 +131,8 @@ class Language(Perception):
             self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)
             self.categories = list(delete(self.categories, to_forget))
 
-    def forget_words(self, word_in_use):
-        word_index = self.lexicon.index(word_in_use)
-        to_forget = self.lxc.forget(self.alpha, self.super_alpha, word_index)
+    def forget_words(self):
+        to_forget = self.lxc.forget(0.01)
         self.lexicon = list(delete(self.lexicon, to_forget))
 
     def discrimination_game(self, context, topic):
@@ -142,6 +142,29 @@ class Language(Perception):
         self.forget_categories(category_in_use)
         self.switch_ds_result()
         return self.categories.index(category_in_use)
+
+    def increment_word2category_connections_by_csimilarity(self, word, csimilarities):
+        row = self.lexicon.index(word)
+        increments = [sim * self.delta_inc for sim in csimilarities]
+        #logging.debug("Increments: %s" % str(increments))
+
+        old_weights = self.lxc.get_col_by_row(self.lexicon.index(word))
+        #logging.debug("Old weights: %s" % str(old_weights))
+
+        incremented_weights = [w + inc for w, inc in zip(old_weights, increments)]
+        #logging.debug("Incremented weights: %s" % str(incremented_weights))
+        self.lxc.set_values(axis=0, index=row, values=incremented_weights)
+
+    # based on how much the word meaning covers the category
+    def csimilarity(self, word, category):
+        wi = self.lexicon.index(word)
+        coverage = integrate(lambda x: min(self.word_meaning(word, x), category.fun(x)), category.x_left, category.x_right)
+        area = integrate(lambda x: category.fun(x), category.x_left, category.x_right)
+        return coverage / area
+
+    def word_meaning(self, word, x):
+        wi = self.lexicon.index(word)
+        return sum([cat.fun(x) * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
 
 
 class AssociativeMatrix:
@@ -184,14 +207,25 @@ class AssociativeMatrix:
 
     def set_value(self, row, col, value):
         self.__matrix__[row][col] = value
-        if max(self.__matrix__.flat) > 1.0:
-            self.__matrix__ = divide(self.__matrix__, max(self.__matrix__.flat))
 
-    def forget(self, forgetting_factor, super_alpha, word_index):
-        self.__matrix__ = self.__matrix__ - self.__matrix__ * forgetting_factor
+    def set_values(self, axis, index, values):
+        if axis == 0:
+            self.__matrix__[index] = values
+        else:
+            self.__matrix__[:, index] = values
 
-        to_forget = [j for j in range(self.__matrix__.shape[0])
-                     if max(self.__matrix__[j]) < super_alpha and j != word_index]
+    def normalize(self, axis, index):
+        if axis == 0:
+            if max(self.__matrix__[index].flat) > 1.0:
+                self.__matrix__[index] = divide(self.__matrix__[index], max(self.__matrix__[index].flat))
+        else:
+            if max(self.__matrix__[:, index].flat) > 1.0:
+                self.__matrix__[:, index] = divide(self.__matrix__[:, index], max(self.__matrix__[:, index].flat))
+
+    def forget(self, super_alpha):
+        #self.__matrix__ = self.__matrix__ - self.__matrix__ * forgetting_factor
+
+        to_forget = [j for j in range(self.__matrix__.shape[0]) if max(self.__matrix__[j]) < super_alpha]
 
         if len(to_forget):
             self.__matrix__ = delete(self.__matrix__, to_forget, axis=0)

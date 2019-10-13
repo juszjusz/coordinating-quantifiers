@@ -28,9 +28,9 @@ class PlotCategoryCommand:
         agent = agent_tuple[0]
         plt.title("categories")
         ax = plt.gca()
-        plt.xscale("symlog")
+        #plt.xscale("symlog")
         ax.xaxis.set_major_formatter(ScalarFormatter())
-        plt.yscale("symlog")
+        #plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         cats = agent.get_categories()
@@ -43,7 +43,7 @@ class PlotCategoryCommand:
             plt.plot(self.plot_space, graph,
                      color=color,
                      linestyle=linestyle,
-                     label="%d" % (cat.id + 1))
+                     label="%d" % (cat.id))
 
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
@@ -81,7 +81,7 @@ class PlotLanguageCommand:
                 forms_to_categories[word].append(category_connected)
 
         plt.title("language in step {} of agent {}".format(step, agent_index))
-        plt.xscale("symlog")
+        #plt.xscale("symlog")
         plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
@@ -120,8 +120,8 @@ class PlotLanguage2Command:
             lang.append([word, fy])
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
-        plt.xscale("symlog")
-        plt.yscale("symlog")
+        #plt.xscale("symlog")
+        #plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
@@ -183,10 +183,10 @@ class PlotMatrixCommand:
         # Rotate the tick labels and set their alignment.
         plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
                  rotation_mode="anchor")
-        # for i in range(len(lexicon)):
-        #     for j in range(n_categories):
-        #         text = ax.text(j, i, round(lxc_ex[i, j], 3),
-        #                        ha="center", va="center", color="w")
+        for i in range(len(lexicon)):
+            for j in range(n_categories):
+                if lxc_ex[i, j] > 0.0:
+                    text = ax.text(j, i, round(lxc_ex[i, j], 2), ha="center", va="center", color="r")
         # for i in range(n_rows):
         #     ax.text(n_cols, i, round(lxc_ex[i, n_cols], 2), ha="center", va="center", color="w")
 
