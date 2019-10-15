@@ -19,7 +19,6 @@ import os
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
-from data import Data
 
 
 # import cProfile
@@ -31,7 +30,6 @@ class Simulation(Process):
         super(Simulation, self).__init__()
         self.num = num
         self.path_provider = path_provider
-        self.data = Data(params['population_size'])
         self.population = population
         self.step_offset = step_offset
         self.params = params
