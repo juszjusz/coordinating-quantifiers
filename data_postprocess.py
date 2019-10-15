@@ -1,4 +1,7 @@
+import os
+
 import matplotlib
+from pathlib import Path
 
 from path_provider import PathProvider
 
@@ -278,7 +281,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='plotting data')
 
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
-                        default="simulation_results")
+                        default="simulation")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
@@ -291,31 +294,33 @@ if __name__ == '__main__':
     logging.debug("loading pickled simulation from %s file", parsed_params['data_root'])
 
     # set commands to be executed
-    path_provider = PathProvider(parsed_params['data_root'])
-    command_executor = CommandExecutor()
-    if parsed_params['plot_cats']:
-        command_executor.add_command(PlotCategoryCommand(path_provider.cats_path))
-    if parsed_params['plot_langs']:
-        command_executor.add_command(PlotLanguageCommand(path_provider.lang_path))
-    if parsed_params['plot_langs2']:
-        command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path))
-    if parsed_params['plot_matrices']:
-        command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
+    for data_path in Path(parsed_params['data_root']).glob('*'):
+        path_provider = PathProvider.new_path_provider(data_path)
+        command_executor = CommandExecutor()
 
-    path_provider.create_directories()
-    data_paths = path_provider.get_sorted_paths()
-    data_last_step_path = data_paths[-1]
-    params, last_step, last_population = pickle.load(data_last_step_path.open('rb'))
+        if parsed_params['plot_cats']:
+            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path))
+        if parsed_params['plot_langs']:
+            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path))
+        if parsed_params['plot_langs2']:
+            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path))
+        if parsed_params['plot_matrices']:
+            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
 
-    if parsed_params['plot_success']:
-        plot_success_command = PlotSuccessCommand(path_provider.root_path)
-        plot_success_command(last_population, last_step, params['discriminative_threshold'])
+        path_provider.create_directories()
+        data_paths = path_provider.get_sorted_paths()
+        data_last_step_path = data_paths[-1]
+        params, last_step, last_population = pickle.load(data_last_step_path.open('rb'))
 
-    start_time = time.time()
+        if parsed_params['plot_success']:
+            plot_success_command = PlotSuccessCommand(path_provider.root_path)
+            plot_success_command(last_population, last_step, params['discriminative_threshold'])
 
-    if parsed_params['parallelism'] == 1:
-        command_executor.execute_commands(data_paths, last_population)
-    else:
-        command_executor.execute_commands_in_parallel(data_paths, last_population, parsed_params['parallelism'])
+        start_time = time.time()
 
-    logging.debug('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))
+        if parsed_params['parallelism'] == 1:
+            command_executor.execute_commands(data_paths, last_population)
+        else:
+            command_executor.execute_commands_in_parallel(data_paths, last_population, parsed_params['parallelism'])
+
+        logging.debug('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))

@@ -4,10 +4,13 @@ import argparse
 import logging, sys
 import pickle
 import time
+from multiprocessing import Process
+
 import dill
 
 import matplotlib
 
+from path_provider import PathProvider
 from stimulus import context_factory
 
 import os
@@ -19,10 +22,12 @@ from data import Data
 # import cProfile
 
 
-class Simulation:
+class Simulation(Process):
 
-    def __init__(self, params, step_offset, population, context_constructor, num):
+    def __init__(self, params, step_offset, population, context_constructor, num, path_provider):
+        super(Simulation, self).__init__()
         self.num = num
+        self.path_provider = path_provider
         self.data = Data(params['population_size'])
         self.population = population
         self.step_offset = step_offset
@@ -30,6 +35,7 @@ class Simulation:
         self.context_constructor = context_constructor
 
     def run(self):
+        start_time = time.time()
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
             logging.debug("\n------------\nSTEP %d" % step_with_offset)
@@ -42,11 +48,15 @@ class Simulation:
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
-            with open("./%s/data_%d/step%d.p" % (self.params['simulation_name'], self.num, step_with_offset), "wb") as write_handle:
-                dill.dump((parsed_params, step_with_offset, self.population), write_handle)
+            serialized_step_path = str(self.path_provider.create_data_path(step_with_offset))
+            with open(serialized_step_path, "wb") as write_handle:
+                dill.dump((self.params, step_with_offset, self.population), write_handle)
 
             self.population.update_cs()
             self.population.update_ds()
+
+        exec_time = time.time() - start_time
+        logging.debug("simulation {} took {}sec (with params {})".format(self.num, exec_time, self.params))
 
 
 if __name__ == "__main__":
@@ -82,20 +92,20 @@ if __name__ == "__main__":
             _, step, population = pickle.load(read_handle)
         simulation = Simulation(params=parsed_params, step_offset=step+1, population=population, context_constructor=context_constructor)
     else:
-
-        cwd = os.getcwd()
-        os.mkdir('%s/%s' % (cwd, parsed_params['simulation_name']))
-        for r in range(parsed_params['runs']):
-            os.mkdir('%s/%s/%s_%d' % (cwd, parsed_params['simulation_name'], 'data', r))
-
+        simulation_tasks = []
         for r in range(parsed_params['runs']):
             population = Population(parsed_params)
-            simulation = Simulation(params=parsed_params,
+
+            path_provider = PathProvider(parsed_params['simulation_name'])
+            path_provider.new_path_provider()
+            path_provider.create_directory_structure()
+            simulation_tasks.append(Simulation(params=parsed_params,
                                     step_offset=0,
                                     population=population,
                                     context_constructor=context_constructor,
-                                    num=r)
-            start_time = time.time()
-            simulation.run()
-            exec_time = time.time() - start_time
-            logging.debug("simulation {} took {}sec (with params {})".format(simulation.num, exec_time, parsed_params))
+                                    num=r,
+                                    path_provider=path_provider))
+            simulation_tasks[-1].start()
+
+        for task in simulation_tasks:
+            task.join()
