@@ -9,15 +9,18 @@ from multiprocessing import Process
 import dill
 
 import matplotlib
+from pathlib import Path
 
 from path_provider import PathProvider
 from stimulus import context_factory
 
 import os
+
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
 from data import Data
+
 
 # import cProfile
 
@@ -79,33 +82,46 @@ if __name__ == "__main__":
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=2)
     parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
                         default=False)
-    parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step', type=str)
+    parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
+                        type=str)
 
     parsed_params = vars(parser.parse_args())
 
     context_constructor = context_factory[parsed_params['stimulus']]
+
+    simulation_tasks = []
 
     if parsed_params['load_simulation']:
         pickled_simulation_file = parsed_params['load_simulation']
         logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
         with open(pickled_simulation_file, 'rb') as read_handle:
             _, step, population = pickle.load(read_handle)
-        simulation = Simulation(params=parsed_params, step_offset=step+1, population=population, context_constructor=context_constructor)
+
+        path_provider = PathProvider.new_path_provider(parsed_params['simulation_name'])
+        simulation_tasks.append(Simulation(params=parsed_params,
+                                           step_offset=step + 1,
+                                           population=population,
+                                           context_constructor=context_constructor,
+                                           num=0,
+                                           path_provider=path_provider))
     else:
-        simulation_tasks = []
+        simulation_path = os.path.abspath(parsed_params['simulation_name'])
+
+        os.mkdir(simulation_path)
+
         for r in range(parsed_params['runs']):
             population = Population(parsed_params)
-
-            path_provider = PathProvider(parsed_params['simulation_name'])
-            path_provider.new_path_provider()
+            root_path = Path(simulation_path).joinpath('run' + str(r))
+            path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()
             simulation_tasks.append(Simulation(params=parsed_params,
-                                    step_offset=0,
-                                    population=population,
-                                    context_constructor=context_constructor,
-                                    num=r,
-                                    path_provider=path_provider))
-            simulation_tasks[-1].start()
+                                               step_offset=0,
+                                               population=population,
+                                               context_constructor=context_constructor,
+                                               num=r,
+                                               path_provider=path_provider))
 
-        for task in simulation_tasks:
-            task.join()
+    for simulation_task in simulation_tasks:
+        simulation_task.start()
+    for simulation_task in simulation_tasks:
+        simulation_task.join()
