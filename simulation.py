@@ -11,10 +11,10 @@ import matplotlib
 from stimulus import context_factory
 
 import os
+import shutil
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
-from data import Data
 
 # import cProfile
 
@@ -23,7 +23,6 @@ class Simulation:
 
     def __init__(self, params, step_offset, population, context_constructor, num):
         self.num = num
-        self.data = Data(params['population_size'])
         self.population = population
         self.step_offset = step_offset
         self.params = params
@@ -84,6 +83,8 @@ if __name__ == "__main__":
     else:
 
         cwd = os.getcwd()
+        if os.path.exists('%s/%s' % (cwd, parsed_params['simulation_name'])):
+            shutil.rmtree('%s/%s' % (cwd, parsed_params['simulation_name']))
         os.mkdir('%s/%s' % (cwd, parsed_params['simulation_name']))
         for r in range(parsed_params['runs']):
             os.mkdir('%s/%s/%s_%d' % (cwd, parsed_params['simulation_name'], 'data', r))
