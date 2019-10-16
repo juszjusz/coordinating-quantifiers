@@ -140,10 +140,9 @@ class PlotLanguage2Command:
         # if not self.pickle_mode else self.step - self.pickle_step + step + 1))
         plt.close()
 
-
 class PlotMatrixCommand:
     def __init__(self, matrices_path):
-        self.root_path = matrices_path
+        self.matrices_path = matrices_path
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -195,14 +194,14 @@ class PlotMatrixCommand:
 
         ax.set_title("Association matrix")
         fig.tight_layout()
-        new_path = self.root_path.joinpath('matrix{}_{}.png'.format(agent_index, step))
+        new_path = self.matrices_path.joinpath('matrix{}_{}.png'.format(agent_index, step))
         plt.savefig(str(new_path))
         plt.close()
 
 
 class PlotSuccessCommand:
-    def __init__(self, root_path):
-        self.root_path = root_path
+    def __init__(self, success_plot_path):
+        self.success_plot_path = success_plot_path
 
     def __call__(self, population, step, dt):
         x = range(1, step + 1)
@@ -216,7 +215,7 @@ class PlotSuccessCommand:
         plt.plot(x, population.ds, '--')
         plt.plot(x, population.cs, '-')
         plt.legend(['dt', 'ds', 'gg1s'], loc='best')
-        new_path = self.root_path.joinpath('success.pdf')
+        new_path = self.success_plot_path.joinpath('success.pdf')
         plt.savefig(str(new_path))
         plt.close()
 
@@ -256,13 +255,11 @@ class CommandExecutor:
                     command_exec(agent_index, agent_tuple, step)
 
         for path in data_paths:
-            params, step, population = pickle.load(path.open('rb'))
+            step, population = pickle.load(path.open('rb'))
             for agent_index, agent_tuple in enumerate(zip(population, last_population)):
                 # assert that zip between agent at current and last step is valid
                 assert agent_tuple[0].id == agent_tuple[1].id
                 execute_commands_per_agent(self, agent_index, agent_tuple, step)
-
-
 
 class Task(Process):
     def __init__(self, execute_commands, chunk, last_population):
@@ -308,16 +305,16 @@ if __name__ == '__main__':
             command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
 
         path_provider.create_directories()
-        data_paths = path_provider.get_sorted_paths()
-        data_last_step_path = data_paths[-1]
-        params, last_step, last_population = pickle.load(data_last_step_path.open('rb'))
-
+        params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
+        last_step = params['steps'] - 1
+        _, last_population = pickle.load(path_provider.get_simulation_step_path(last_step).open('rb'))
+        path_provider.get_simulation_step_path(last_step)
         if parsed_params['plot_success']:
             plot_success_command = PlotSuccessCommand(path_provider.root_path)
             plot_success_command(last_population, last_step, params['discriminative_threshold'])
 
         start_time = time.time()
-
+        data_paths = path_provider.get_data_paths()
         if parsed_params['parallelism'] == 1:
             command_executor.execute_commands(data_paths, last_population)
         else:

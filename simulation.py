@@ -49,12 +49,16 @@ class Simulation(Process):
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
-            serialized_step_path = str(self.path_provider.create_data_path(step_with_offset))
+            serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
-                dill.dump((self.params, step_with_offset, self.population), write_handle)
+                dill.dump((step_with_offset, self.population), write_handle)
 
             self.population.update_cs()
             self.population.update_ds()
+
+        params_ser_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('params.p'))
+        with open(params_ser_path, 'wb') as write_params:
+            dill.dump(self.params, write_params)
 
         exec_time = time.time() - start_time
         logging.debug("simulation {} took {}sec (with params {})".format(self.num, exec_time, self.params))
@@ -88,12 +92,12 @@ if __name__ == "__main__":
     context_constructor = context_factory[parsed_params['stimulus']]
 
     simulation_tasks = []
-
     if parsed_params['load_simulation']:
-        pickled_simulation_file = parsed_params['load_simulation']
-        logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
-        with open(pickled_simulation_file, 'rb') as read_handle:
-            _, step, population = pickle.load(read_handle)
+        for r in Path(parsed_params['load_simulation']).glob('*'):
+            pickled_simulation_file = parsed_params['load_simulation']
+            logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
+            with open(pickled_simulation_file, 'rb') as read_handle:
+                step, population = pickle.load(read_handle)
 
         path_provider = PathProvider.new_path_provider(parsed_params['simulation_name'])
         simulation_tasks.append(Simulation(params=parsed_params,
