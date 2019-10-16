@@ -4,31 +4,40 @@ import argparse
 import logging, sys
 import pickle
 import time
+from multiprocessing import Process
+
 import dill
 
 import matplotlib
+from pathlib import Path
 
+from path_provider import PathProvider
 from stimulus import context_factory
 
 import os
 import shutil
+
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
 
+
 # import cProfile
 
 
-class Simulation:
+class Simulation(Process):
 
-    def __init__(self, params, step_offset, population, context_constructor, num):
+    def __init__(self, params, step_offset, population, context_constructor, num, path_provider):
+        super(Simulation, self).__init__()
         self.num = num
+        self.path_provider = path_provider
         self.population = population
         self.step_offset = step_offset
         self.params = params
         self.context_constructor = context_constructor
 
     def run(self):
+        start_time = time.time()
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
             logging.debug("\n------------\nSTEP %d" % step_with_offset)
@@ -41,11 +50,19 @@ class Simulation:
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
-            with open("./%s/data_%d/step%d.p" % (self.params['simulation_name'], self.num, step_with_offset), "wb") as write_handle:
-                dill.dump((parsed_params, step_with_offset, self.population), write_handle)
+            serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
+            with open(serialized_step_path, "wb") as write_handle:
+                dill.dump((step_with_offset, self.population), write_handle)
 
             self.population.update_cs()
             self.population.update_ds()
+
+        params_ser_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('params.p'))
+        with open(params_ser_path, 'wb') as write_params:
+            dill.dump(self.params, write_params)
+
+        exec_time = time.time() - start_time
+        logging.debug("simulation {} took {}sec (with params {})".format(self.num, exec_time, self.params))
 
 
 if __name__ == "__main__":
@@ -68,35 +85,47 @@ if __name__ == "__main__":
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=2)
     parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
                         default=False)
-    parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step', type=str)
+    parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
+                        type=str)
 
     parsed_params = vars(parser.parse_args())
 
     context_constructor = context_factory[parsed_params['stimulus']]
 
+    simulation_tasks = []
     if parsed_params['load_simulation']:
-        pickled_simulation_file = parsed_params['load_simulation']
-        logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
-        with open(pickled_simulation_file, 'rb') as read_handle:
-            _, step, population = pickle.load(read_handle)
-        simulation = Simulation(params=parsed_params, step_offset=step+1, population=population, context_constructor=context_constructor)
-    else:
+        for r in Path(parsed_params['load_simulation']).glob('*'):
+            pickled_simulation_file = parsed_params['load_simulation']
+            logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
+            with open(pickled_simulation_file, 'rb') as read_handle:
+                step, population = pickle.load(read_handle)
 
-        cwd = os.getcwd()
-        if os.path.exists('%s/%s' % (cwd, parsed_params['simulation_name'])):
-            shutil.rmtree('%s/%s' % (cwd, parsed_params['simulation_name']))
-        os.mkdir('%s/%s' % (cwd, parsed_params['simulation_name']))
-        for r in range(parsed_params['runs']):
-            os.mkdir('%s/%s/%s_%d' % (cwd, parsed_params['simulation_name'], 'data', r))
+        path_provider = PathProvider.new_path_provider(parsed_params['simulation_name'])
+        simulation_tasks.append(Simulation(params=parsed_params,
+                                           step_offset=step + 1,
+                                           population=population,
+                                           context_constructor=context_constructor,
+                                           num=0,
+                                           path_provider=path_provider))
+    else:
+        simulation_path = os.path.abspath(parsed_params['simulation_name'])
+        if os.path.exists(simulation_path):
+            shutil.rmtree(simulation_path)
+        os.mkdir(simulation_path)
 
         for r in range(parsed_params['runs']):
             population = Population(parsed_params)
-            simulation = Simulation(params=parsed_params,
-                                    step_offset=0,
-                                    population=population,
-                                    context_constructor=context_constructor,
-                                    num=r)
-            start_time = time.time()
-            simulation.run()
-            exec_time = time.time() - start_time
-            logging.debug("simulation {} took {}sec (with params {})".format(simulation.num, exec_time, parsed_params))
+            root_path = Path(simulation_path).joinpath('run' + str(r))
+            path_provider = PathProvider.new_path_provider(root_path)
+            path_provider.create_directory_structure()
+            simulation_tasks.append(Simulation(params=parsed_params,
+                                               step_offset=0,
+                                               population=population,
+                                               context_constructor=context_constructor,
+                                               num=r,
+                                               path_provider=path_provider))
+
+    for simulation_task in simulation_tasks:
+        simulation_task.start()
+    for simulation_task in simulation_tasks:
+        simulation_task.join()
