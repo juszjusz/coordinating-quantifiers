@@ -6,8 +6,8 @@ from language import Language
 from language import Perception
 from random import sample
 from collections import deque
-import matplotlib.pyplot as plt
-from numpy import linspace
+import stimulus
+from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 
 
 class Population:
@@ -33,6 +33,9 @@ class Population:
 
     def update_cs(self):
         self.cs.append(sum(map(Agent.get_communicative_success, self.agents)) / len(self.agents))
+
+    def get_mon(self):
+       return sum(map(Agent.get_monotonicity, self.agents)) / len(self.agents)
 
 
 class Agent:
@@ -66,6 +69,31 @@ class Agent:
 
     def get_communicative_success(self):
         return (sum(self.cs_scores) / len(self.cs_scores)) * 100
+
+    def get_active_lexicon(self):
+        active_lexicon = set([])
+        for s in stimulus.sf.x:
+            if len(self.get_categories()) == 0:
+                continue
+            responses = [c.response(s) for c in self.get_categories()]
+            max_resp = max(responses)
+            if max_resp == 0.0:
+                continue
+            max_args = [i for i, j in enumerate(responses) if j == max_resp]
+            ci = max_args[0]
+            try:
+                w = self.get_most_connected_word(ci)
+                active_lexicon.add(w)
+            except NO_WORD_FOR_CATEGORY:
+                continue
+        return list(active_lexicon)
+
+    def get_monotonicity(self):
+        active_lexicon = self.get_active_lexicon()
+        #logging.debug("Active lexicon of agent(%d): %s" % (self.id, active_lexicon))
+        mons = map(self.language.is_monotone, active_lexicon)
+        #logging.debug("Monotonicity: %s" % mons)
+        return mons.count(True)/len(mons) if len(mons) > 0 else 0.0
 
     def get_most_connected_word(self, category):
         return self.language.get_most_connected_word(category)
