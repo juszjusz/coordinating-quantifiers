@@ -15,6 +15,7 @@ from path_provider import PathProvider
 from stimulus import context_factory
 
 import os
+import shutil
 
 matplotlib.use('Agg')
 from agent import Population
@@ -108,7 +109,8 @@ if __name__ == "__main__":
                                            path_provider=path_provider))
     else:
         simulation_path = os.path.abspath(parsed_params['simulation_name'])
-
+        if os.path.exists(simulation_path):
+            shutil.rmtree(simulation_path)
         os.mkdir(simulation_path)
 
         for r in range(parsed_params['runs']):
