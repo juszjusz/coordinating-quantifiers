@@ -271,6 +271,15 @@ class Task(Process):
     def run(self):
         self.execute_commands(self.chunk, self.last_population)
 
+class PlotMonotonicity:
+    def __init__(self, root_path):
+        self.root_path = root_path
+    def __call__(self):
+        for run_num, run_path in enumerate(Path(self.root_path).glob('*')):
+            for step_path in PathProvider(run_path).get_data_paths():
+                step, population = pickle.load(step_path.open('rb'))
+                print('run number, step: {}, {}'.format(run_num, step))
+
 
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -314,6 +323,7 @@ if __name__ == '__main__':
             plot_success_command(last_population, last_step, params['discriminative_threshold'])
 
         start_time = time.time()
+        # PlotMonotonicity(parsed_params['data_root'])()
         data_paths = path_provider.get_data_paths()
         if parsed_params['parallelism'] == 1:
             command_executor.execute_commands(data_paths, last_population)
