@@ -7,16 +7,13 @@ import time
 import dill
 
 import matplotlib
-
-from stimulus import context_factory
+import stimulus
 
 import os
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
 from data import Data
-
-# import cProfile
 
 
 class Simulation:
@@ -51,29 +48,29 @@ class Simulation:
 
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
-    parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='simulation')
+    parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
-    parser.add_argument('--stimulus', '-stm', help='quotient or stimulus', type=str, default='quotient')
-    parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.85)
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient')
+    parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)
     parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.1)
     parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.1)
     parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.1)
     parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.1)
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.01)
-    parser.add_argument('--beta', '-b', help='learning rate', type=float, default=1.)
+    parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.1)
     parser.add_argument('--steps', '-s', help='number of steps', type=int, default=15)
-    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=2)
+    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
                         default=False)
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step', type=str)
 
     parsed_params = vars(parser.parse_args())
 
-    context_constructor = context_factory[parsed_params['stimulus']]
+    context_constructor = stimulus.context_factory[parsed_params['stimulus']]
+    stimulus.sf = stimulus.stimulus_factory[parsed_params['stimulus']]
 
     if parsed_params['load_simulation']:
         pickled_simulation_file = parsed_params['load_simulation']
@@ -85,6 +82,7 @@ if __name__ == "__main__":
 
         cwd = os.getcwd()
         os.mkdir('%s/%s' % (cwd, parsed_params['simulation_name']))
+
         for r in range(parsed_params['runs']):
             os.mkdir('%s/%s/%s_%d' % (cwd, parsed_params['simulation_name'], 'data', r))
 

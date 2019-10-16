@@ -10,7 +10,9 @@ from numpy import zeros
 from numpy import row_stack
 from numpy import delete
 from numpy import divide
-from scipy import integrate
+from math_utils import integrate
+import stimulus
+from itertools import izip
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
@@ -53,7 +55,7 @@ class Language(Perception):
         if category is None:
             raise ERROR
 
-        if not self.lexicon or all(v == 0 for v in self.lxc.get_row_by_col(category)):
+        if not self.lexicon or all(v == 0.0 for v in self.lxc.get_row_by_col(category)):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
@@ -137,15 +139,15 @@ class Language(Perception):
 
     def discrimination_game(self, context, topic):
         self.store_ds_result(Perception.Result.FAILURE)
-        category_in_use = self.discriminate(context, topic)
-        self.reinforce(category_in_use, context[topic])
-        self.forget_categories(category_in_use)
+        winning_category = self.discriminate(context, topic)
+        self.reinforce(winning_category, context[topic])
+        self.forget_categories(winning_category)
         self.switch_ds_result()
-        return self.categories.index(category_in_use)
+        return self.categories.index(winning_category)
 
     def increment_word2category_connections_by_csimilarity(self, word, csimilarities):
         row = self.lexicon.index(word)
-        increments = [sim * self.delta_inc for sim in csimilarities]
+        increments = [sim * self.delta_inc * (sim > 0.5) for sim in csimilarities]
         #logging.debug("Increments: %s" % str(increments))
 
         old_weights = self.lxc.get_col_by_row(self.lexicon.index(word))
@@ -165,6 +167,12 @@ class Language(Perception):
     def word_meaning(self, word, x):
         wi = self.lexicon.index(word)
         return sum([cat.fun(x) * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
+
+    def is_monotone(self, word):
+        activations = map(lambda x: self.word_meaning(word, x), stimulus.sf.x)
+        bool_activations = map(lambda x: x > 0.0, activations)
+        alt = len([a for a, aa in izip(bool_activations, bool_activations[1:]) if a != aa])
+        return alt == 1
 
 
 class AssociativeMatrix:

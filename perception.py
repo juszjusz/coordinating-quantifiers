@@ -23,10 +23,11 @@ class ReactiveUnit:
 
     # TODO code repetition
     def reactive_response(self, stimulus):
-        s = ReactiveUnit(stimulus)
-        x_left = min(s.x_left, self.x_left)
-        x_right = max(s.x_right, self.x_right)
-        return integrate(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)
+        #s = ReactiveUnit(stimulus)
+        #x_left = min(s.x_left, self.x_left)
+        #x_right = max(s.x_right, self.x_right)
+        #return integrate(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)
+        return self.reactive_fun(stimulus.real)
 
 
 class Category:
@@ -40,10 +41,11 @@ class Category:
 
     # TODO code repetition
     def response(self, stimulus):
-        s = ReactiveUnit(stimulus)
-        x_left = min(s.x_left, self.x_left)
-        x_right = max(s.x_right, self.x_right)
-        return integrate(lambda x: s.reactive_fun(x) * self.fun(x), x_left, x_right)
+        #s = ReactiveUnit(stimulus)
+        #x_left = min(s.x_left, self.x_left)
+        #x_right = max(s.x_right, self.x_right)
+        #return integrate(lambda x: s.reactive_fun(x) * self.fun(x), x_left, x_right)
+        return self.fun(stimulus.real)
 
     def add_reactive_unit(self, reactive_unit, weight=0.5):
         self.weights.append(weight)
@@ -53,7 +55,7 @@ class Category:
 
     def fun(self, x):
         # performance?
-        return 0 if len(self.reactive_units) == 0 \
+        return 0.0 if len(self.reactive_units) == 0 \
             else sum([r.reactive_fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
 
     def select(self, stimuli):
@@ -72,16 +74,6 @@ class Category:
         plt.plot(x, self.fun(x), 'o', x, self.fun(x), '--')
         plt.legend(['data', 'cubic'], loc='best')
         plt.show()
-
-    def get_flat(self):
-        # TODO
-        # flat_ratios = []
-        # flat_weights = []
-        # for i in range(0, len(self.reactive_units)):
-        #    flat_ratios += self.reactive_units[i].ratios
-        #    flat_weights += [self.weights[i]] * len(self.reactive_units[i].ratios)
-        # return flat_ratios, flat_weights
-        return []
 
 
 class Perception:
@@ -137,11 +129,11 @@ class Perception:
         max_args2 = [i for i, j in enumerate(responses2) if j == max2]
 
         # TODO discuss
-        if max1 == 0:
+        if max1 == 0.0:
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_POSITIVE_RESPONSE_1
 
-        if max2 == 0:
+        if max2 == 0.0:
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_POSITIVE_RESPONSE_2
 
@@ -162,21 +154,7 @@ class Perception:
     # TODO check
     def reinforce(self, category, stimulus):
         c = category
-        #logging.debug("REINFORCEMENT.Category id=%d responses to stimulus %f" % (category.id, stimulus.a/stimulus.b))
+        #logging.debug("REINFORCEMENT.Category id=%d responses to stimulus %s" % (category.id, stimulus))
         #for w, ru in zip(c.weights, c.reactive_units):
         #    logging.debug("Reactive unit response %f, weight %f" % (ru.reactive_response(stimulus), w))
         c.weights = [w + self.beta * ru.reactive_response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
-
-    # TODO adhoc implementation of noticeable difference between stimuli
-    # TODO doesnt seem to work, try out simulation
-    # Stimulus 1: 7 / 75 = 0.093333
-    # Stimulus 2: 6 / 84 = 0.071429
-    # topic = 2
-    # discrimination failure no discrimination
-    # Speaker(1) learns topic by adding new category
-    @staticmethod
-    def noticeable_difference(stimulus1, stimulus2):
-        p1 = (stimulus1.a / stimulus1.b)
-        p2 = (stimulus2.a / stimulus2.b)
-        ds = min(0.3 * p1, 0.3 * p2)
-        return abs(p1 - p2) > ds

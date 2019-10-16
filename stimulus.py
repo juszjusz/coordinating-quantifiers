@@ -1,7 +1,7 @@
+from __future__ import division  # force python 3 division in python 2
 from random import randint
 from scipy.stats import norm
 import numpy as np
-
 from math_utils import interpolate
 
 
@@ -20,24 +20,13 @@ class ContextFactory:
         return [s1, s2]
 
 
-class QuotientBasedStimulusFactory():
-    def __init__(self, a_factory=lambda: randint(1, 101), b_factory=lambda: randint(1, 101), sigma=.1):
-        self.a_factory = a_factory
-        self.b_factory = b_factory
-        self.sigma = sigma
-
-    def _new_stimulus(self):
-        a = self.a_factory()
-        b = self.b_factory()
-        return QuotientBasedStimulus(a, b, self.sigma)
-
-
 class QuotientBasedStimulus:
     # stimulus represents a perceptual situation where two exact quantities are given
     def __init__(self, a, b, sigma):
         self.a = a
         self.b = b
         self.sigma = sigma
+        self.real = self.a/self.b
 
     def pdf(self):
         # TODO consider different interpolation methods
@@ -54,7 +43,7 @@ class QuotientBasedStimulus:
         return np.array(np.random.normal(quantity, self.sigma * quantity, sample_size), dtype=np.float)
 
     def __str__(self):
-        return str({'value': '{}/{}'.format(self.a, self.b), 'sigma': self.sigma})
+        return str({'value': '{}/{} = {}'.format(self.a, self.b, self.a/self.b), 'sigma': self.sigma})
 
     def is_noticeably_different_from(self, stimulus):
         p1 = (self.a / self.b)
@@ -63,13 +52,39 @@ class QuotientBasedStimulus:
         return abs(p1 - p2) > ds
 
 
+class StimulusFactory:
+
+    sigma = 0.1
+    max = 100
+
+    def __init__(self, x):
+        self.x = x
+        pass
+
+
+class QuotientBasedStimulusFactory(StimulusFactory):
+
+    def __init__(self):
+        #all_stimuli = [QuotientBasedStimulus(a, b, StimulusFactory.sigma) for b in range(1, StimulusFactory.max) for a in range(1, b + 1)]
+        StimulusFactory.__init__(self, np.linspace(0.0, 1.0, 101, endpoint=False))
+        self.b_factory = lambda: randint(1, StimulusFactory.max)
+
+    def _new_stimulus(self):
+        b = self.b_factory()
+        return QuotientBasedStimulus(randint(1, b), b, self.sigma)
+
+
 class NumericBasedStimulus:
+
     def __init__(self, value, sigma):
         self.value = value
         self.sigma = self.value * sigma
+        self.real = float(value)
 
     def pdf(self):
-        return ProbabilityDensityFunction(self.value - 3.0 * self.sigma, self.value + 3.0 * self.sigma, norm(self.value, self.sigma).pdf)
+        return ProbabilityDensityFunction(self.value - 3.0 * self.sigma,
+                                          self.value + 3.0 * self.sigma,
+                                          norm(self.value, self.sigma).pdf)
 
     def __str__(self):
         return str({'value': self.value, 'sigma': self.sigma})
@@ -80,13 +95,17 @@ class NumericBasedStimulus:
         return abs(self.value - stimulus.value) > min(delta_i1, delta_i2)
 
 
-class NumericBasedStimulusFactory():
-    def __init__(self, a_factory=lambda: randint(1, 101), sigma=.1):
-        self.a_factory = a_factory
-        self.sigma = sigma
+class NumericBasedStimulusFactory(StimulusFactory):
+
+    def __init__(self):
+        all_stimuli = [NumericBasedStimulus(n, StimulusFactory.sigma) for n in range(0, StimulusFactory.max + 1)]
+        x = list(set([s.real for s in all_stimuli]))
+        x.sort()
+        StimulusFactory.__init__(self, x)
+        self.a_factory = lambda: randint(0, StimulusFactory.max)
 
     def _new_stimulus(self):
-        return NumericBasedStimulus(self.a_factory(), self.sigma)
+        return NumericBasedStimulus(self.a_factory(), StimulusFactory.sigma)
 
 
 class ProbabilityDensityFunction:
@@ -96,7 +115,14 @@ class ProbabilityDensityFunction:
         self.pdf = pdf
 
 
+stimulus_factory = {
+    'numeric': NumericBasedStimulusFactory(),
+    'quotient': QuotientBasedStimulusFactory()
+}
+
+sf = None
+
 context_factory = {
-    'numeric': ContextFactory(NumericBasedStimulusFactory()),
-    'quotient': ContextFactory(QuotientBasedStimulusFactory())
+    'numeric': ContextFactory(stimulus_factory['numeric']),
+    'quotient': ContextFactory(stimulus_factory['quotient'])
 }
