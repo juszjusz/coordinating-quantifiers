@@ -11,7 +11,7 @@ from numpy import row_stack
 from numpy import delete
 from numpy import divide
 from math_utils import integrate
-import stimulus
+from stimulus import StimulusFactory
 from itertools import izip
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
@@ -147,7 +147,7 @@ class Language(Perception):
 
     def increment_word2category_connections_by_csimilarity(self, word, csimilarities):
         row = self.lexicon.index(word)
-        increments = [sim * self.delta_inc * (sim > 0.5) for sim in csimilarities]
+        increments = [sim * self.delta_inc * (sim > 0.25) for sim in csimilarities]
         #logging.debug("Increments: %s" % str(increments))
 
         old_weights = self.lxc.get_col_by_row(self.lexicon.index(word))
@@ -169,7 +169,7 @@ class Language(Perception):
         return sum([cat.fun(x) * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
 
     def is_monotone(self, word):
-        activations = map(lambda x: self.word_meaning(word, x), stimulus.sf.x)
+        activations = map(lambda x: self.word_meaning(word, x), StimulusFactory.x)
         bool_activations = map(lambda x: x > 0.0, activations)
         alt = len([a for a, aa in izip(bool_activations, bool_activations[1:]) if a != aa])
         return alt == 1

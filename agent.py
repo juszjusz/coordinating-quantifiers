@@ -6,7 +6,7 @@ from language import Language
 from language import Perception
 from random import sample
 from collections import deque
-import stimulus
+from stimulus import StimulusFactory
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 
 
@@ -72,7 +72,7 @@ class Agent:
 
     def get_active_lexicon(self):
         active_lexicon = set([])
-        for s in stimulus.sf.x:
+        for s in StimulusFactory.x:
             if len(self.get_categories()) == 0:
                 continue
             responses = [c.response(s) for c in self.get_categories()]
