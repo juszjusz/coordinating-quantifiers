@@ -6,8 +6,8 @@ from math_utils import interpolate
 
 
 class ContextFactory:
-    def __init__(self, stimulus_factory):
-        self.stimulus_factory = stimulus_factory
+    def __init__(self, stimulus_type, max_num):
+        self.stimulus_factory = StimulusFactory.get_factory(stimulus_type, max_num)
 
     def __call__(self, *args, **kwargs):
         s1 = self.stimulus_factory._new_stimulus()
@@ -55,23 +55,30 @@ class QuotientBasedStimulus:
 class StimulusFactory:
 
     sigma = 0.1
-    max = 100
+    max = None
+    x = None
 
-    def __init__(self, x):
-        self.x = x
-        pass
+    @staticmethod
+    def init(stimulus_type, max_num):
+        StimulusFactory.max = max_num
+        StimulusFactory.x = np.linspace(0.0, 1.0, 101, endpoint=False) if stimulus_type == 'quotient' else range(0, StimulusFactory.max+1)
+
+    @staticmethod
+    def get_factory(stimulus_type, max_num):
+        StimulusFactory.init(stimulus_type, max_num)
+        return QuotientBasedStimulusFactory() if stimulus_type == 'quotient' else NumericBasedStimulusFactory()
 
 
-class QuotientBasedStimulusFactory(StimulusFactory):
+class QuotientBasedStimulusFactory:
 
     def __init__(self):
-        #all_stimuli = [QuotientBasedStimulus(a, b, StimulusFactory.sigma) for b in range(1, StimulusFactory.max) for a in range(1, b + 1)]
-        StimulusFactory.__init__(self, np.linspace(0.0, 1.0, 101, endpoint=False))
-        self.b_factory = lambda: randint(1, StimulusFactory.max)
+        self.max = StimulusFactory.max
+        self.b_factory = lambda: randint(1, self.max)
+        pass
 
     def _new_stimulus(self):
         b = self.b_factory()
-        return QuotientBasedStimulus(randint(1, b), b, self.sigma)
+        return QuotientBasedStimulus(randint(1, b), b, StimulusFactory.sigma)
 
 
 class NumericBasedStimulus:
@@ -95,14 +102,11 @@ class NumericBasedStimulus:
         return abs(self.value - stimulus.value) > min(delta_i1, delta_i2)
 
 
-class NumericBasedStimulusFactory(StimulusFactory):
+class NumericBasedStimulusFactory:
 
     def __init__(self):
-        all_stimuli = [NumericBasedStimulus(n, StimulusFactory.sigma) for n in range(0, StimulusFactory.max + 1)]
-        x = list(set([s.real for s in all_stimuli]))
-        x.sort()
-        StimulusFactory.__init__(self, x)
-        self.a_factory = lambda: randint(0, StimulusFactory.max)
+        self.max = StimulusFactory.max
+        self.a_factory = lambda: randint(0, self.max)
 
     def _new_stimulus(self):
         return NumericBasedStimulus(self.a_factory(), StimulusFactory.sigma)
@@ -115,14 +119,14 @@ class ProbabilityDensityFunction:
         self.pdf = pdf
 
 
-stimulus_factory = {
-    'numeric': NumericBasedStimulusFactory(),
-    'quotient': QuotientBasedStimulusFactory()
-}
+#stimulus_factory = {
+#    'numeric': NumericBasedStimulusFactory(),
+#    'quotient': QuotientBasedStimulusFactory()
+#}
 
-sf = None
+#sf = None
 
-context_factory = {
-    'numeric': ContextFactory(stimulus_factory['numeric']),
-    'quotient': ContextFactory(stimulus_factory['quotient'])
-}
+#context_factory = {
+#    'numeric': ContextFactory(stimulus_factory['numeric']),
+#    'quotient': ContextFactory(stimulus_factory['quotient'])
+#}

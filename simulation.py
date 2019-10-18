@@ -12,8 +12,7 @@ import matplotlib
 from pathlib import Path
 
 from path_provider import PathProvider
-from stimulus import context_factory
-import stimulus
+from stimulus import ContextFactory
 import os
 import shutil
 
@@ -67,8 +66,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=4)
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient')
+    parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int, default=100)
     parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)
     parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.1)
     parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.1)
@@ -78,7 +78,7 @@ if __name__ == "__main__":
                         type=float, default=.01)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.1)
     parser.add_argument('--steps', '-s', help='number of steps', type=int, default=15)
-    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
+    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=2)
     parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
                         default=False)
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
@@ -86,8 +86,7 @@ if __name__ == "__main__":
 
     parsed_params = vars(parser.parse_args())
 
-    context_constructor = stimulus.context_factory[parsed_params['stimulus']]
-    stimulus.sf = stimulus.stimulus_factory[parsed_params['stimulus']]
+    context_constructor = ContextFactory(parsed_params['stimulus'], parsed_params['max_num'])
 
     simulation_tasks = []
     if parsed_params['load_simulation']:
@@ -107,7 +106,7 @@ if __name__ == "__main__":
     else:
         simulation_path = os.path.abspath(parsed_params['simulation_name'])
         if os.path.exists(simulation_path):
-            shutil.rmtree(simulation_path)
+            shutil.rmtree(simulation_path, ignore_errors=True)
         os.mkdir(simulation_path)
 
         for r in range(parsed_params['runs']):

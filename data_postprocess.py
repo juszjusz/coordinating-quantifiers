@@ -17,13 +17,14 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax
+from numpy import linspace, zeros, column_stack, arange, log, amax, zeros
+from stimulus import StimulusFactory
 
 
 class PlotCategoryCommand:
-    def __init__(self, categories_path):
+    def __init__(self, categories_path, params):
         x_left = 0
-        x_right = 100
+        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
         self.categories_path = categories_path
 
@@ -61,9 +62,9 @@ def new_linestyles(seq):
 
 
 class PlotLanguageCommand:
-    def __init__(self, lang_path):
+    def __init__(self, lang_path, params):
         x_left = 0
-        x_right = 100
+        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
         self.lang_path = lang_path
 
@@ -105,9 +106,9 @@ class PlotLanguageCommand:
 
 
 class PlotLanguage2Command:
-    def __init__(self, lang2_path):
+    def __init__(self, lang2_path, params):
         x_left = 0
-        x_right = 100
+        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
         self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
         self.lang2_path = lang2_path
 
@@ -140,8 +141,10 @@ class PlotLanguage2Command:
         # if not self.pickle_mode else self.step - self.pickle_step + step + 1))
         plt.close()
 
+
 class PlotMatrixCommand:
-    def __init__(self, matrices_path):
+
+    def __init__(self, matrices_path, params):
         self.matrices_path = matrices_path
 
     def __call__(self, agent_index, agent_tuple, step):
@@ -261,6 +264,7 @@ class CommandExecutor:
                 assert agent_tuple[0].id == agent_tuple[1].id
                 execute_commands_per_agent(self, agent_index, agent_tuple, step)
 
+
 class Task(Process):
     def __init__(self, execute_commands, chunk, last_population):
         super(Task, self).__init__()
@@ -271,14 +275,44 @@ class Task(Process):
     def run(self):
         self.execute_commands(self.chunk, self.last_population)
 
-class PlotMonotonicity:
+
+class PlotMonotonicityCommand:
+
     def __init__(self, root_path):
         self.root_path = root_path
-    def __call__(self):
-        for run_num, run_path in enumerate(Path(self.root_path).glob('*')):
+        params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
+        StimulusFactory.init(params['stimulus'], params['max_num'])
+
+        self.mon_plot_path = self.root_path.joinpath('mon.pdf')
+        self.steps = params['steps']
+        self.runs = params['runs']
+        self.array = zeros((self.runs, self.steps))
+
+    def fill_array(self):
+        logging.debug("Root path %s" % self.root_path)
+        for run_num, run_path in enumerate(self.root_path.glob('*')):
+            logging.debug("Processing %s, %s" % (run_num, run_path))
             for step_path in PathProvider(run_path).get_data_paths():
+                logging.debug("Processing %s" % step_path)
                 step, population = pickle.load(step_path.open('rb'))
-                print('run number, step: {}, {}'.format(run_num, step))
+                #print('run number, step: {}, {}'.format(run_num, step))
+                self.array[run_num, step] = population.get_mon()
+                logging.debug("mon val %f" % self.array[run_num, step])
+
+    def __call__(self):
+        self.fill_array()
+        x = range(1, self.steps + 1)
+        plt.ylim(bottom=0)
+        plt.ylim(top=100)
+        plt.xlabel("step")
+        plt.ylabel("monotonicity")
+
+        for r in range(self.runs):
+            plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
+
+        #plt.legend(['mon'], loc='best')
+        plt.savefig(str(self.mon_plot_path))
+        plt.close()
 
 
 if __name__ == '__main__':
@@ -288,33 +322,44 @@ if __name__ == '__main__':
 
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
                         default="simulation")
-    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
-    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=True)
-    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=True)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
+    parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
+    parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_mon', '-mon', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
 
-    logging.debug("loading pickled simulation from %s file", parsed_params['data_root'])
+    logging.debug("loading pickled simulation from '%s' file", parsed_params['data_root'])
+    data_root_path = Path(parsed_params['data_root'])
+
+    if not data_root_path.exists():
+        logging.debug("Path %s does not exist" % data_root_path.absolute())
+        exit()
+
+    if parsed_params['plot_mon']:
+        plot_mon_command = PlotMonotonicityCommand(Path(parsed_params['data_root']))
+        plot_mon_command()
 
     # set commands to be executed
     for data_path in Path(parsed_params['data_root']).glob('*'):
         path_provider = PathProvider.new_path_provider(data_path)
         command_executor = CommandExecutor()
+        params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
 
         if parsed_params['plot_cats']:
-            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path))
+            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path, params))
         if parsed_params['plot_langs']:
-            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path))
+            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path, params))
         if parsed_params['plot_langs2']:
-            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path))
+            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path, params))
         if parsed_params['plot_matrices']:
-            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
+            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path, params))
 
         path_provider.create_directories()
-        params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
+
         last_step = params['steps'] - 1
         _, last_population = pickle.load(path_provider.get_simulation_step_path(last_step).open('rb'))
         path_provider.get_simulation_step_path(last_step)
