@@ -77,12 +77,13 @@ if __name__ == "__main__":
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.01)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.1)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=15)
-    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=2)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=200)
+    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
                         default=False)
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
                         type=str)
+    parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=False)
 
     parsed_params = vars(parser.parse_args())
 
@@ -107,21 +108,27 @@ if __name__ == "__main__":
         simulation_path = os.path.abspath(parsed_params['simulation_name'])
         if os.path.exists(simulation_path):
             shutil.rmtree(simulation_path, ignore_errors=True)
-        os.mkdir(simulation_path)
+        os.makedirs(simulation_path)
+        os.makedirs(simulation_path + '/stats')
 
         for r in range(parsed_params['runs']):
             population = Population(parsed_params)
             root_path = Path(simulation_path).joinpath('run' + str(r))
             path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()
-            simulation_tasks.append(Simulation(params=parsed_params,
-                                               step_offset=0,
-                                               population=population,
-                                               context_constructor=context_constructor,
-                                               num=r,
-                                               path_provider=path_provider))
+            s = Simulation(params=parsed_params,
+                           step_offset=0,
+                           population=population,
+                           context_constructor=context_constructor,
+                           num=r,
+                           path_provider=path_provider)
+            if parsed_params['parallel']:
+                simulation_tasks.append(s)
+            else:
+                s.run()
 
-    for simulation_task in simulation_tasks:
-        simulation_task.start()
-    for simulation_task in simulation_tasks:
-        simulation_task.join()
+    if parsed_params['parallel']:
+        for simulation_task in simulation_tasks:
+            simulation_task.start()
+        for simulation_task in simulation_tasks:
+            simulation_task.join()

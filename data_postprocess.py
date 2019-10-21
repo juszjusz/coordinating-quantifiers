@@ -17,9 +17,10 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax, zeros
+from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean, std
 from stimulus import StimulusFactory
-
+from scipy import stats
+from math import sqrt
 
 class PlotCategoryCommand:
     def __init__(self, categories_path, params):
@@ -202,27 +203,6 @@ class PlotMatrixCommand:
         plt.close()
 
 
-class PlotSuccessCommand:
-    def __init__(self, success_plot_path):
-        self.success_plot_path = success_plot_path
-
-    def __call__(self, population, step, dt):
-        x = range(1, step + 1)
-        plt.ylim(bottom=0)
-        plt.ylim(top=100)
-        plt.xlabel("step")
-        plt.ylabel("success")
-        x_ex = range(0, step + 3)
-        th = [dt * 100 for i in x_ex]
-        plt.plot(x_ex, th, ':', linewidth=0.2)
-        plt.plot(x, population.ds, '--')
-        plt.plot(x, population.cs, '-')
-        plt.legend(['dt', 'ds', 'gg1s'], loc='best')
-        new_path = self.success_plot_path.joinpath('success.pdf')
-        plt.savefig(str(new_path))
-        plt.close()
-
-
 class CommandExecutor:
     def __init__(self):
         self.commands = []
@@ -283,7 +263,7 @@ class PlotMonotonicityCommand:
         params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
         StimulusFactory.init(params['stimulus'], params['max_num'])
 
-        self.mon_plot_path = self.root_path.joinpath('mon.pdf')
+        self.mon_plot_path = self.root_path.joinpath('stats/mon.pdf')
         self.steps = params['steps']
         self.runs = params['runs']
         self.array = zeros((self.runs, self.steps))
@@ -315,6 +295,83 @@ class PlotMonotonicityCommand:
         plt.close()
 
 
+class PlotSuccessCommand:
+
+    def __init__(self, root_path):
+        logging.debug('in PlotSuccessCommand.__init__')
+        self.root_path = root_path
+        self.params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
+        self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
+        self.array_cs = zeros((self.params['runs'], self.params['steps']-1))
+        self.array_ds = zeros((self.params['runs'], self.params['steps']-1))
+        self.cs_mean = []
+        self.ds_mean = []
+        self.cs_cis_l = []
+        self.cs_cis_u = []
+        self.ds_cis_u = []
+        self.ds_cis_l = []
+
+    def fill_array(self):
+        logging.debug("Root path %s" % self.root_path)
+        for run_num, run_path in enumerate(self.root_path.glob('run[0-9]*')):
+            logging.debug("Processing %s, %s" % (run_num, run_path))
+            last_step_path = Path(run_path).joinpath('data/step' + str(self.params['steps'] - 1) + '.p')
+            step, population = pickle.load(last_step_path.open('rb'))
+            self.array_cs[run_num] = population.cs
+            logging.debug(population.cs)
+            self.array_ds[run_num] = population.ds
+
+    def compute_stats(self):
+        self.cs_mean = [mean(self.array_cs[:, step]) for step in range(self.params['steps'] - 1)]
+        self.ds_mean = [mean(self.array_ds[:, step]) for step in range(self.params['steps'] - 1)]
+        cs_cis = [self.ci(self.array_cs[:, step]) for step in range(self.params['steps'] - 1)]
+        ds_cis = [self.ci(self.array_ds[:, step]) for step in range(self.params['steps'] - 1)]
+        self.cs_cis_l = [i[0] for i in cs_cis]
+        self.cs_cis_u = [i[1] for i in cs_cis]
+        self.ds_cis_l = [i[0] for i in ds_cis]
+        self.ds_cis_u = [i[1] for i in ds_cis]
+
+    def ci(self, sample, interval=0.95, method='z'):
+        mean_val = mean(sample)
+        n = len(sample)
+        stdev = std(sample)
+        if method == 't':
+            test_stat = stats.t.ppf((interval + 1) / 2, n)
+        elif method == 'z':
+            test_stat = stats.norm.ppf((interval + 1) / 2)
+        lower_bound = mean_val - test_stat * stdev / sqrt(n)
+        upper_bound = mean_val + test_stat * stdev / sqrt(n)
+
+        return lower_bound, upper_bound
+
+    def __call__(self):
+        self.fill_array()
+        self.compute_stats()
+        x = range(1, self.params['steps'])
+        plt.ylim(bottom=0)
+        plt.ylim(top=100)
+        plt.xlabel("step")
+        plt.ylabel("success")
+        x_ex = range(0, self.params['steps'] + 3)
+        th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
+        plt.plot(x_ex, th, ':', linewidth=0.2)
+
+        #for r in range(self.params['runs']):
+        #    plt.plot(x, self.array_ds[r], 'r--', linewidth=0.5)
+        #    plt.plot(x, self.array_cs[r], 'b-', linewidth=0.5)
+
+        plt.plot(x, self.cs_mean, 'r--', linewidth=0.3)
+        plt.fill_between(x, self.cs_cis_l, self.cs_cis_u,
+                         color='r', alpha=.2)
+        plt.plot(x, self.ds_mean, 'b-', linewidth=0.3)
+        plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
+                         color='b', alpha=.2)
+
+        plt.legend(['dt', 'ds', 'gg1s'], loc='best')
+        plt.savefig(str(self.succ_plot_path))
+        plt.close()
+
+
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
@@ -343,8 +400,13 @@ if __name__ == '__main__':
         plot_mon_command = PlotMonotonicityCommand(Path(parsed_params['data_root']))
         plot_mon_command()
 
+    if parsed_params['plot_success']:
+        logging.debug('start plot success')
+        plot_success_command = PlotSuccessCommand(Path(parsed_params['data_root']))
+        plot_success_command()
+
     # set commands to be executed
-    for data_path in Path(parsed_params['data_root']).glob('*'):
+    for data_path in Path(parsed_params['data_root']).glob('run[0-9]*'):
         path_provider = PathProvider.new_path_provider(data_path)
         command_executor = CommandExecutor()
         params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
@@ -363,9 +425,6 @@ if __name__ == '__main__':
         last_step = params['steps'] - 1
         _, last_population = pickle.load(path_provider.get_simulation_step_path(last_step).open('rb'))
         path_provider.get_simulation_step_path(last_step)
-        if parsed_params['plot_success']:
-            plot_success_command = PlotSuccessCommand(path_provider.root_path)
-            plot_success_command(last_population, last_step, params['discriminative_threshold'])
 
         start_time = time.time()
         # PlotMonotonicity(parsed_params['data_root'])()
