@@ -17,7 +17,7 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax, zeros
+from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, array
 from stimulus import StimulusFactory
 
 
@@ -32,9 +32,9 @@ class PlotCategoryCommand:
         agent = agent_tuple[0]
         plt.title("categories")
         ax = plt.gca()
-        #plt.xscale("symlog")
+        # plt.xscale("symlog")
         ax.xaxis.set_major_formatter(ScalarFormatter())
-        #plt.yscale("symlog")
+        # plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         cats = agent.get_categories()
@@ -85,7 +85,7 @@ class PlotLanguageCommand:
                 forms_to_categories[word].append(category_connected)
 
         plt.title("language in step {} of agent {}".format(step, agent_index))
-        #plt.xscale("symlog")
+        # plt.xscale("symlog")
         plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
@@ -124,8 +124,8 @@ class PlotLanguage2Command:
             lang.append([word, fy])
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
-        #plt.xscale("symlog")
-        #plt.yscale("symlog")
+        # plt.xscale("symlog")
+        # plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
@@ -234,6 +234,7 @@ class CommandExecutor:
         def chunks(list, chunk_size):
             for i in range(0, len(list), chunk_size):
                 yield list[i:i + chunk_size]
+
         def new_chunked_task(execute_commands, chunk, last_population):
             return Task(execute_commands, chunk=chunk, last_population=last_population)
 
@@ -280,7 +281,8 @@ class PlotMonotonicityCommand:
 
     def __init__(self, root_path):
         self.root_path = root_path
-        params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
+        params = pickle.load(
+            PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
         StimulusFactory.init(params['stimulus'], params['max_num'])
 
         self.mon_plot_path = self.root_path.joinpath('mon.pdf')
@@ -295,7 +297,7 @@ class PlotMonotonicityCommand:
             for step_path in PathProvider(run_path).get_data_paths():
                 logging.debug("Processing %s" % step_path)
                 step, population = pickle.load(step_path.open('rb'))
-                #print('run number, step: {}, {}'.format(run_num, step))
+                # print('run number, step: {}, {}'.format(run_num, step))
                 self.array[run_num, step] = population.get_mon()
                 logging.debug("mon val %f" % self.array[run_num, step])
 
@@ -310,9 +312,50 @@ class PlotMonotonicityCommand:
         for r in range(self.runs):
             plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
 
-        #plt.legend(['mon'], loc='best')
+        # plt.legend(['mon'], loc='best')
         plt.savefig(str(self.mon_plot_path))
         plt.close()
+
+
+class PlotNumberOfDSCommand:
+
+    def __init__(self, root_path, threshold=0):
+        self.root_path = root_path
+        self.threshold = threshold
+
+    def get_whole_lexicon(self, run_path, num_agent, active_only=False):
+        self.whole_lexicon = set()
+        for step_path in PathProvider(run_path).get_data_paths():
+            _, population = pickle.load(step_path.open('rb'))
+            self.whole_lexicon=self.whole_lexicon.union(population.agents[num_agent].get_lexicon())
+        self.whole_lexicon = list(self.whole_lexicon) # cast to list to preserve the order
+        self.params = pickle.load(
+            PathProvider(run_path).get_simulation_params_path().open('rb'))
+
+    def fill_steps(self, run_path, num_agent, active_only=False):
+        for step_path in PathProvider(run_path).get_data_paths():
+            current_step, population = pickle.load(step_path.open('rb'))
+            print '{}'.format(current_step)
+            for word in self.whole_lexicon:
+                i = self.whole_lexicon.index(word)
+                print i
+                self.dcnum.shape
+                try:
+                    self.dcnum[i, current_step]=sum(population.agents[num_agent].get_categories_by_word(word) > 0)
+                except ValueError:
+                    pass
+
+    def __call__(self, run_num=0, num_agent=0):
+        self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent)
+        self.dcnum = zeros([len(self.whole_lexicon), self.params['steps']])
+
+        self.fill_steps(self.root_path.joinpath('run' + str(run_num)), num_agent)
+        print self.dcnum
+
+        print self.whole_lexicon
+        # for run_num, run_path in enumerate(self.root_path.glob('*')):
+        #     for step in  PathProvider(run_path).get_data_paths():
+        #         print '{}  {}'.format(run_path, step)
 
 
 if __name__ == '__main__':
@@ -328,6 +371,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_num_DS', '-nds', help='plot number of discrimination cats', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
@@ -341,6 +385,10 @@ if __name__ == '__main__':
 
     if parsed_params['plot_mon']:
         plot_mon_command = PlotMonotonicityCommand(Path(parsed_params['data_root']))
+        plot_mon_command()
+
+    if parsed_params['plot_num_DS']:
+        plot_mon_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']))
         plot_mon_command()
 
     # set commands to be executed
