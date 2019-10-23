@@ -40,18 +40,18 @@ class Simulation(Process):
             selected_pairs = self.population.select_pairs_per_round(self.population.population_size // 2)
 
             for speaker, hearer in selected_pairs:
-                game = GuessingGame(self.params['is_stage7_on'], self.context_constructor())
+                game = GuessingGame(self.params['guessing_game_2'], self.context_constructor())
                 logging.debug("\nGAME(%d, %d)" % (speaker.id, hearer.id))
                 game.play(speaker=speaker, hearer=hearer)
                 logging.debug("Number of categories of Agent(%d): %d" % (speaker.id, len(speaker.get_categories())))
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
+            self.population.update_metrics()
+
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
                 dill.dump((step_with_offset, self.population), write_handle)
 
-            self.population.update_cs()
-            self.population.update_ds()
 
         params_ser_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('params.p'))
         with open(params_ser_path, 'wb') as write_params:
@@ -79,11 +79,11 @@ if __name__ == "__main__":
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.1)
     parser.add_argument('--steps', '-s', help='number of steps', type=int, default=200)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
-    parser.add_argument('--is_stage7_on', '-s7', help='is stage seven of the game switched on', type=bool,
+    parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on', type=bool,
                         default=False)
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
                         type=str)
-    parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=False)
+    parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=True)
 
     parsed_params = vars(parser.parse_args())
 

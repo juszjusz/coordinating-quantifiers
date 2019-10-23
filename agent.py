@@ -14,9 +14,11 @@ class Population:
 
     def __init__(self, params):
         self.population_size = params['population_size']
-        self.agents = [Agent(agent_id, Language(params), 0.0, deque([])) for agent_id in range(self.population_size)]
+        self.agents = [Agent(agent_id, Language(params), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
         self.ds = []
-        self.cs = []
+        self.cs1 = []
+        self.cs2 = []
+        self.cs12 = []
 
     def select_pairs_per_round(self, games_per_round):
         agents_per_game = sample(self.agents, games_per_round * 2)
@@ -28,11 +30,18 @@ class Population:
     def __len__(self):
         return len(self.agents)
 
-    def update_ds(self):
-        self.ds.append(sum((map(lambda agent: agent.get_discriminative_success() * 100, self.agents))) / len(self.agents))
+    def update_metrics(self):
+        self.ds.append(sum(map(lambda agent: agent.get_discriminative_success() * 100, self.agents)) / len(self.agents))
+        self.cs1.append(sum(map(lambda agent: agent.get_communicative_success() * 100, self.agents)) / len(self.agents))
+        self.cs2.append(sum(map(lambda agent: agent.get_communicative_success2() * 100, self.agents)) / len(self.agents))
+        self.cs12.append(sum(map(lambda agent: agent.get_communicative_success12() * 100, self.agents)) / len(self.agents))
 
-    def update_cs(self):
-        self.cs.append(sum(map(Agent.get_communicative_success, self.agents)) / len(self.agents))
+    #def update_ds(self):
+    #    self.ds.append(sum((map(lambda agent: agent.get_discriminative_success() * 100, self.agents))) / len(self.agents))
+
+    #def update_cs(self):
+    #    self.cs.append(sum(map(Agent.get_communicative_success, self.agents)) / len(self.agents))
+    #    self.cs.append(sum(map(Agent.get_communicative_success2, self.agents)) / len(self.agents))
 
     def get_mon(self):
        return sum(map(Agent.get_monotonicity, self.agents)) / len(self.agents)
@@ -40,23 +49,29 @@ class Population:
 
 class Agent:
 
-    class Result:
-        SUCCESS = 1
-        FAILURE = 0
-
-    def __init__(self, id, language, communicative_success, cs_scores):
+    def __init__(self, id, language, cs1_scores, cs2_scores, cs12_scores):
         self.id = id
         self.language = language
-        self.communicative_success = communicative_success
-        self.cs_scores = cs_scores
+        self.cs1_scores = cs1_scores
+        self.cs2_scores = cs2_scores
+        self.cs12_scores = cs12_scores
 
-    def store_cs_result(self, result):
-        if len(self.cs_scores) == 50:
-            self.cs_scores.rotate(-1)
-            self.cs_scores[-1] = int(result)
+    def store_cs1_result(self, result):
+        self.__store_result__(result, self.cs1_scores)
+
+    def store_cs12_result(self, result):
+        self.__store_result__(result, self.cs12_scores)
+
+    def store_cs2_result(self, result):
+        if result is not None:
+            self.__store_result__(result, self.cs2_scores)
+
+    def __store_result__(self, result, history):
+        if len(history) == 50:
+            history.rotate(-1)
+            history[-1] = result
         else:
-            self.cs_scores.append(int(result))
-        # self.communicative_success = (sum(self.cs_scores) / len(self.cs_scores)) * 100
+            history.append(result)
 
     def learn_word_category(self, word, category_index):
         self.language.initialize_word2category_connection(word, category_index)
@@ -68,7 +83,13 @@ class Agent:
         return self.language.discriminative_success
 
     def get_communicative_success(self):
-        return (sum(self.cs_scores) / len(self.cs_scores)) * 100
+        return sum(self.cs1_scores) / len(self.cs1_scores)
+
+    def get_communicative_success2(self):
+        return sum(self.cs2_scores) / len(self.cs2_scores)
+
+    def get_communicative_success12(self):
+        return sum(self.cs12_scores) / len(self.cs12_scores)
 
     def get_active_lexicon(self):
         active_lexicon = set([])
@@ -128,18 +149,20 @@ class Agent:
 
 
 class Speaker(Agent):
+
     def __init__(self, agent):
-        Agent.__init__(self, agent.id, agent.language, agent.communicative_success, agent.cs_scores)
+        Agent.__init__(self, agent.id, agent.language,
+                       agent.cs1_scores, agent.cs2_scores, agent.cs12_scores)
 
     def update_on_success(self, word, category):
         self.language.increment_word2category_connection(word=word, category_index=category)
         self.language.inhibit_word2categories_connections(word=word, category_index=category)
 
     def update_on_success2c(self, word, category):
-        #logging.debug("Incrementing connections for %s, agent %d" % (word, self.id))
+        logging.debug("Incrementing connections for %s, agent %d" % (word, self.id))
         csimilarities = [self.language.csimilarity(word, c) for c in self.language.categories]
-        #logging.debug("Speaker successful category %d, its similarity %f to %s meaning" % (category, csimilarities[category], word))
-        #logging.debug("Similarities: %s" % str(csimilarities))
+        logging.debug("Speaker successful category %d, its similarity %f to %s meaning" % (category, csimilarities[category], word))
+        logging.debug("Similarities: %s" % str(csimilarities))
         self.language.increment_word2category_connections_by_csimilarity(word, csimilarities)
         self.language.inhibit_word2categories_connections(word=word, category_index=category)
 
@@ -152,7 +175,8 @@ class Speaker(Agent):
 
 class Hearer(Agent):
     def __init__(self, agent):
-        Agent.__init__(self, agent.id, agent.language, agent.communicative_success, agent.cs_scores)
+        Agent.__init__(self, agent.id, agent.language,
+                       agent.cs1_scores, agent.cs2_scores, agent.cs12_scores)
 
     def get_topic(self, context, category):
         if category is None:
@@ -191,10 +215,10 @@ class Hearer(Agent):
         self.language.inhibit_category2words_connections(word=speaker_word, category_index=hearer_category)
 
     def update_on_success2c(self, word, category):
-        #logging.debug("Incrementing connections for %s, agent %d" % (word, self.id))
+        logging.debug("Incrementing connections for %s, agent %d" % (word, self.id))
         csimilarities = [self.language.csimilarity(word, c) for c in self.language.categories]
-        #logging.debug("Hearer successful category %d, its similarity %f to %s meaning" % (self.get_categories()[category].id, csimilarities[category], word))
-        #logging.debug("c Similarities: %s" % str(csimilarities))
+        logging.debug("Hearer successful category %d, its similarity %f to %s meaning" % (self.get_categories()[category].id, csimilarities[category], word))
+        logging.debug("c Similarities: %s" % str(csimilarities))
         self.language.increment_word2category_connections_by_csimilarity(word, csimilarities)
         self.language.inhibit_category2words_connections(word=word, category_index=category)
 

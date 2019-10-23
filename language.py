@@ -138,7 +138,7 @@ class Language(Perception):
         self.lexicon = list(delete(self.lexicon, to_forget))
 
     def discrimination_game(self, context, topic):
-        self.store_ds_result(Perception.Result.FAILURE)
+        self.store_ds_result(False)
         winning_category = self.discriminate(context, topic)
         self.reinforce(winning_category, context[topic])
         self.forget_categories(winning_category)

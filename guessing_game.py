@@ -87,17 +87,18 @@ class GuessingGame:
         else:
             logging.debug("guessing game 1 failed!")
 
-        speaker.store_cs_result(Agent.Result.SUCCESS if success1 else Agent.Result.FAILURE)
-        hearer.store_cs_result(Agent.Result.SUCCESS if success1 else Agent.Result.FAILURE)
+        speaker.store_cs1_result(success1)
+        hearer.store_cs1_result(success1)
+
 
         if self.completed and success1:
-            speaker.update_on_success(speaker_word, speaker_category)
-            hearer.update_on_success(speaker_word, hearer_category)
+            speaker.update_on_success2c(speaker_word, speaker_category)
+            hearer.update_on_success2c(speaker_word, hearer_category)
         elif self.completed:
             hearer.update_on_failure(speaker_word, hearer_category)
             speaker.update_on_failure(speaker_word, speaker_category)
 
-        success2 = False
+        success2 = None
         # STAGE 7
 
         if self.is_stage7_on and self.completed and not success1:
@@ -143,8 +144,13 @@ class GuessingGame:
             else:
                 logging.debug("guessing game 2 failed!")
 
-            speaker.language.forget_words()
-            hearer.language.forget_words()
+        speaker.store_cs2_result(success2)
+        hearer.store_cs2_result(success2)
+        speaker.store_cs12_result(success1 or success2 is True)
+        hearer.store_cs12_result(success1 or success2 is True)
+
+        speaker.language.forget_words()
+        hearer.language.forget_words()
 
 class ExceptionHandler:
     # to be move to Speaker Hearer subclass

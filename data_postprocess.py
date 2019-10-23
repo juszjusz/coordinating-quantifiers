@@ -4,6 +4,7 @@ import matplotlib
 from pathlib import Path
 
 from path_provider import PathProvider
+from stats import confidence_intervals, means
 
 matplotlib.use('Agg')
 
@@ -21,6 +22,7 @@ from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean,
 from stimulus import StimulusFactory
 from scipy import stats
 from math import sqrt
+
 
 class PlotCategoryCommand:
     def __init__(self, categories_path, params):
@@ -298,56 +300,55 @@ class PlotMonotonicityCommand:
 class PlotSuccessCommand:
 
     def __init__(self, root_path):
-        logging.debug('in PlotSuccessCommand.__init__')
         self.root_path = root_path
         self.params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
         self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
-        self.array_cs = zeros((self.params['runs'], self.params['steps']-1))
-        self.array_ds = zeros((self.params['runs'], self.params['steps']-1))
-        self.cs_mean = []
-        self.ds_mean = []
+        self.samples_cs1 = []
+        self.samples_ds = []
+        self.samples_cs2 = []
+        self.samples_cs12 = []
+        self.cs1_means = []
+        self.cs12_means = []
+        self.ds_means = []
+        self.cs2_means = []
         self.cs_cis_l = []
         self.cs_cis_u = []
+        self.cs2_cis_l = []
+        self.cs2_cis_u = []
         self.ds_cis_u = []
         self.ds_cis_l = []
+        self.cs12_cis_l = []
+        self.cs12_cis_u = []
 
-    def fill_array(self):
+    def get_data(self):
         logging.debug("Root path %s" % self.root_path)
-        for run_num, run_path in enumerate(self.root_path.glob('run[0-9]*')):
+        populations = {}
+        for run_num in range(self.params['runs']):
+            run_path = self.root_path.joinpath('run' + str(run_num))
             logging.debug("Processing %s, %s" % (run_num, run_path))
-            last_step_path = Path(run_path).joinpath('data/step' + str(self.params['steps'] - 1) + '.p')
+            last_step_path = run_path.joinpath('data/step' + str(self.params['steps'] - 1) + '.p')
             step, population = pickle.load(last_step_path.open('rb'))
-            self.array_cs[run_num] = population.cs
-            logging.debug(population.cs)
-            self.array_ds[run_num] = population.ds
+            populations[run_num] = population
+        for step in range(self.params['steps']):
+            logging.debug(step)
+            self.samples_ds.append([populations[run].ds[step] for run in range(self.params['runs'])])
+            self.samples_cs1.append([populations[run].cs1[step] for run in range(self.params['runs'])])
+            self.samples_cs2.append([populations[run].cs2[step] for run in range(self.params['runs'])])
+            self.samples_cs12.append([populations[run].cs12[step] for run in range(self.params['runs'])])
 
     def compute_stats(self):
-        self.cs_mean = [mean(self.array_cs[:, step]) for step in range(self.params['steps'] - 1)]
-        self.ds_mean = [mean(self.array_ds[:, step]) for step in range(self.params['steps'] - 1)]
-        cs_cis = [self.ci(self.array_cs[:, step]) for step in range(self.params['steps'] - 1)]
-        ds_cis = [self.ci(self.array_ds[:, step]) for step in range(self.params['steps'] - 1)]
-        self.cs_cis_l = [i[0] for i in cs_cis]
-        self.cs_cis_u = [i[1] for i in cs_cis]
-        self.ds_cis_l = [i[0] for i in ds_cis]
-        self.ds_cis_u = [i[1] for i in ds_cis]
+        self.cs1_means = means(self.samples_cs1)
+        self.cs2_means = means(self.samples_cs2)
+        self.cs12_means = means(self.samples_cs12)
+        self.ds_means = means(self.samples_ds)
 
-    def ci(self, sample, interval=0.95, method='z'):
-        mean_val = mean(sample)
-        n = len(sample)
-        stdev = std(sample)
-        if method == 't':
-            test_stat = stats.t.ppf((interval + 1) / 2, n)
-        elif method == 'z':
-            test_stat = stats.norm.ppf((interval + 1) / 2)
-        lower_bound = mean_val - test_stat * stdev / sqrt(n)
-        upper_bound = mean_val + test_stat * stdev / sqrt(n)
+        self.cs1_cis_l, self.cs1_cis_u = confidence_intervals(self.samples_cs1)
+        self.cs2_cis_l, self.cs2_cis_u = confidence_intervals(self.samples_cs2)
+        self.ds_cis_l, self.ds_cis_u = confidence_intervals(self.samples_ds)
+        self.cs12_cis_l, self.cs12_cis_u = confidence_intervals(self.samples_cs12)
 
-        return lower_bound, upper_bound
-
-    def __call__(self):
-        self.fill_array()
-        self.compute_stats()
-        x = range(1, self.params['steps'])
+    def plot(self):
+        x = range(self.params['steps'])
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
@@ -356,20 +357,34 @@ class PlotSuccessCommand:
         th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
         plt.plot(x_ex, th, ':', linewidth=0.2)
 
-        #for r in range(self.params['runs']):
+        # for r in range(self.params['runs']):
         #    plt.plot(x, self.array_ds[r], 'r--', linewidth=0.5)
         #    plt.plot(x, self.array_cs[r], 'b-', linewidth=0.5)
 
-        plt.plot(x, self.cs_mean, 'r--', linewidth=0.3)
-        plt.fill_between(x, self.cs_cis_l, self.cs_cis_u,
-                         color='r', alpha=.2)
-        plt.plot(x, self.ds_mean, 'b-', linewidth=0.3)
+        plt.plot(x, self.ds_means, 'r-', linewidth=0.3)
         plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
+                         color='r', alpha=.2)
+
+        plt.plot(x, self.cs1_means, 'g--', linewidth=0.3)
+        plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
+                         color='g', alpha=.2)
+
+        plt.plot(x, self.cs2_means, 'b--', linewidth=0.3)
+        plt.fill_between(x, self.cs2_cis_l, self.cs2_cis_u,
                          color='b', alpha=.2)
 
-        plt.legend(['dt', 'ds', 'gg1s'], loc='best')
+        plt.plot(x, self.cs12_means, 'k--', linewidth=0.3)
+        plt.fill_between(x, self.cs12_cis_l, self.cs12_cis_u,
+                         color='k', alpha=.2)
+
+        plt.legend(['dt', 'ds', 'cs1', 'cs2', 'cs12'], loc='best')
         plt.savefig(str(self.succ_plot_path))
         plt.close()
+
+    def __call__(self):
+        self.get_data()
+        self.compute_stats()
+        self.plot()
 
 
 if __name__ == '__main__':
