@@ -395,13 +395,18 @@ class PlotNumberOfDSCommand:
         self.threshold = threshold
 
     def get_whole_lexicon(self, run_path, num_agent, active_only=False):
-        self.whole_lexicon = set()
-        for step_path in PathProvider(run_path).get_data_paths():
-            _, population = pickle.load(step_path.open('rb'))
-            self.whole_lexicon=self.whole_lexicon.union(population.agents[num_agent].get_lexicon())
-        self.whole_lexicon = list(self.whole_lexicon) # cast to list to preserve the order
         self.params = pickle.load(
             PathProvider(run_path).get_simulation_params_path().open('rb'))
+        self.whole_lexicon = set()
+        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
+        for step_path in PathProvider(run_path).get_data_paths():
+            _, population = pickle.load(step_path.open('rb'))
+            if active_only:
+                self.whole_lexicon = self.whole_lexicon.union(population.agents[num_agent].get_active_lexicon())
+            else:
+                self.whole_lexicon=self.whole_lexicon.union(population.agents[num_agent].get_lexicon())
+        self.whole_lexicon = list(self.whole_lexicon) # cast to list to preserve the order
+
 
     def fill_steps(self, run_path, num_agent, active_only=False):
         for step_path in PathProvider(run_path).get_data_paths():
@@ -412,6 +417,7 @@ class PlotNumberOfDSCommand:
                     self.dcnum[i, current_step] = sum(population.agents[num_agent].get_categories_by_word(word) > 0)
                 except ValueError:
                     pass
+
     def plot(self, run_path, num_agent):
         f = plt.figure()
         ax = f.add_subplot(111)
@@ -419,11 +425,11 @@ class PlotNumberOfDSCommand:
         for word in self.whole_lexicon:
             i = self.whole_lexicon.index(word)
             ax.step(t, self.dcnum[i])
-        ax.legend(self.whole_lexicon)
-        f.savefig(str(run_path.joinpath('num_of_DC_agent_'+str(num_agent)+'.png')))
+        ax.legend(self.whole_lexicon, bbox_to_anchor=(1.04, 1), loc='upper left')
+        f.savefig(str(run_path.joinpath('num_of_DC_agent_'+str(num_agent)+'.png')), bbox_inches="tight")
 
     def __call__(self, run_num=0, num_agent=0):
-        self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent)
+        self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent, active_only=True)
         self.dcnum = zeros([len(self.whole_lexicon), self.params['steps']])
 
         self.fill_steps(self.root_path.joinpath('run' + str(run_num)), num_agent)
