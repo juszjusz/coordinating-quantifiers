@@ -17,7 +17,7 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, array
+from numpy import linspace, zeros, column_stack, arange, log, amax, zeros
 from stimulus import StimulusFactory
 
 
@@ -335,21 +335,29 @@ class PlotNumberOfDSCommand:
     def fill_steps(self, run_path, num_agent, active_only=False):
         for step_path in PathProvider(run_path).get_data_paths():
             current_step, population = pickle.load(step_path.open('rb'))
-            print '{}'.format(current_step)
             for word in self.whole_lexicon:
                 i = self.whole_lexicon.index(word)
-                print i
-                self.dcnum.shape
                 try:
-                    self.dcnum[i, current_step]=sum(population.agents[num_agent].get_categories_by_word(word) > 0)
+                    self.dcnum[i, current_step] = sum(population.agents[num_agent].get_categories_by_word(word) > 0)
                 except ValueError:
                     pass
+    def plot(self, run_path, num_agent):
+        f = plt.figure()
+        ax = f.add_subplot(111)
+        t = arange(self.dcnum.shape[1])
+        for word in self.whole_lexicon:
+            i = self.whole_lexicon.index(word)
+            ax.step(t, self.dcnum[i])
+        ax.legend(self.whole_lexicon)
+        f.savefig(str(run_path.joinpath('num_of_DC_agent_'+str(num_agent)+'.png')))
 
     def __call__(self, run_num=0, num_agent=0):
         self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent)
         self.dcnum = zeros([len(self.whole_lexicon), self.params['steps']])
 
         self.fill_steps(self.root_path.joinpath('run' + str(run_num)), num_agent)
+        self.plot(self.root_path.joinpath('run' + str(run_num)), num_agent)
+
         print self.dcnum
 
         print self.whole_lexicon
@@ -388,8 +396,8 @@ if __name__ == '__main__':
         plot_mon_command()
 
     if parsed_params['plot_num_DS']:
-        plot_mon_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']))
-        plot_mon_command()
+        plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']))
+        plot_num_DS_command()
 
     # set commands to be executed
     for data_path in Path(parsed_params['data_root']).glob('*'):
