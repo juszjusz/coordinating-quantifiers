@@ -450,6 +450,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
