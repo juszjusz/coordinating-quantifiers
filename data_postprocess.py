@@ -4,6 +4,7 @@ import matplotlib
 from pathlib import Path
 
 from path_provider import PathProvider
+from stats import confidence_intervals, means
 
 matplotlib.use('Agg')
 
@@ -17,8 +18,10 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax, zeros
+from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean, std
 from stimulus import StimulusFactory
+from scipy import stats
+from math import sqrt
 
 
 class PlotCategoryCommand:
@@ -32,9 +35,9 @@ class PlotCategoryCommand:
         agent = agent_tuple[0]
         plt.title("categories")
         ax = plt.gca()
-        # plt.xscale("symlog")
+        #plt.xscale("symlog")
         ax.xaxis.set_major_formatter(ScalarFormatter())
-        # plt.yscale("symlog")
+        #plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         cats = agent.get_categories()
@@ -202,27 +205,6 @@ class PlotMatrixCommand:
         plt.close()
 
 
-class PlotSuccessCommand:
-    def __init__(self, success_plot_path):
-        self.success_plot_path = success_plot_path
-
-    def __call__(self, population, step, dt):
-        x = range(1, step + 1)
-        plt.ylim(bottom=0)
-        plt.ylim(top=100)
-        plt.xlabel("step")
-        plt.ylabel("success")
-        x_ex = range(0, step + 3)
-        th = [dt * 100 for i in x_ex]
-        plt.plot(x_ex, th, ':', linewidth=0.2)
-        plt.plot(x, population.ds, '--')
-        plt.plot(x, population.cs, '-')
-        plt.legend(['dt', 'ds', 'gg1s'], loc='best')
-        new_path = self.success_plot_path.joinpath('success.pdf')
-        plt.savefig(str(new_path))
-        plt.close()
-
-
 class CommandExecutor:
     def __init__(self):
         self.commands = []
@@ -281,11 +263,10 @@ class PlotMonotonicityCommand:
 
     def __init__(self, root_path):
         self.root_path = root_path
-        params = pickle.load(
-            PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
+        params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
         StimulusFactory.init(params['stimulus'], params['max_num'])
 
-        self.mon_plot_path = self.root_path.joinpath('mon.pdf')
+        self.mon_plot_path = self.root_path.joinpath('stats/mon.pdf')
         self.steps = params['steps']
         self.runs = params['runs']
         self.array = zeros((self.runs, self.steps))
@@ -315,6 +296,96 @@ class PlotMonotonicityCommand:
         # plt.legend(['mon'], loc='best')
         plt.savefig(str(self.mon_plot_path))
         plt.close()
+
+
+class PlotSuccessCommand:
+
+    def __init__(self, root_path):
+        self.root_path = root_path
+        self.params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
+        self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
+        self.samples_cs1 = []
+        self.samples_ds = []
+        self.samples_cs2 = []
+        self.samples_cs12 = []
+        self.cs1_means = []
+        self.cs12_means = []
+        self.ds_means = []
+        self.cs2_means = []
+        self.cs_cis_l = []
+        self.cs_cis_u = []
+        self.cs2_cis_l = []
+        self.cs2_cis_u = []
+        self.ds_cis_u = []
+        self.ds_cis_l = []
+        self.cs12_cis_l = []
+        self.cs12_cis_u = []
+
+    def get_data(self):
+        logging.debug("Root path %s" % self.root_path)
+        populations = {}
+        for run_num in range(self.params['runs']):
+            run_path = self.root_path.joinpath('run' + str(run_num))
+            logging.debug("Processing %s, %s" % (run_num, run_path))
+            last_step_path = run_path.joinpath('data/step' + str(self.params['steps'] - 1) + '.p')
+            step, population = pickle.load(last_step_path.open('rb'))
+            populations[run_num] = population
+        for step in range(self.params['steps']):
+            logging.debug(step)
+            self.samples_ds.append([populations[run].ds[step] for run in range(self.params['runs'])])
+            self.samples_cs1.append([populations[run].cs1[step] for run in range(self.params['runs'])])
+            self.samples_cs2.append([populations[run].cs2[step] for run in range(self.params['runs'])])
+            self.samples_cs12.append([populations[run].cs12[step] for run in range(self.params['runs'])])
+
+    def compute_stats(self):
+        self.cs1_means = means(self.samples_cs1)
+        self.cs2_means = means(self.samples_cs2)
+        self.cs12_means = means(self.samples_cs12)
+        self.ds_means = means(self.samples_ds)
+
+        self.cs1_cis_l, self.cs1_cis_u = confidence_intervals(self.samples_cs1)
+        self.cs2_cis_l, self.cs2_cis_u = confidence_intervals(self.samples_cs2)
+        self.ds_cis_l, self.ds_cis_u = confidence_intervals(self.samples_ds)
+        self.cs12_cis_l, self.cs12_cis_u = confidence_intervals(self.samples_cs12)
+
+    def plot(self):
+        x = range(self.params['steps'])
+        plt.ylim(bottom=0)
+        plt.ylim(top=100)
+        plt.xlabel("step")
+        plt.ylabel("success")
+        x_ex = range(0, self.params['steps'] + 3)
+        th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
+        plt.plot(x_ex, th, ':', linewidth=0.2)
+
+        # for r in range(self.params['runs']):
+        #    plt.plot(x, self.array_ds[r], 'r--', linewidth=0.5)
+        #    plt.plot(x, self.array_cs[r], 'b-', linewidth=0.5)
+
+        plt.plot(x, self.ds_means, 'r-', linewidth=0.3)
+        plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
+                         color='r', alpha=.2)
+
+        plt.plot(x, self.cs1_means, 'g--', linewidth=0.3)
+        plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
+                         color='g', alpha=.2)
+
+        plt.plot(x, self.cs2_means, 'b--', linewidth=0.3)
+        plt.fill_between(x, self.cs2_cis_l, self.cs2_cis_u,
+                         color='b', alpha=.2)
+
+        plt.plot(x, self.cs12_means, 'k--', linewidth=0.3)
+        plt.fill_between(x, self.cs12_cis_l, self.cs12_cis_u,
+                         color='k', alpha=.2)
+
+        plt.legend(['dt', 'ds', 'cs1', 'cs2', 'cs12'], loc='best')
+        plt.savefig(str(self.succ_plot_path))
+        plt.close()
+
+    def __call__(self):
+        self.get_data()
+        self.compute_stats()
+        self.plot()
 
 
 class PlotNumberOfDSCommand:
@@ -379,7 +450,6 @@ if __name__ == '__main__':
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot success', type=bool, default=False)
-    parser.add_argument('--plot_num_DS', '-nds', help='plot number of discrimination cats', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
@@ -399,8 +469,13 @@ if __name__ == '__main__':
         plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']))
         plot_num_DS_command()
 
+    if parsed_params['plot_success']:
+        logging.debug('start plot success')
+        plot_success_command = PlotSuccessCommand(Path(parsed_params['data_root']))
+        plot_success_command()
+
     # set commands to be executed
-    for data_path in Path(parsed_params['data_root']).glob('*'):
+    for data_path in Path(parsed_params['data_root']).glob('run[0-9]*'):
         path_provider = PathProvider.new_path_provider(data_path)
         command_executor = CommandExecutor()
         params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
@@ -419,9 +494,6 @@ if __name__ == '__main__':
         last_step = params['steps'] - 1
         _, last_population = pickle.load(path_provider.get_simulation_step_path(last_step).open('rb'))
         path_provider.get_simulation_step_path(last_step)
-        if parsed_params['plot_success']:
-            plot_success_command = PlotSuccessCommand(path_provider.root_path)
-            plot_success_command(last_population, last_step, params['discriminative_threshold'])
 
         start_time = time.time()
         # PlotMonotonicity(parsed_params['data_root'])()

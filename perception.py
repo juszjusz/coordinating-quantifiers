@@ -84,8 +84,8 @@ class Perception:
     def __init__(self, params):
         self.categories = []
         self.ds_scores = deque([0])
-        self.discriminative_success = .0
         self._id_ = 0
+        self.discriminative_success = 0.0
         self.discriminative_threshold = params['discriminative_threshold']
         self.alpha = params['alpha']  # forgetting
         self.beta = params['beta']  # learning rate
@@ -102,9 +102,6 @@ class Perception:
         else:
             self.ds_scores.append(result)
         self.discriminative_success = sum(self.ds_scores) / len(self.ds_scores)
-
-    def store_ds_failure(self):
-        self.store_ds_result(Perception.Result.FAILURE)
 
     def switch_ds_result(self):
         self.ds_scores[-1] = 1 - self.ds_scores[-1]
@@ -158,3 +155,4 @@ class Perception:
         #for w, ru in zip(c.weights, c.reactive_units):
         #    logging.debug("Reactive unit response %f, weight %f" % (ru.reactive_response(stimulus), w))
         c.weights = [w + self.beta * ru.reactive_response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
+
