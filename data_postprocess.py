@@ -20,8 +20,7 @@ from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean, std
 from stimulus import StimulusFactory
-from scipy import stats
-from math import sqrt
+import dill
 
 
 class PlotCategoryCommand:
@@ -260,41 +259,133 @@ class Task(Process):
 
 class PlotMonotonicityCommand:
 
-    def __init__(self, root_path):
-        self.root_path = root_path
-        params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
-        StimulusFactory.init(params['stimulus'], params['max_num'])
+    def __init__(self, root_paths):
+        self.root_path2 = None
+        self.root_path1 = Path(root_paths[0])
+        if len(root_paths) > 1:
+            self.root_path2 = Path(root_paths[1])
 
-        self.mon_plot_path = self.root_path.joinpath('stats/mon.pdf')
-        self.steps = params['steps']
-        self.runs = params['runs']
-        self.array = zeros((self.runs, self.steps))
+        self.params = pickle.load(PathProvider.new_path_provider(self.root_path1.joinpath('run0')).get_simulation_params_path().open('rb'))
+        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
 
-    def fill_array(self):
-        logging.debug("Root path %s" % self.root_path)
-        for run_num, run_path in enumerate(self.root_path.glob('*')):
-            logging.debug("Processing %s, %s" % (run_num, run_path))
-            for step_path in PathProvider(run_path).get_data_paths():
-                logging.debug("Processing %s" % step_path)
-                step, population = pickle.load(step_path.open('rb'))
-                #print('run number, step: {}, {}'.format(run_num, step))
-                self.array[run_num, step] = population.get_mon()
-                logging.debug("mon val %f" % self.array[run_num, step])
+        self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
+        self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')
+        #self.array1 = zeros((self.params['runs'], self.steps))
+        self.mon_samples1 = []
+        #self.array2 = zeros((self.params['runs'], self.steps))
+        self.mon_samples2 = []
 
-    def __call__(self):
-        self.fill_array()
-        x = range(1, self.steps + 1)
+        self.mon_means1 = []
+        self.mon_cis1_l = []
+        self.mon_cis1_u = []
+
+        self.mon_means2 = []
+        self.mon_cis2_l = []
+        self.mon_cis2_u = []
+
+    def get_data(self):
+        #logging.debug("Root path %s" % self.root_path1)
+        for step in self.steps:
+            #logging.debug("Processing step %d" % step)
+            sample = []
+            for run_num, run_path in enumerate(self.root_path1.glob('run[0-9]*')):
+                #logging.debug("Processing %s, %s" % (run_num, run_path))
+                #logging.debug("Processing %s" % "step" + str(step) + ".p")
+                step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                sample.append(population.get_mon())
+                #logging.debug("mon val %f" % sample[-1])
+            self.mon_samples1.append(sample)
+        #for step in range(self.params['steps']):
+        #    self.mon_samples1.append(list(self.array1[:, max(step*100-1, 0)]))
+
+        if self.root_path2 is not None:
+            logging.debug("Root path %s" % self.root_path2)
+            for step in self.steps:
+                logging.debug("Processing step %d" % step)
+                sample = []
+                for run_num, run_path in enumerate(self.root_path2.glob('run[0-9]')):
+                    logging.debug("Processing %s, %s" % (run_num, run_path))
+                    #for step_path in PathProvider(run_path).get_data_paths():
+                    #logging.debug("Processing %s" % step_path)
+                    step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                    #self.array2[run_num, step] = population.get_mon()
+                    #logging.debug("mon val %f" % self.array2[run_num, step])
+                    sample.append(population.get_mon())
+                self.mon_samples2.append(sample)
+                #for step in range(self.params['steps']):
+                #self.mon_samples2.append(list(self.array2[:, step]))
+
+    def compute_stats(self):
+        logging.debug('in compute_stats')
+        self.mon_means1 = means(self.mon_samples1)
+        #logging.debug(len(self.mon_means1))
+
+        self.mon_cis1_l, self.mon_cis1_u = confidence_intervals(self.mon_samples1)
+
+        if self.root_path2 is not None:
+            self.mon_means2 = means(self.mon_samples2)
+            self.mon_cis2_l, self.mon_cis2_u = confidence_intervals(self.mon_samples2)
+
+    def plot(self):
+        #x = range(1, self.params['steps'] + 1)
+        x = self.steps
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
         plt.ylabel("monotonicity")
 
-        for r in range(self.runs):
-            plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
+        #for r in range(self.runs):
+        #    plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
 
+        plt.plot(x, self.mon_means1, 'r--', linewidth=0.3)
+        plt.fill_between(x, self.mon_cis1_l, self.mon_cis1_u,
+                         color='r', alpha=.2)
+
+        if self.root_path2 is not None:
+            plt.plot(x, self.mon_means2, 'b--', linewidth=0.3)
+            plt.fill_between(x, self.mon_cis2_l, self.mon_cis2_u,
+                             color='b', alpha=.2)
+            plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
+        else:
+            plt.legend([str(self.root_path1)], loc='best')
+
+        #plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
         #plt.legend(['mon'], loc='best')
         plt.savefig(str(self.mon_plot_path))
         plt.close()
+
+    def __call__(self):
+        self.get_data()
+        self.compute_stats()
+        self.plot()
+
+    # @staticmethod
+    # def plot_means(str_data_roots):
+    #     stats_dict = PlotMonotonicityCommand.prepare_stats(str_data_roots)
+    #     colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+    #     steps = len(stats_dict.values()[0][0])
+    #     logging.debug("steps %d" % steps)
+    #
+    #     x = range(1, steps + 1)
+    #     plt.ylim(bottom=0)
+    #     plt.ylim(top=100)
+    #     plt.xlabel("step")
+    #     plt.ylabel("monotonicity")
+    #
+    #     for name in str_data_roots:
+    #         stats = stats_dict[name]
+    #         color = colors[str_data_roots.index(name)]
+    #         plt.plot(x, stats[0], color, linewidth=0.3)
+    #         logging.debug(stats[1])
+    #         logging.debug(stats[2])
+    #         plt.fill_between(x, stats[1], stats[2], color, alpha=.2)
+    #
+    #         #plt.legend([sorted_str_data_roots[i]], loc='best')
+    #         #plt.legend(['mon'], loc='best')
+    #
+    #     plt.legend(str_data_roots, loc='best')
+    #     plt.savefig(str(Path('./monotonicty.pdf')))
+    #     plt.close()
 
 
 class PlotSuccessCommand:
@@ -320,7 +411,7 @@ class PlotSuccessCommand:
         self.cs12_cis_l = []
         self.cs12_cis_u = []
 
-    def get_data(self):
+    def prepare_data(self):
         logging.debug("Root path %s" % self.root_path)
         populations = {}
         for run_num in range(self.params['runs']):
@@ -382,7 +473,7 @@ class PlotSuccessCommand:
         plt.close()
 
     def __call__(self):
-        self.get_data()
+        self.prepare_data()
         self.compute_stats()
         self.plot()
 
@@ -399,10 +490,15 @@ if __name__ == '__main__':
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
-    parser.add_argument('--plot_mon', '-mon', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
+    parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
+
+    if len(parsed_params['plot_mons']) > 0:
+        pmc = PlotMonotonicityCommand(parsed_params['plot_mons'])
+        pmc()
 
     logging.debug("loading pickled simulation from '%s' file", parsed_params['data_root'])
     data_root_path = Path(parsed_params['data_root'])
@@ -412,7 +508,7 @@ if __name__ == '__main__':
         exit()
 
     if parsed_params['plot_mon']:
-        plot_mon_command = PlotMonotonicityCommand(Path(parsed_params['data_root']))
+        plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']])
         plot_mon_command()
 
     if parsed_params['plot_success']:

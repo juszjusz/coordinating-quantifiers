@@ -31,10 +31,10 @@ class Population:
         return len(self.agents)
 
     def update_metrics(self):
-        self.ds.append(sum(map(lambda agent: agent.get_discriminative_success() * 100, self.agents)) / len(self.agents))
-        self.cs1.append(sum(map(lambda agent: agent.get_communicative_success() * 100, self.agents)) / len(self.agents))
-        self.cs2.append(sum(map(lambda agent: agent.get_communicative_success2() * 100, self.agents)) / len(self.agents))
-        self.cs12.append(sum(map(lambda agent: agent.get_communicative_success12() * 100, self.agents)) / len(self.agents))
+        self.ds.append(sum(map(lambda agent: agent.get_discriminative_success() * 100.0, self.agents)) / len(self.agents))
+        self.cs1.append(sum(map(lambda agent: agent.get_communicative_success() * 100.0, self.agents)) / len(self.agents))
+        self.cs2.append(sum(map(lambda agent: agent.get_communicative_success2() * 100.0, self.agents)) / len(self.agents))
+        self.cs12.append(sum(map(lambda agent: agent.get_communicative_success12() * 100.0, self.agents)) / len(self.agents))
 
     #def update_ds(self):
     #    self.ds.append(sum((map(lambda agent: agent.get_discriminative_success() * 100, self.agents))) / len(self.agents))
@@ -44,7 +44,7 @@ class Population:
     #    self.cs.append(sum(map(Agent.get_communicative_success2, self.agents)) / len(self.agents))
 
     def get_mon(self):
-       return sum(map(Agent.get_monotonicity, self.agents)) / len(self.agents)
+       return sum(map(lambda agent: agent.get_monotonicity() * 100.0, self.agents)) / len(self.agents)
 
 
 class Agent:
