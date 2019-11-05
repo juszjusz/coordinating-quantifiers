@@ -87,7 +87,7 @@ class PlotLanguageCommand:
                 forms_to_categories[word].append(category_connected)
 
         plt.title("language in step {} of agent {}".format(step, agent_index))
-        #plt.xscale("symlog")
+        # plt.xscale("symlog")
         plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
@@ -126,8 +126,8 @@ class PlotLanguage2Command:
             lang.append([word, fy])
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
-        #plt.xscale("symlog")
-        #plt.yscale("symlog")
+        # plt.xscale("symlog")
+        # plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
@@ -215,6 +215,7 @@ class CommandExecutor:
         def chunks(list, chunk_size):
             for i in range(0, len(list), chunk_size):
                 yield list[i:i + chunk_size]
+
         def new_chunked_task(execute_commands, chunk, last_population):
             return Task(execute_commands, chunk=chunk, last_population=last_population)
 
@@ -274,11 +275,9 @@ class PlotMonotonicityCommand:
         self.mon_samples1 = []
         #self.array2 = zeros((self.params['runs'], self.steps))
         self.mon_samples2 = []
-
         self.mon_means1 = []
         self.mon_cis1_l = []
         self.mon_cis1_u = []
-
         self.mon_means2 = []
         self.mon_cis2_l = []
         self.mon_cis2_u = []
@@ -349,8 +348,6 @@ class PlotMonotonicityCommand:
         else:
             plt.legend([str(self.root_path1)], loc='best')
 
-        #plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
-        #plt.legend(['mon'], loc='best')
         plt.savefig(str(self.mon_plot_path))
         plt.close()
 
@@ -478,6 +475,61 @@ class PlotSuccessCommand:
         self.plot()
 
 
+class PlotNumberOfDSCommand:
+
+    def __init__(self, root_path, threshold=0):
+        self.root_path = root_path
+        self.threshold = threshold
+
+    def get_whole_lexicon(self, run_path, num_agent, active_only=False):
+        self.params = pickle.load(
+            PathProvider(run_path).get_simulation_params_path().open('rb'))
+        self.whole_lexicon = set()
+        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
+        for step_path in PathProvider(run_path).get_data_paths():
+            _, population = pickle.load(step_path.open('rb'))
+            if active_only:
+                self.whole_lexicon = self.whole_lexicon.union(population.agents[num_agent].get_active_lexicon())
+            else:
+                self.whole_lexicon=self.whole_lexicon.union(population.agents[num_agent].get_lexicon())
+        self.whole_lexicon = list(self.whole_lexicon) # cast to list to preserve the order
+
+
+    def fill_steps(self, run_path, num_agent, active_only=False):
+        for step_path in PathProvider(run_path).get_data_paths():
+            current_step, population = pickle.load(step_path.open('rb'))
+            for word in self.whole_lexicon:
+                i = self.whole_lexicon.index(word)
+                try:
+                    self.dcnum[i, current_step] = sum(population.agents[num_agent].get_categories_by_word(word) > 0)
+                except ValueError:
+                    pass
+
+    def plot(self, run_path, num_agent):
+        f = plt.figure()
+        ax = f.add_subplot(111)
+        t = arange(self.dcnum.shape[1])
+        for word in self.whole_lexicon:
+            i = self.whole_lexicon.index(word)
+            ax.step(t, self.dcnum[i])
+        ax.legend(self.whole_lexicon, bbox_to_anchor=(1.04, 1), loc='upper left')
+        f.savefig(str(run_path.joinpath('num_of_DC_agent_'+str(num_agent)+'.png')), bbox_inches="tight")
+
+    def __call__(self, run_num=0, num_agent=0):
+        self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent, active_only=True)
+        self.dcnum = zeros([len(self.whole_lexicon), self.params['steps']])
+
+        self.fill_steps(self.root_path.joinpath('run' + str(run_num)), num_agent)
+        self.plot(self.root_path.joinpath('run' + str(run_num)), num_agent)
+
+        print self.dcnum
+
+        print self.whole_lexicon
+        # for run_num, run_path in enumerate(self.root_path.glob('*')):
+        #     for step in  PathProvider(run_path).get_data_paths():
+        #         print '{}  {}'.format(run_path, step)
+
+
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 
@@ -492,6 +544,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
+    parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
@@ -510,6 +563,10 @@ if __name__ == '__main__':
     if parsed_params['plot_mon']:
         plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']])
         plot_mon_command()
+
+    if parsed_params['plot_num_DS']:
+        plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']))
+        plot_num_DS_command()
 
     if parsed_params['plot_success']:
         logging.debug('start plot success')
