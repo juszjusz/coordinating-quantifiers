@@ -5,6 +5,7 @@ from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
 from language import Perception
 from random import sample
+# from numpy import array, isnan
 from collections import deque
 from stimulus import StimulusFactory
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
@@ -96,7 +97,8 @@ class Agent:
         for s in StimulusFactory.x:
             if len(self.get_categories()) == 0:
                 continue
-            responses = [c.response(s) for c in self.get_categories()]
+            responses = array([c.response(s) for c in self.get_categories()])
+            # responses = responses[~isnan(responses)] # take care of nan's
             max_resp = max(responses)
             if max_resp == 0.0:
                 continue
