@@ -296,8 +296,6 @@ class PlotMonotonicityCommand:
             self.mon_samples1.append(sample)
         #for step in range(self.params['steps']):
         #    self.mon_samples1.append(list(self.array1[:, max(step*100-1, 0)]))
-        print("głowa głowa głowa")
-        print('dupa dupa dupa')
 
         if self.root_path2 is not None:
             logging.debug("Root path %s" % self.root_path2)
