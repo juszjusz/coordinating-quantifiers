@@ -152,6 +152,7 @@ class GuessingGame:
         speaker.language.forget_words()
         hearer.language.forget_words()
 
+
 class ExceptionHandler:
     # to be move to Speaker Hearer subclass
     def on_NO_CATEGORY(self, agent, context, topic):
