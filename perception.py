@@ -19,7 +19,12 @@ class ReactiveUnit:
         self.pdf = _pdf.pdf
 
     def reactive_fun(self, x):
-        return 0 if x < self.x_left or x > self.x_right else self.pdf(x)
+        if (self.x_left == 0 and self.x_right == 0):
+            return 0
+        if x < self.x_left or x > self.x_right:
+            return 0
+
+        return self.pdf(x)
 
     # TODO code repetition
     def reactive_response(self, stimulus):
