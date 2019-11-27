@@ -3,19 +3,16 @@ import logging
 
 from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
-from language import Perception
 from random import sample
-# from numpy import array, isnan
 from collections import deque
-from stimulus import StimulusFactory
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 
 
 class Population:
 
-    def __init__(self, params):
+    def __init__(self, params, rxr, ri):
         self.population_size = params['population_size']
-        self.agents = [Agent(agent_id, Language(params), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
+        self.agents = [Agent(agent_id, Language(params, rxr, ri), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
         self.ds = []
         self.cs1 = []
         self.cs2 = []
