@@ -21,13 +21,20 @@ from gibberish import Gibberish
 class Language(Perception):
     gibberish = Gibberish()
 
-    def __init__(self, params):
+    def __init__(self, params, rxr, ri, nklist):
         Perception.__init__(self, params)
         self.lexicon = []
         self.lxc = AssociativeMatrix()
         self.delta_inc = params['delta_inc']
         self.delta_dec = params['delta_dec']
         self.delta_inh = params['delta_inh']
+        self.discriminative_threshold = params['discriminative_threshold']
+        self.alpha = params['alpha']  # forgetting
+        self.beta = params['beta']  # learning rate
+        self.super_alpha = params['super_alpha']
+        self.rxr = rxr
+        self.nklist = nklist
+        self.ri = ri
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -40,8 +47,8 @@ class Language(Perception):
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
-        c = Category(id = self.get_cat_id())
-        c.add_reactive_unit(ReactiveUnit(stimulus), weight)
+        c = Category(id=self.get_cat_id(), rxr=self.rxr, ri=self.ri, nk_list=self.nklist)
+        c.add_reactive_unit(stimulus, weight)
         self.categories.append(c)
         # TODO this should work
         self.lxc.add_col()
@@ -140,7 +147,7 @@ class Language(Perception):
     def discrimination_game(self, context, topic):
         self.store_ds_result(False)
         winning_category = self.discriminate(context, topic)
-        self.reinforce(winning_category, context[topic])
+        winning_category.reinforce(context[topic], self.beta)
         self.forget_categories(winning_category)
         self.switch_ds_result()
         return self.categories.index(winning_category)
@@ -159,14 +166,14 @@ class Language(Perception):
 
     # based on how much the word meaning covers the category
     def csimilarity(self, word, category):
-        wi = self.lexicon.index(word)
-        coverage = integrate(lambda x: min(self.word_meaning(word, x), category.fun(x)), category.x_left, category.x_right)
-        area = integrate(lambda x: category.fun(x), category.x_left, category.x_right)
+        # wi = self.lexicon.index(word)
+        coverage = min(self.word_meaning(word), category.area())
+        area = category.area()
         return coverage / area
 
-    def word_meaning(self, word, x):
+    def word_meaning(self, word):
         wi = self.lexicon.index(word)
-        return sum([cat.fun(x) * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
+        return sum([cat.area() * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
 
     def is_monotone(self, word):
         activations = map(lambda x: self.word_meaning(word, x), StimulusFactory.x)

@@ -1,26 +1,34 @@
 from __future__ import division  # force python 3 division in python 2
+
+from fractions import Fraction
 from random import randint
 from scipy.stats import norm
 import numpy as np
 from math_utils import interpolate
 
+class AbstractStimulus:
+    def pdf(self):
+        raise NotImplementedError
+    def is_noticeably_different_from(self, other_stimulus):
+        raise NotImplementedError
+
 
 class ContextFactory:
-    def __init__(self, stimulus_type, max_num):
-        self.stimulus_factory = StimulusFactory.get_factory(stimulus_type, max_num)
+    def __init__(self, stimulus_factory):
+        self.new_stimulus = stimulus_factory
 
-    def __call__(self, *args, **kwargs):
-        s1 = self.stimulus_factory._new_stimulus()
-        s2 = self.stimulus_factory._new_stimulus()
+    def __call__(self):
+        s1 = self.new_stimulus()
+        s2 = self.new_stimulus()
 
         while not s1.is_noticeably_different_from(s2):
-            s1 = self.stimulus_factory._new_stimulus()
-            s2 = self.stimulus_factory._new_stimulus()
+            s1 = self.new_stimulus()
+            s2 = self.new_stimulus()
 
         return [s1, s2]
 
 
-class QuotientBasedStimulus:
+class QuotientBasedStimulus(AbstractStimulus):
     # stimulus represents a perceptual situation where two exact quantities are given
     def __init__(self, a, b, sigma):
         self.a = a
@@ -37,7 +45,7 @@ class QuotientBasedStimulus:
         y, bin_edges = np.histogram(ratio_samples, bins="auto", density=True)
         x = [(bin_edges[i] + bin_edges[i + 1]) / 2 for i in range(0, len(bin_edges) - 1)]
 
-        return ProbabilityDensityFunction(x[0], x[-1], interpolate(x, y))
+        return ProbabilityDensityFunction(x[0], x[-1], interpolate(x, y), 'n/k = {}/{}'.format(self.a, self.b))
 
     def __sample(self, quantity, sample_size=10000):
         return np.array(np.random.normal(quantity, self.sigma * quantity, sample_size), dtype=np.float)
@@ -74,14 +82,53 @@ class QuotientBasedStimulusFactory:
     def __init__(self):
         self.max = StimulusFactory.max
         self.b_factory = lambda: randint(1, self.max)
-        pass
 
-    def _new_stimulus(self):
+    def __call__(self):
         b = self.b_factory()
         return QuotientBasedStimulus(randint(1, b), b, StimulusFactory.sigma)
 
 
-class NumericBasedStimulus:
+class QBasedFactory:
+    def __init__(self, nk_list):
+        self.nk_list = nk_list
+        # self.nk_fractions = map(lambda t: Fraction(t[0], t[1]), nk_list)
+        # self.discrete_ri = discrete_ri
+        # self.x = x
+
+    def __call__(self):
+        index = randint(0, len(self.nk_list))
+        n, k = self.nk_list[index]
+        return QBased(Fraction(n, k))
+        # pdf = self.discrete_ri[index]
+
+        # return QBased(n, k, lambda x: self.__boo(x, pdf), self.x[0], self.x[-1])
+    # def __boo(self, value, pdf):
+    #     index = self.__value_index(value)
+    #     return pdf[index]
+    # def __value_index(self, value):
+        # index_to_value = np.where(self.nk_fractions == value)[0]
+        # index = self.nk_fractions.index(value)
+        # assert(isinstance(index,  np.ndarray))
+        # assert(len(index) == 1)
+        # return index
+
+
+class QBased(AbstractStimulus):
+    def __init__(self, nk):
+        self.nk = nk
+        # self.min = min
+        # self.max = max
+        # self.real = Fraction(n, k)
+        # self.__in_mem_pdf = in_mem_pdf
+
+    # def pdf(self):
+    #     return ProbabilityDensityFunction(self.min, self.max, self.__in_mem_pdf)
+
+    def is_noticeably_different_from(self, other_stimulus):
+        return True
+
+
+class NumericBasedStimulus(AbstractStimulus):
 
     def __init__(self, value, sigma):
         self.value = value
@@ -113,10 +160,11 @@ class NumericBasedStimulusFactory:
 
 
 class ProbabilityDensityFunction:
-    def __init__(self, x_left, x_right, pdf):
+    def __init__(self, x_left, x_right, pdf, description=None):
         self.x_left = x_left
         self.x_right = x_right
         self.pdf = pdf
+        self.description = description
 
 
 #stimulus_factory = {
