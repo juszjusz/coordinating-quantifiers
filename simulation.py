@@ -11,7 +11,6 @@ import dill
 import matplotlib
 from pathlib import Path
 
-from inmemory_calculus import InMemoryCalculus
 from path_provider import PathProvider
 from stimulus import ContextFactory, QuotientBasedStimulusFactory
 import os
@@ -88,8 +87,7 @@ if __name__ == "__main__":
 
     parsed_params = vars(parser.parse_args())
 
-    nklist, discreteRi, x, rxr = InMemoryCalculus.read_from_dir()
-    stimulus_factory = QuotientBasedStimulusFactory(nklist)
+    stimulus_factory = QuotientBasedStimulusFactory()
     context_constructor = ContextFactory(stimulus_factory)
 
     simulation_tasks = []
@@ -115,7 +113,7 @@ if __name__ == "__main__":
         os.makedirs(simulation_path + '/stats')
 
         for run in range(parsed_params['runs']):
-            population = Population(parsed_params, rxr, discreteRi)
+            population = Population(parsed_params)
             root_path = Path(simulation_path).joinpath('run' + str(run))
             path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()

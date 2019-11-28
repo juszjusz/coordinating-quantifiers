@@ -9,21 +9,21 @@ import matplotlib.pyplot as plt
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
+from inmemory_calculus import RXR, DISCRETE_RI
+
 
 class Category:
 
-    def __init__(self, id, rxr, ri, x_delta):
+    def __init__(self, id):
         self.id = id
         self.weights = []
         self.reactive_indicies = []
-        self.rxr = rxr
-        self.ri = ri
-        self.x_delta = x_delta
+        self.x_delta = .001
         self.x_left = float("inf")
         self.x_right = float("-inf")
 
     def response(self, stimulus):
-        return sum([w * self.rxr[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)])
+        return sum([w * RXR[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)])
 
     def add_reactive_unit(self, stimulus, weight=0.5):
         self.weights.append(weight)
@@ -38,10 +38,10 @@ class Category:
         # TODO example: responses == [0.0, 0.0]
 
     def reinforce(self, stimulus, beta):
-        self.weights = [w + beta * self.rxr[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)]
+        self.weights = [w + beta * RXR[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)]
 
     def area(self):
-        return self.x_delta * sum([sum([v * w for v in self.ri[index]]) for w, index in zip(self.weights, self.reactive_indicies)])
+        return self.x_delta * sum([sum([v * w for v in DISCRETE_RI[index]]) for w, index in zip(self.weights, self.reactive_indicies)])
 
     def show(self):
         x = np.linspace(self.x_left, self.x_right, num=100)

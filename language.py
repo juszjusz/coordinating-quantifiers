@@ -14,11 +14,10 @@ from itertools import izip
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
 
-
 class Language(Perception):
     gibberish = Gibberish()
 
-    def __init__(self, params, rxr, ri, x_delta):
+    def __init__(self, params):
         Perception.__init__(self)
         self.lexicon = []
         self.lxc = AssociativeMatrix()
@@ -29,9 +28,6 @@ class Language(Perception):
         self.alpha = params['alpha']  # forgetting
         self.beta = params['beta']  # learning rate
         self.super_alpha = params['super_alpha']
-        self.rxr = rxr
-        self.ri = ri
-        self.x_delta = x_delta
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -44,7 +40,7 @@ class Language(Perception):
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
-        c = Category(id=self.get_cat_id(), rxr=self.rxr, ri=self.ri, x_delta=self.x_delta)
+        c = Category(id=self.get_cat_id())
         c.add_reactive_unit(stimulus, weight)
         self.categories.append(c)
         # TODO this should work
