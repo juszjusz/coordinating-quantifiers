@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean, std
-from stimulus import StimulusFactory
 import dill
 
 

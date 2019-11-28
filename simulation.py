@@ -91,11 +91,10 @@ if __name__ == "__main__":
     nklist, discreteRi, x, rxr = InMemoryCalculus.read_from_dir()
     stimulus_factory = QuotientBasedStimulusFactory(nklist)
     context_constructor = ContextFactory(stimulus_factory)
-    # context_constructor = ContextFactory(parsed_params['stimulus'], parsed_params['max_num'], cache)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:
-        for r in Path(parsed_params['load_simulation']).glob('*'):
+        for run in Path(parsed_params['load_simulation']).glob('*'):
             pickled_simulation_file = parsed_params['load_simulation']
             logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
             with open(pickled_simulation_file, 'rb') as read_handle:
@@ -115,16 +114,16 @@ if __name__ == "__main__":
         os.makedirs(simulation_path)
         os.makedirs(simulation_path + '/stats')
 
-        for r in range(parsed_params['runs']):
+        for run in range(parsed_params['runs']):
             population = Population(parsed_params, rxr, discreteRi)
-            root_path = Path(simulation_path).joinpath('run' + str(r))
+            root_path = Path(simulation_path).joinpath('run' + str(run))
             path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()
             simulation = Simulation(params=parsed_params,
                                     step_offset=0,
                                     population=population,
                                     context_constructor=context_constructor,
-                                    num=r,
+                                    num=run,
                                     path_provider=path_provider)
             # if parsed_params['parallel']:
             #     simulation_tasks.append(simulation)

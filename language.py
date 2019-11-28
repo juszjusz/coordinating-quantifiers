@@ -18,7 +18,7 @@ from gibberish import Gibberish
 class Language(Perception):
     gibberish = Gibberish()
 
-    def __init__(self, params, rxr, ri):
+    def __init__(self, params, rxr, ri, x_delta):
         Perception.__init__(self)
         self.lexicon = []
         self.lxc = AssociativeMatrix()
@@ -31,6 +31,7 @@ class Language(Perception):
         self.super_alpha = params['super_alpha']
         self.rxr = rxr
         self.ri = ri
+        self.x_delta = x_delta
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -43,7 +44,7 @@ class Language(Perception):
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
-        c = Category(id=self.get_cat_id(), rxr=self.rxr, ri=self.ri)
+        c = Category(id=self.get_cat_id(), rxr=self.rxr, ri=self.ri, x_delta=self.x_delta)
         c.add_reactive_unit(stimulus, weight)
         self.categories.append(c)
         # TODO this should work
@@ -172,7 +173,7 @@ class Language(Perception):
         return sum([cat.area() * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
 
     def is_monotone(self, word):
-        activations = map(lambda x: self.word_meaning(word), StimulusFactory.x)
+        activations = self.word_meaning(word)
         bool_activations = map(lambda x: x > 0.0, activations)
         alt = len([a for a, aa in izip(bool_activations, bool_activations[1:]) if a != aa])
         return alt == 1
