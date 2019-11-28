@@ -123,10 +123,10 @@ if __name__ == "__main__":
                                     context_constructor=context_constructor,
                                     num=run,
                                     path_provider=path_provider)
-            # if parsed_params['parallel']:
-            #     simulation_tasks.append(simulation)
-            # else:
-            simulation.run()
+            if parsed_params['parallel']:
+                simulation_tasks.append(simulation)
+            else:
+                simulation.run()
 
     if parsed_params['parallel']:
         for simulation_task in simulation_tasks:
