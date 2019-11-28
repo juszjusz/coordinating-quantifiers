@@ -19,7 +19,7 @@ class Category:
         self.x_right = float("-inf")
 
     def response(self, stimulus):
-        return sum([w * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)])
+        return sum([weight * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weight, ru_index in zip(self.weights, self.reactive_indicies)])
 
     def add_reactive_unit(self, stimulus, weight=0.5):
         self.weights.append(weight)
