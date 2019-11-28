@@ -1,15 +1,11 @@
 from __future__ import division  # force python 3 division in python 2
 
-import logging
-from fractions import Fraction
-
-import numpy as np
 import matplotlib.pyplot as plt
 
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
-from inmemory_calculus import RXR, DISCRETE_RI
+from inmemory_calculus import REACTIVE_X_REACTIVE, REACTIVE_UNIT_DIST, DOMAIN
 
 
 class Category:
@@ -23,7 +19,7 @@ class Category:
         self.x_right = float("-inf")
 
     def response(self, stimulus):
-        return sum([w * RXR[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)])
+        return sum([w * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)])
 
     def add_reactive_unit(self, stimulus, weight=0.5):
         self.weights.append(weight)
@@ -38,14 +34,18 @@ class Category:
         # TODO example: responses == [0.0, 0.0]
 
     def reinforce(self, stimulus, beta):
-        self.weights = [w + beta * RXR[ru_index][stimulus.index] for w, ru_index in zip(self.weights, self.reactive_indicies)]
+        self.weights = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.weights, self.reactive_indicies)]
+
+    def discretized_distribution(self):
+        return sum([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.weights, self.reactive_indicies)])
 
     def area(self):
-        return self.x_delta * sum([sum([v * w for v in DISCRETE_RI[index]]) for w, index in zip(self.weights, self.reactive_indicies)])
+        partial_areas = [sum([v for v in REACTIVE_UNIT_DIST[index]]) for index in self.reactive_indicies]
+        area = sum([weigth * partial_area for weigth, partial_area in zip(self.weights, partial_areas)])
+        return self.x_delta * area
 
     def show(self):
-        x = np.linspace(self.x_left, self.x_right, num=100)
-        plt.plot(x, self.fun(x), 'o', x, self.fun(x), '--')
+        plt.plot(DOMAIN, self.discretized_distribution(), 'o', DOMAIN, self.discretized_distribution(), '--')
         plt.legend(['data', 'cubic'], loc='best')
         plt.show()
 

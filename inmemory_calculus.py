@@ -18,7 +18,7 @@ elements = __read_h5_data('C:\Users\kuba\Workspaces\coordinating-quantifiers\inm
 x = __read_h5_data('C:\Users\kuba\Workspaces\coordinating-quantifiers\inmemory_calculus\\x.h5')
 
 NK_LIST = nklist[u'Dataset1']
-DISCRETE_RI = discrete_Ri[u'Dataset1']
-RXR = elements[u'Dataset1']
+REACTIVE_UNIT_DIST = discrete_Ri[u'Dataset1']
+REACTIVE_X_REACTIVE = elements[u'Dataset1']
 DOMAIN = x[u'Dataset1']
 

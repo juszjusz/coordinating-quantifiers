@@ -3,6 +3,7 @@ import os
 import matplotlib
 from pathlib import Path
 
+from inmemory_calculus import DOMAIN
 from path_provider import PathProvider
 from stats import confidence_intervals, means
 
@@ -23,10 +24,7 @@ import dill
 
 
 class PlotCategoryCommand:
-    def __init__(self, categories_path, params):
-        x_left = 0
-        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
-        self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    def __init__(self, categories_path):
         self.categories_path = categories_path
 
     def __call__(self, agent_index, agent_tuple, step):
@@ -42,10 +40,9 @@ class PlotCategoryCommand:
         linestyles = new_linestyles(cats)
 
         for cat in cats:
-            graph = [cat.fun(x_0) for x_0 in self.plot_space]
             color, linestyle = linestyles[cat]
 
-            plt.plot(self.plot_space, graph,
+            plt.plot(DOMAIN, cat.discretized_distribution(),
                      color=color,
                      linestyle=linestyle,
                      label="%d" % (cat.id))
@@ -63,10 +60,7 @@ def new_linestyles(seq):
 
 
 class PlotLanguageCommand:
-    def __init__(self, lang_path, params):
-        x_left = 0
-        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
-        self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    def __init__(self, lang_path):
         self.lang_path = lang_path
 
     def __call__(self, agent_index, agent_tuple, step):
@@ -96,7 +90,7 @@ class PlotLanguageCommand:
         for form, categories in forms_to_categories.items():
             color, line = word2linestyles[form]
             for category in categories:
-                plt.plot(self.plot_space, map(category.fun, self.plot_space), color=color, linestyle=line)
+                plt.plot(DOMAIN, category.discretized_distribution(), color=color, linestyle=line)
             plt.plot([], [], color=color, linestyle=line, label=form)
 
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
@@ -107,10 +101,7 @@ class PlotLanguageCommand:
 
 
 class PlotLanguage2Command:
-    def __init__(self, lang2_path, params):
-        x_left = 0
-        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
-        self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    def __init__(self, lang2_path):
         self.lang2_path = lang2_path
 
     def __call__(self, agent_index, agent_tuple, step):
@@ -121,7 +112,7 @@ class PlotLanguage2Command:
 
         for word in lexicon:
             category2sth = zip(agent.get_categories(), agent.get_categories_by_word(word))
-            fy = [sum([cat.fun(x) * wei for cat, wei in category2sth]) for x in self.plot_space]
+            fy = [sum([cat.area() * wei for cat, wei in category2sth])]
             lang.append([word, fy])
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
@@ -133,7 +124,7 @@ class PlotLanguage2Command:
         word2linestyles = new_linestyles(lexicon)
         for form, y in lang:
             color, linestyle = word2linestyles[form]
-            plt.plot(self.plot_space, y, color=color, linestyle=linestyle)
+            plt.plot(DOMAIN, y, color=color, linestyle=linestyle)
             plt.plot([], [], color=color, linestyle=linestyle, label=form)
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
@@ -145,7 +136,7 @@ class PlotLanguage2Command:
 
 class PlotMatrixCommand:
 
-    def __init__(self, matrices_path, params):
+    def __init__(self, matrices_path):
         self.matrices_path = matrices_path
 
     def __call__(self, agent_index, agent_tuple, step):
