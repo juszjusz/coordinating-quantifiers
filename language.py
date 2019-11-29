@@ -48,7 +48,7 @@ class Language(Perception):
         return self.lxc.col_count() - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
-        logging.debug("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
+        logging.debug("updating category by adding reactive unit centered on %s" % stimulus)
         self.categories[i].add_reactive_unit(ReactiveUnit(stimulus))
 
     def get_most_connected_word(self, category):
@@ -125,9 +125,8 @@ class Language(Perception):
     def forget_categories(self, category_in_use):
         category_index = self.categories.index(category_in_use)
         for c in self.categories:
-            c.weights = [w - self.alpha * w for w in c.weights]
-        to_forget = [j for j in range(len(self.categories))
-                     if max(self.categories[j].weights) < self.super_alpha and j != category_index]
+            c.weights = [self.alpha * w for w in c.weights]
+        to_forget = [j for j in range(len(self.categories)) if max(self.categories[j].weights) < self.super_alpha]
 
         if len(to_forget):
             self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)

@@ -73,7 +73,7 @@ if __name__ == "__main__":
     parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.1)
     parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.1)
     parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.1)
-    parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.1)
+    parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.95)
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.01)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.1)
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     parsed_params = vars(parser.parse_args())
 
-    context_constructor = ContextFactory(parsed_params['stimulus'], parsed_params['max_num'])
+    context_constructor = ContextFactory(parsed_params['stimulus'], parsed_params['max_num'], True)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:

@@ -6,8 +6,8 @@ from math_utils import interpolate
 
 
 class ContextFactory:
-    def __init__(self, stimulus_type, max_num):
-        self.stimulus_factory = StimulusFactory.get_factory(stimulus_type, max_num)
+    def __init__(self, stimulus_type, max_num, ans):
+        self.stimulus_factory = StimulusFactory.get_factory(stimulus_type, max_num, ans)
 
     def __call__(self, *args, **kwargs):
         s1 = self.stimulus_factory._new_stimulus()
@@ -43,7 +43,7 @@ class QuotientBasedStimulus:
         return np.array(np.random.normal(quantity, self.sigma * quantity, sample_size), dtype=np.float)
 
     def __str__(self):
-        return str({'value': '{}/{} = {}'.format(self.a, self.b, self.a/self.b), 'sigma': self.sigma})
+        return str({'value': '{}/{} = {}'.format(self.a, self.b, self.a/self.b)})
 
     def is_noticeably_different_from(self, stimulus):
         p1 = (self.a / self.b)
@@ -54,18 +54,20 @@ class QuotientBasedStimulus:
 
 class StimulusFactory:
 
+    ans = None
     sigma = 0.1
     max = None
     x = None
 
     @staticmethod
-    def init(stimulus_type, max_num):
+    def init(stimulus_type, max_num, ans):
+        StimulusFactory.ans = ans
         StimulusFactory.max = max_num
         StimulusFactory.x = np.linspace(0.0, 1.0, 101, endpoint=False) if stimulus_type == 'quotient' else range(0, StimulusFactory.max+1)
 
     @staticmethod
-    def get_factory(stimulus_type, max_num):
-        StimulusFactory.init(stimulus_type, max_num)
+    def get_factory(stimulus_type, max_num, ans):
+        StimulusFactory.init(stimulus_type, max_num, ans)
         return QuotientBasedStimulusFactory() if stimulus_type == 'quotient' else NumericBasedStimulusFactory()
 
 
@@ -85,7 +87,7 @@ class NumericBasedStimulus:
 
     def __init__(self, value, sigma):
         self.value = value
-        self.sigma = self.value * sigma
+        self.sigma = 0.1 if not StimulusFactory.ans else self.value * StimulusFactory.sigma
         self.real = float(value)
 
     def pdf(self):
@@ -106,7 +108,7 @@ class NumericBasedStimulusFactory:
 
     def __init__(self):
         self.max = StimulusFactory.max
-        self.a_factory = lambda: randint(0, self.max)
+        self.a_factory = lambda: randint(1, self.max)
 
     def _new_stimulus(self):
         return NumericBasedStimulus(self.a_factory(), StimulusFactory.sigma)
