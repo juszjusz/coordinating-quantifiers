@@ -36,7 +36,6 @@ class PlotCategoryCommand:
         ax = plt.gca()
         #plt.xscale("symlog")
         ax.xaxis.set_major_formatter(ScalarFormatter())
-        #plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         cats = agent.get_categories()
@@ -88,7 +87,6 @@ class PlotLanguageCommand:
 
         plt.title("language in step {} of agent {}".format(step, agent_index))
         # plt.xscale("symlog")
-        plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
@@ -127,7 +125,6 @@ class PlotLanguage2Command:
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
         # plt.xscale("symlog")
-        # plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
@@ -267,7 +264,7 @@ class PlotMonotonicityCommand:
             self.root_path2 = Path(root_paths[1])
 
         self.params = pickle.load(PathProvider.new_path_provider(self.root_path1.joinpath('run0')).get_simulation_params_path().open('rb'))
-        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
+        StimulusFactory.init(self.params['stimulus'], self.params['max_num'], True)
 
         self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
         self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')

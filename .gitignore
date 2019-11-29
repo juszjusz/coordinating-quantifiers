@@ -6,3 +6,4 @@ venv
 *.pdf
 *.p
 *.pyc
+*.txt
