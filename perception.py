@@ -37,12 +37,16 @@ class Category:
         self.weights = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.weights, self.reactive_indicies)]
 
     def discretized_distribution(self):
-        return sum([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.weights, self.reactive_indicies)])
+        return self.__apply_fun_to_coordinates(sum)
 
-    def area(self):
-        partial_areas = [sum([v for v in REACTIVE_UNIT_DIST[index]]) for index in self.reactive_indicies]
-        area = sum([weigth * partial_area for weigth, partial_area in zip(self.weights, partial_areas)])
-        return self.x_delta * area
+    def union(self):
+        return self.__apply_fun_to_coordinates(max)
+
+    # Given values f(x0),f(x1),...,f(xn); g(x0),g(x1),...,g(xn) for functions f, g defined on points x0 < x1 < ... < xn
+    # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x0),g(x0)),...,FUN(f(x0),g(x0))
+    # Implementation is defined on family of functions from (REACTIVE_UNIT_DIST[.]).
+    def __apply_fun_to_coordinates(self, FUN):
+        return FUN([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.weights, self.reactive_indicies)])
 
     def show(self):
         plt.plot(DOMAIN, self.discretized_distribution(), 'o', DOMAIN, self.discretized_distribution(), '--')

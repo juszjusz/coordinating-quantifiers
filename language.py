@@ -3,7 +3,7 @@ import logging
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
-from numpy import empty, array
+from numpy import empty, array, minimum
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
@@ -153,20 +153,22 @@ class Language(Perception):
         old_weights = self.lxc.get_col_by_row(self.lexicon.index(word))
         #logging.debug("Old weights: %s" % str(old_weights))
 
-        incremented_weights = [w + inc for w, inc in zip(old_weights, increments)]
+        incremented_weights = [weight + inc for weight, inc in zip(old_weights, increments)]
         #logging.debug("Incremented weights: %s" % str(incremented_weights))
         self.lxc.set_values(axis=0, index=row, values=incremented_weights)
 
     # based on how much the word meaning covers the category
     def csimilarity(self, word, category):
-        # wi = self.lexicon.index(word)
-        coverage = min(self.word_meaning(word), category.area())
-        area = category.area()
-        return coverage / area
+        area = category.union()
+        # omit multiplication by x_delta beacuse all we need is ratio of coverage to area:
+        word_meaning = self.word_meaning(word)
+        coverage = minimum(word_meaning, area)
+
+        return sum(coverage) / sum(area)
 
     def word_meaning(self, word):
-        wi = self.lexicon.index(word)
-        return sum([cat.area() * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
+        word_index = self.lexicon.index(word)
+        return sum([category.union() * word2category_weigth for category, word2category_weigth in zip(self.categories, self.lxc.__matrix__[word_index])])
 
     def is_monotone(self, word):
         activations = self.word_meaning(word)
