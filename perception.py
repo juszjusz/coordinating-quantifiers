@@ -5,25 +5,22 @@ import matplotlib.pyplot as plt
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
-from inmemory_calculus import REACTIVE_X_REACTIVE, REACTIVE_UNIT_DIST, DOMAIN
+from inmemory_calculus import inmem
 
 
 class Category:
-
     def __init__(self, id):
         self.id = id
-        self.weights = []
-        self.reactive_indicies = []
-        self.x_delta = .001
-        self.x_left = float("inf")
-        self.x_right = float("-inf")
+        self.__weights = []
+        self.__reactive_indicies = []
 
     def response(self, stimulus):
-        return sum([weight * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weight, ru_index in zip(self.weights, self.reactive_indicies)])
+        REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
+        return sum([weight * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weight, ru_index in zip(self.__weights, self.__reactive_indicies)])
 
     def add_reactive_unit(self, stimulus, weight=0.5):
-        self.weights.append(weight)
-        self.reactive_indicies.append(stimulus.index)
+        self.__weights.append(weight)
+        self.__reactive_indicies.append(stimulus.index)
 
     def select(self, stimuli):
         # TODO what if the same stimuli?
@@ -34,7 +31,14 @@ class Category:
         # TODO example: responses == [0.0, 0.0]
 
     def reinforce(self, stimulus, beta):
-        self.weights = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.weights, self.reactive_indicies)]
+        REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
+        self.reactive_units = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.__weights, self.__reactive_indicies)]
+
+    def decrement_weights(self, alpha):
+        self.__weights = [weigth - alpha * weigth for weigth in self.__weights]
+
+    def max_weigth(self):
+        return max(self.__weights)
 
     def discretized_distribution(self):
         return self.__apply_fun_to_coordinates(sum)
@@ -43,12 +47,14 @@ class Category:
         return self.__apply_fun_to_coordinates(max)
 
     # Given values f(x0),f(x1),...,f(xn); g(x0),g(x1),...,g(xn) for functions f, g defined on points x0 < x1 < ... < xn
-    # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x0),g(x0)),...,FUN(f(x0),g(x0))
+    # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x1),g(x1)),...,FUN(f(xn),g(xn))
     # Implementation is defined on family of functions from (REACTIVE_UNIT_DIST[.]).
     def __apply_fun_to_coordinates(self, FUN):
-        return FUN([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.weights, self.reactive_indicies)])
+        REACTIVE_UNIT_DIST = inmem['REACTIVE_UNIT_DIST']
+        return FUN([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.__weights, self.__reactive_indicies)])
 
     def show(self):
+        DOMAIN = inmem['DOMAIN']
         plt.plot(DOMAIN, self.discretized_distribution(), 'o', DOMAIN, self.discretized_distribution(), '--')
         plt.legend(['data', 'cubic'], loc='best')
         plt.show()

@@ -125,9 +125,9 @@ class Language(Perception):
     def forget_categories(self, category_in_use):
         category_index = self.categories.index(category_in_use)
         for c in self.categories:
-            c.weights = [w - self.alpha * w for w in c.weights]
+            c.decrement_weights(self.alpha)
         to_forget = [j for j in range(len(self.categories))
-                     if max(self.categories[j].weights) < self.super_alpha and j != category_index]
+                     if self.categories[j].max_weigth() < self.super_alpha and j != category_index]
 
         if len(to_forget):
             self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)

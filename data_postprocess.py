@@ -1,9 +1,7 @@
-import os
 
 import matplotlib
 from pathlib import Path
 
-from inmemory_calculus import DOMAIN
 from path_provider import PathProvider
 from stats import confidence_intervals, means
 
@@ -19,7 +17,7 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean, std
+from numpy import linspace, column_stack, arange, log, amax, zeros
 import dill
 
 
@@ -257,7 +255,6 @@ class PlotMonotonicityCommand:
             self.root_path2 = Path(root_paths[1])
 
         self.params = pickle.load(PathProvider.new_path_provider(self.root_path1.joinpath('run0')).get_simulation_params_path().open('rb'))
-        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
 
         self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
         self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')
@@ -476,7 +473,6 @@ class PlotNumberOfDSCommand:
         self.params = pickle.load(
             PathProvider(run_path).get_simulation_params_path().open('rb'))
         self.whole_lexicon = set()
-        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
         for step_path in PathProvider(run_path).get_data_paths():
             _, population = pickle.load(step_path.open('rb'))
             if self.active_only:
@@ -582,13 +578,13 @@ if __name__ == '__main__':
         params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
 
         if parsed_params['plot_cats']:
-            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path, params))
+            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path))
         if parsed_params['plot_langs']:
-            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path, params))
+            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path))
         if parsed_params['plot_langs2']:
-            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path, params))
+            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path))
         if parsed_params['plot_matrices']:
-            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path, params))
+            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
 
         path_provider.create_directories()
 
