@@ -2,6 +2,7 @@
 import matplotlib
 from pathlib import Path
 
+from inmemory_calculus import load_inmemory_calculus, inmem
 from path_provider import PathProvider
 from stats import confidence_intervals, means
 
@@ -37,6 +38,7 @@ class PlotCategoryCommand:
         cats = agent.get_categories()
         linestyles = new_linestyles(cats)
 
+        DOMAIN = inmem['DOMAIN']
         for cat in cats:
             color, linestyle = linestyles[cat]
 
@@ -85,6 +87,7 @@ class PlotLanguageCommand:
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         word2linestyles = new_linestyles(agent.get_lexicon())
+        DOMAIN = inmem['DOMAIN']
         for form, categories in forms_to_categories.items():
             color, line = word2linestyles[form]
             for category in categories:
@@ -120,6 +123,7 @@ class PlotLanguage2Command:
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
         word2linestyles = new_linestyles(lexicon)
+        DOMAIN = inmem['DOMAIN']
         for form, y in lang:
             color, linestyle = word2linestyles[form]
             plt.plot(DOMAIN, y, color=color, linestyle=linestyle)
@@ -544,8 +548,11 @@ if __name__ == '__main__':
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
+    parser.add_argument('--in_memory_calculus_path', '-in_mem', help='path to in memory calculus', type=str, default='inmemory_calculus')
 
     parsed_params = vars(parser.parse_args())
+
+    load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
 
     if len(parsed_params['plot_mons']) > 0:
         pmc = PlotMonotonicityCommand(parsed_params['plot_mons'])
