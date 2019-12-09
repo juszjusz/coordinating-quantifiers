@@ -23,8 +23,9 @@ import dill
 
 
 class PlotCategoryCommand:
-    def __init__(self, categories_path):
+    def __init__(self, categories_path, inmem):
         self.categories_path = categories_path
+        self.inmem = inmem
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -38,11 +39,10 @@ class PlotCategoryCommand:
         cats = agent.get_categories()
         linestyles = new_linestyles(cats)
 
-        DOMAIN = inmem['DOMAIN']
         for cat in cats:
             color, linestyle = linestyles[cat]
 
-            plt.plot(DOMAIN, cat.discretized_distribution(),
+            plt.plot(self.inmem["DOMAIN"], cat.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]),
                      color=color,
                      linestyle=linestyle,
                      label="%d" % (cat.id))
@@ -60,8 +60,9 @@ def new_linestyles(seq):
 
 
 class PlotLanguageCommand:
-    def __init__(self, lang_path):
+    def __init__(self, lang_path, inmem):
         self.lang_path = lang_path
+        self.inmem = inmem
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -87,11 +88,10 @@ class PlotLanguageCommand:
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         word2linestyles = new_linestyles(agent.get_lexicon())
-        DOMAIN = inmem['DOMAIN']
         for form, categories in forms_to_categories.items():
             color, line = word2linestyles[form]
             for category in categories:
-                plt.plot(DOMAIN, category.discretized_distribution(), color=color, linestyle=line)
+                plt.plot(self.inmem["DOMAIN"], category.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]), color=color, linestyle=line)
             plt.plot([], [], color=color, linestyle=line, label=form)
 
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
@@ -102,8 +102,9 @@ class PlotLanguageCommand:
 
 
 class PlotLanguage2Command:
-    def __init__(self, lang2_path):
+    def __init__(self, lang2_path, inmem):
         self.lang2_path = lang2_path
+        self.DOMAIN = inmem['DOMAIN']
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -123,10 +124,9 @@ class PlotLanguage2Command:
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
         word2linestyles = new_linestyles(lexicon)
-        DOMAIN = inmem['DOMAIN']
         for form, y in lang:
             color, linestyle = word2linestyles[form]
-            plt.plot(DOMAIN, y, color=color, linestyle=linestyle)
+            plt.plot(self.DOMAIN, y, color=color, linestyle=linestyle)
             plt.plot([], [], color=color, linestyle=linestyle, label=form)
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
@@ -585,11 +585,11 @@ if __name__ == '__main__':
         params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
 
         if parsed_params['plot_cats']:
-            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path))
+            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path, inmem))
         if parsed_params['plot_langs']:
-            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path))
+            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path, inmem))
         if parsed_params['plot_langs2']:
-            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path))
+            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path, inmem))
         if parsed_params['plot_matrices']:
             command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
 

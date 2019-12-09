@@ -14,8 +14,9 @@ class Category:
         self.__weights = []
         self.__reactive_indicies = []
 
-    def response(self, stimulus):
-        REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
+    def response(self, stimulus, REACTIVE_X_REACTIVE=None):
+        if REACTIVE_X_REACTIVE is None:
+            REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
         return sum([weight * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weight, ru_index in zip(self.__weights, self.__reactive_indicies)])
 
     def add_reactive_unit(self, stimulus, weight=0.5):
@@ -30,8 +31,9 @@ class Category:
         return which[0] if len(which) == 1 else None
         # TODO example: responses == [0.0, 0.0]
 
-    def reinforce(self, stimulus, beta):
-        REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
+    def reinforce(self, stimulus, beta, REACTIVE_X_REACTIVE=None):
+        if REACTIVE_X_REACTIVE is None:
+            REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
         self.reactive_units = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.__weights, self.__reactive_indicies)]
 
     def decrement_weights(self, alpha):
@@ -40,17 +42,18 @@ class Category:
     def max_weigth(self):
         return max(self.__weights)
 
-    def discretized_distribution(self):
-        return self.__apply_fun_to_coordinates(sum)
+    def discretized_distribution(self, REACTIVE_UNIT_DIST=None):
+        return self.__apply_fun_to_coordinates(sum, REACTIVE_UNIT_DIST)
 
-    def union(self):
-        return self.__apply_fun_to_coordinates(max)
+    def union(self, REACTIVE_UNIT_DIST=None):
+        return self.__apply_fun_to_coordinates(max, REACTIVE_UNIT_DIST)
 
     # Given values f(x0),f(x1),...,f(xn); g(x0),g(x1),...,g(xn) for functions f, g defined on points x0 < x1 < ... < xn
     # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x1),g(x1)),...,FUN(f(xn),g(xn))
     # Implementation is defined on family of functions from (REACTIVE_UNIT_DIST[.]).
-    def __apply_fun_to_coordinates(self, FUN):
-        REACTIVE_UNIT_DIST = inmem['REACTIVE_UNIT_DIST']
+    def __apply_fun_to_coordinates(self, FUN, REACTIVE_UNIT_DIST=None):
+        if REACTIVE_UNIT_DIST is None:
+            REACTIVE_UNIT_DIST = inmem['REACTIVE_UNIT_DIST']
         return FUN([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.__weights, self.__reactive_indicies)])
 
     def show(self):
