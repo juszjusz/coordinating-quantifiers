@@ -104,7 +104,7 @@ class PlotLanguageCommand:
 class PlotLanguage2Command:
     def __init__(self, lang2_path, inmem):
         self.lang2_path = lang2_path
-        self.DOMAIN = inmem['DOMAIN']
+        self.inmem = inmem
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -114,7 +114,7 @@ class PlotLanguage2Command:
 
         for word in lexicon:
             category2sth = zip(agent.get_categories(), agent.get_categories_by_word(word))
-            fy = [sum([cat.area() * wei for cat, wei in category2sth])]
+            fy = sum([cat.union(self.inmem['REACTIVE_UNIT_DIST']) * wei for cat, wei in category2sth])
             lang.append([word, fy])
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
@@ -126,7 +126,7 @@ class PlotLanguage2Command:
         word2linestyles = new_linestyles(lexicon)
         for form, y in lang:
             color, linestyle = word2linestyles[form]
-            plt.plot(self.DOMAIN, y, color=color, linestyle=linestyle)
+            plt.plot(self.inmem['DOMAIN'], y, color=color, linestyle=linestyle)
             plt.plot([], [], color=color, linestyle=linestyle, label=form)
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
@@ -538,12 +538,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='plotting data')
 
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
-                        default="simulation")
+                        default="test")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
