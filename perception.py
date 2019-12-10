@@ -34,7 +34,7 @@ class Category:
     def reinforce(self, stimulus, beta, REACTIVE_X_REACTIVE=None):
         if REACTIVE_X_REACTIVE is None:
             REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
-        self.reactive_units = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.__weights, self.__reactive_indicies)]
+        self.__weights = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.__weights, self.__reactive_indicies)]
 
     def decrement_weights(self, alpha):
         self.__weights = [weigth - alpha * weigth for weigth in self.__weights]
