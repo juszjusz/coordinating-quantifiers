@@ -43,10 +43,10 @@ class Category:
         return max(self.__weights)
 
     def discretized_distribution(self, REACTIVE_UNIT_DIST=None):
-        return self.__apply_fun_to_coordinates(sum, REACTIVE_UNIT_DIST)
+        return self.__apply_fun_to_coordinates(lambda x: np.sum(x, axis=0), REACTIVE_UNIT_DIST)
 
     def union(self, REACTIVE_UNIT_DIST=None):
-        return self.__apply_fun_to_coordinates(max, REACTIVE_UNIT_DIST)
+        return self.__apply_fun_to_coordinates(lambda x: np.max(x, axis=0), REACTIVE_UNIT_DIST)
 
     # Given values f(x0),f(x1),...,f(xn); g(x0),g(x1),...,g(xn) for functions f, g defined on points x0 < x1 < ... < xn
     # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x1),g(x1)),...,FUN(f(xn),g(xn))
