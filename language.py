@@ -160,7 +160,7 @@ class Language(Perception):
     # based on how much the word meaning covers the category
     def csimilarity(self, word, category):
         area = category.union()
-        # omit multiplication by x_delta beacuse all we need is ratio of coverage to area:
+        # omit multiplication by x_delta because all we need is ratio: coverage/area:
         word_meaning = self.word_meaning(word)
         coverage = minimum(word_meaning, area)
 
