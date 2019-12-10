@@ -25,19 +25,31 @@ class ContextFactory:
         return [s1, s2]
 
 class QuotientBasedStimulusFactory:
-    def __init__(self, stimulus_list):
-        self.stimulus_list = stimulus_list
+    def __init__(self, stimulus_list, max):
+        self.stimulus_list_arr = stimulus_list
+        self.stimulus_list = [list(self.stimulus_list_arr[i]) for i in range(0, len(self.stimulus_list_arr))]
+        #print(list(self.stimulus_list))
+        self.max = max
 
     def __call__(self):
-        index = randint(0, len(self.stimulus_list) - 1)
-        n, k = self.stimulus_list[index]
-        return QuotientBasedStimulus(index, Fraction(n, k))
+        k = randint(1, self.max)
+        n = randint(1, k)
+        f = Fraction(n,k)
+        pair = [f.numerator, f.denominator]
+        index = self.stimulus_list.index(pair)
+        return QuotientBasedStimulus(index, f)
+        #index = randint(0, len(self.stimulus_list) - 1)
+        #n, k = self.stimulus_list[index]
+        #return QuotientBasedStimulus(index, Fraction(n, k))
 
 
 class QuotientBasedStimulus(AbstractStimulus):
     def __init__(self, index, nk):
         self.index = index
         self.__nk = nk
+
+    def __str__(self):
+        return str(self.__nk)
 
     def is_noticeably_different_from(self, other_stimulus):
         return True
