@@ -21,6 +21,7 @@ from stimulus import QuotientBasedStimulusFactory, ContextFactory
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
+import stimulus
 
 class Simulation(Process):
 
@@ -92,8 +93,8 @@ if __name__ == "__main__":
     parsed_params = vars(parser.parse_args())
     load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
 
-    stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
-    context_constructor = ContextFactory(stimulus_factory)
+    stimulus.stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
+    context_constructor = ContextFactory(stimulus.stimulus_factory)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:

@@ -3,6 +3,7 @@ import matplotlib
 from pathlib import Path
 
 from inmemory_calculus import load_inmemory_calculus, inmem
+import stimulus
 from path_provider import PathProvider
 from stats import confidence_intervals, means
 
@@ -386,6 +387,8 @@ class PlotSuccessCommand:
         self.samples_ds = []
         self.samples_cs2 = []
         self.samples_cs12 = []
+        self.samples_nw = []
+        self.nw_means = []
         self.cs1_means = []
         self.cs12_means = []
         self.ds_means = []
@@ -398,9 +401,12 @@ class PlotSuccessCommand:
         self.ds_cis_l = []
         self.cs12_cis_l = []
         self.cs12_cis_u = []
+        self.nw_cis_l = []
+        self.nw_cis_u = []
 
     def prepare_data(self):
         logging.debug("Root path %s" % self.root_path)
+        psize = self.params['population_size']
         populations = {}
         for run_num in range(self.params['runs']):
             run_path = self.root_path.joinpath('run' + str(run_num))
@@ -414,13 +420,23 @@ class PlotSuccessCommand:
             self.samples_cs1.append([populations[run].cs1[step] for run in range(self.params['runs'])])
             self.samples_cs2.append([populations[run].cs2[step] for run in range(self.params['runs'])])
             self.samples_cs12.append([populations[run].cs12[step] for run in range(self.params['runs'])])
+            nw_sample = []
+            for r in range(self.params['runs']):
+                run_path = self.root_path.joinpath('run' + str(r))
+                rsp = run_path.joinpath('data/step' + str(step) + '.p')
+                step, population = pickle.load(rsp.open('rb'))
+                nw_sample.append(sum([len(a.get_active_lexicon()) for a in population.agents]) / psize)
+            self.samples_nw.append(nw_sample)
 
     def compute_stats(self):
         self.cs1_means = means(self.samples_cs1)
         self.cs2_means = means(self.samples_cs2)
         self.cs12_means = means(self.samples_cs12)
         self.ds_means = means(self.samples_ds)
+        self.nw_means = means(self.samples_nw)
+        logging.debug(self.nw_means)
 
+        self.nw_cis_l, self.nw_cis_u = confidence_intervals(self.samples_nw)
         self.cs1_cis_l, self.cs1_cis_u = confidence_intervals(self.samples_cs1)
         self.cs2_cis_l, self.cs2_cis_u = confidence_intervals(self.samples_cs2)
         self.ds_cis_l, self.ds_cis_u = confidence_intervals(self.samples_ds)
@@ -428,6 +444,7 @@ class PlotSuccessCommand:
 
     def plot(self):
         x = range(self.params['steps'])
+        fig, ax1 = plt.subplots()
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
@@ -444,19 +461,33 @@ class PlotSuccessCommand:
         plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
                          color='r', alpha=.2)
 
+
         plt.plot(x, self.cs1_means, 'g--', linewidth=0.3)
         plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
                          color='g', alpha=.2)
 
-        plt.plot(x, self.cs2_means, 'b--', linewidth=0.3)
-        plt.fill_between(x, self.cs2_cis_l, self.cs2_cis_u,
+        ax1.legend(['dt', 'ds', 'cs'], loc='upper left')
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('means size of active lexicon')
+        #ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.plot(x, self.nw_means, 'b--', linewidth=0.3)
+        ax2.fill_between(x, self.nw_cis_l, self.nw_cis_u,
                          color='b', alpha=.2)
+        ax2.set_yticks(range(0, 11, 1), ('0', '1', '2', '3', '4','5','6','7','8','9','10'))
+        ax2.tick_params(axis='y')
+        ax2.legend(['n'], loc='lower right')
 
-        plt.plot(x, self.cs12_means, 'k--', linewidth=0.3)
-        plt.fill_between(x, self.cs12_cis_l, self.cs12_cis_u,
-                         color='k', alpha=.2)
+        #plt.plot(x, self.cs2_means, 'b--', linewidth=0.3)
+        #plt.fill_between(x, self.cs2_cis_l, self.cs2_cis_u,
+        #                color='b', alpha=.2)
 
-        plt.legend(['dt', 'ds', 'cs1', 'cs2', 'cs12'], loc='best')
+        #plt.plot(x, self.cs12_means, 'k--', linewidth=0.3)
+        #plt.fill_between(x, self.cs12_cis_l, self.cs12_cis_u,
+        #                 color='k', alpha=.2)
+
+        #plt.legend(['dt', 'ds', 'cs1', 'cs2', 'cs12'], loc='best')
+
+        fig.tight_layout()
         plt.savefig(str(self.succ_plot_path))
         plt.close()
 
@@ -552,14 +583,15 @@ if __name__ == '__main__':
 
     parsed_params = vars(parser.parse_args())
 
+    logging.debug("loading pickled simulation from '%s' file", parsed_params['data_root'])
+    data_root_path = Path(parsed_params['data_root'])
+    sim_params = pickle.load(PathProvider.new_path_provider(data_root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
     load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
+    stimulus.stimulus_factory = stimulus.QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], sim_params['max_num'])
 
     if len(parsed_params['plot_mons']) > 0:
         pmc = PlotMonotonicityCommand(parsed_params['plot_mons'])
         pmc()
-
-    logging.debug("loading pickled simulation from '%s' file", parsed_params['data_root'])
-    data_root_path = Path(parsed_params['data_root'])
 
     if not data_root_path.exists():
         logging.debug("Path %s does not exist" % data_root_path.absolute())

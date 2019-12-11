@@ -24,12 +24,16 @@ class ContextFactory:
 
         return [s1, s2]
 
+
 class QuotientBasedStimulusFactory:
     def __init__(self, stimulus_list, max):
         self.stimulus_list_arr = stimulus_list
         self.stimulus_list = [list(self.stimulus_list_arr[i]) for i in range(0, len(self.stimulus_list_arr))]
-        #print(list(self.stimulus_list))
         self.max = max
+        self.filtered_stimulus_list = [QuotientBasedStimulus(self.stimulus_list.index(s), Fraction(s[0], s[1])) for s in self.stimulus_list if s[1] <= self.max]
+
+    def get_stimuli(self):
+        return self.filtered_stimulus_list
 
     def __call__(self):
         k = randint(1, self.max)
@@ -55,3 +59,4 @@ class QuotientBasedStimulus(AbstractStimulus):
         ds = 0.3 * min(self.__nk, other.__nk)
         return abs(self.__nk - other.__nk) > ds
 
+stimulus_factory = None

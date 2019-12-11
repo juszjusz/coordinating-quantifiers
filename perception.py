@@ -117,8 +117,8 @@ class Perception:
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_POSITIVE_RESPONSE_2
 
-        if len(max_args1) > 1 or len(max_args2) > 1:
-            raise Exception("Two categories give the same maximal value for stimulus")
+        #if len(max_args1) > 1 or len(max_args2) > 1:
+        #    raise Exception("Two categories give the same maximal value for stimulus")
 
         i, j = max_args1[0], max_args2[0]
 

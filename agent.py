@@ -6,6 +6,8 @@ from language import Language
 from random import sample
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
+import stimulus
+from numpy import array
 
 class Population:
 
@@ -90,7 +92,8 @@ class Agent:
 
     def get_active_lexicon(self):
         active_lexicon = set([])
-        for s in StimulusFactory.x:
+
+        for s in stimulus.stimulus_factory.get_stimuli():
             if len(self.get_categories()) == 0:
                 continue
             responses = array([c.response(s) for c in self.get_categories()])
