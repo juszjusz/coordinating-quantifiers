@@ -12,14 +12,15 @@ import matplotlib
 from pathlib import Path
 
 from path_provider import PathProvider
-from stimulus import ContextFactory
+from inmemory_calculus import load_inmemory_calculus, inmem
 import os
 import shutil
+
+from stimulus import QuotientBasedStimulusFactory, ContextFactory
 
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
-
 
 class Simulation(Process):
 
@@ -52,10 +53,12 @@ class Simulation(Process):
             with open(serialized_step_path, "wb") as write_handle:
                 dill.dump((step_with_offset, self.population), write_handle)
 
-
-        params_ser_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('params.p'))
-        with open(params_ser_path, 'wb') as write_params:
+        params_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('params.p'))
+        with open(params_path, 'wb') as write_params:
             dill.dump(self.params, write_params)
+        in_mem_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('inmem_calc.p'))
+        with open(in_mem_path, 'wb') as write_inmem:
+            dill.dump(inmem, write_inmem)
 
         exec_time = time.time() - start_time
         logging.debug("simulation {} took {}sec (with params {})".format(self.num, exec_time, self.params))
@@ -84,14 +87,17 @@ if __name__ == "__main__":
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
                         type=str)
     parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=True)
+    parser.add_argument('--in_memory_calculus_path', '-in_mem', help='path to in memory calculus', type=str, default='inmemory_calculus')
 
     parsed_params = vars(parser.parse_args())
+    load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
 
-    context_constructor = ContextFactory(parsed_params['stimulus'], parsed_params['max_num'], True)
+    stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
+    context_constructor = ContextFactory(stimulus_factory)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:
-        for r in Path(parsed_params['load_simulation']).glob('*'):
+        for run in Path(parsed_params['load_simulation']).glob('*'):
             pickled_simulation_file = parsed_params['load_simulation']
             logging.debug("loading pickled simulation from {} file".format(pickled_simulation_file))
             with open(pickled_simulation_file, 'rb') as read_handle:
@@ -111,21 +117,21 @@ if __name__ == "__main__":
         os.makedirs(simulation_path)
         os.makedirs(simulation_path + '/stats')
 
-        for r in range(parsed_params['runs']):
+        for run in range(parsed_params['runs']):
             population = Population(parsed_params)
-            root_path = Path(simulation_path).joinpath('run' + str(r))
+            root_path = Path(simulation_path).joinpath('run' + str(run))
             path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()
-            s = Simulation(params=parsed_params,
-                           step_offset=0,
-                           population=population,
-                           context_constructor=context_constructor,
-                           num=r,
-                           path_provider=path_provider)
-            if parsed_params['parallel']:
-                simulation_tasks.append(s)
-            else:
-                s.run()
+            simulation = Simulation(params=parsed_params,
+                                    step_offset=0,
+                                    population=population,
+                                    context_constructor=context_constructor,
+                                    num=run,
+                                    path_provider=path_provider)
+            # if parsed_params['parallel']:
+            #     simulation_tasks.append(simulation)
+            # else:
+            simulation.run()
 
     if parsed_params['parallel']:
         for simulation_task in simulation_tasks:

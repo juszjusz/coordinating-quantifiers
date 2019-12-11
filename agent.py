@@ -3,13 +3,9 @@ import logging
 
 from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
-from language import Perception
 from random import sample
-# from numpy import array, isnan
 from collections import deque
-from stimulus import StimulusFactory
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
-
 
 class Population:
 

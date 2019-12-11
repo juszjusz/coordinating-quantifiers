@@ -1,62 +1,27 @@
 from __future__ import division  # force python 3 division in python 2
 
-import logging
-import numpy as np
 import matplotlib.pyplot as plt
 
 from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
-
-from math_utils import integrate
-
-
-class ReactiveUnit:
-    def __init__(self, stimulus):
-        _pdf = stimulus.pdf()
-        self.x_left = _pdf.x_left
-        self.x_right = _pdf.x_right
-        self.pdf = _pdf.pdf
-
-    def reactive_fun(self, x):
-        return 0 if x < self.x_left or x > self.x_right else self.pdf(x)
-
-    # TODO code repetition
-    def reactive_response(self, stimulus):
-        #s = ReactiveUnit(stimulus)
-        #x_left = min(s.x_left, self.x_left)
-        #x_right = max(s.x_right, self.x_right)
-        #return integrate(lambda x: s.reactive_fun(x) * self.reactive_fun(x), x_left, x_right)
-        return self.reactive_fun(stimulus.real)
-
+from inmemory_calculus import inmem
+import numpy as np
 
 class Category:
-
     def __init__(self, id):
         self.id = id
-        self.weights = []
-        self.reactive_units = []
-        self.x_left = float("inf")
-        self.x_right = float("-inf")
+        self.__weights = []
+        self.__reactive_indicies = []
 
-    # TODO code repetition
-    def response(self, stimulus):
-        #s = ReactiveUnit(stimulus)
-        #x_left = min(s.x_left, self.x_left)
-        #x_right = max(s.x_right, self.x_right)
-        #return integrate(lambda x: s.reactive_fun(x) * self.fun(x), x_left, x_right)
-        return self.fun(stimulus.real)
+    def response(self, stimulus, REACTIVE_X_REACTIVE=None):
+        if REACTIVE_X_REACTIVE is None:
+            REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
+        return sum([weight * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weight, ru_index in zip(self.__weights, self.__reactive_indicies)])
 
-    def add_reactive_unit(self, reactive_unit, weight=0.5):
-        self.weights.append(weight)
-        self.reactive_units.append(reactive_unit)
-        self.x_left = min(self.x_left, reactive_unit.x_left)
-        self.x_right = max(self.x_right, reactive_unit.x_right)
-
-    def fun(self, x):
-        # performance?
-        return 0.0 if len(self.reactive_units) == 0 \
-            else sum([r.reactive_fun(x) * w for r, w in zip(self.reactive_units, self.weights)])
+    def add_reactive_unit(self, stimulus, weight=0.5):
+        self.__weights.append(weight)
+        self.__reactive_indicies.append(stimulus.index)
 
     def select(self, stimuli):
         # TODO what if the same stimuli?
@@ -66,12 +31,34 @@ class Category:
         return which[0] if len(which) == 1 else None
         # TODO example: responses == [0.0, 0.0]
 
-    # def update_weights(self, factors):
-    #    self.weights = [weight + factor*weight for weight, factor in zip(self.weights, factors)]
+    def reinforce(self, stimulus, beta, REACTIVE_X_REACTIVE=None):
+        if REACTIVE_X_REACTIVE is None:
+            REACTIVE_X_REACTIVE = inmem['REACTIVE_X_REACTIVE']
+        self.__weights = [weigth + beta * REACTIVE_X_REACTIVE[ru_index][stimulus.index] for weigth, ru_index in zip(self.__weights, self.__reactive_indicies)]
+
+    def decrement_weights(self, alpha):
+        self.__weights = [weigth - alpha * weigth for weigth in self.__weights]
+
+    def max_weigth(self):
+        return max(self.__weights)
+
+    def discretized_distribution(self, REACTIVE_UNIT_DIST=None):
+        return self.__apply_fun_to_coordinates(lambda x: np.sum(x, axis=0), REACTIVE_UNIT_DIST)
+
+    def union(self, REACTIVE_UNIT_DIST=None):
+        return self.__apply_fun_to_coordinates(lambda x: np.max(x, axis=0), REACTIVE_UNIT_DIST)
+
+    # Given values f(x0),f(x1),...,f(xn); g(x0),g(x1),...,g(xn) for functions f, g defined on points x0 < x1 < ... < xn
+    # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x1),g(x1)),...,FUN(f(xn),g(xn))
+    # Implementation is defined on family of functions from (REACTIVE_UNIT_DIST[.]).
+    def __apply_fun_to_coordinates(self, FUN, REACTIVE_UNIT_DIST=None):
+        if REACTIVE_UNIT_DIST is None:
+            REACTIVE_UNIT_DIST = inmem['REACTIVE_UNIT_DIST']
+        return FUN([weight * REACTIVE_UNIT_DIST[ru_index] for weight, ru_index in zip(self.__weights, self.__reactive_indicies)])
 
     def show(self):
-        x = np.linspace(self.x_left, self.x_right, num=100)
-        plt.plot(x, self.fun(x), 'o', x, self.fun(x), '--')
+        DOMAIN = inmem['DOMAIN']
+        plt.plot(DOMAIN, self.discretized_distribution(), 'o', DOMAIN, self.discretized_distribution(), '--')
         plt.legend(['data', 'cubic'], loc='best')
         plt.show()
 
@@ -81,15 +68,11 @@ class Perception:
         SUCCESS = 1
         FAILURE = 0
 
-    def __init__(self, params):
+    def __init__(self):
         self.categories = []
         self.ds_scores = deque([0])
         self._id_ = 0
         self.discriminative_success = 0.0
-        self.discriminative_threshold = params['discriminative_threshold']
-        self.alpha = params['alpha']  # forgetting
-        self.beta = params['beta']  # learning rate
-        self.super_alpha = params['super_alpha']
 
     def get_cat_id(self):
         self._id_ = self._id_ + 1
@@ -147,12 +130,3 @@ class Perception:
         # discrimination successful
         # self.store_ds_result(Perception.Result.SUCCESS)
         return self.categories[i] if topic == 0 else self.categories[j]
-
-    # TODO check
-    def reinforce(self, category, stimulus):
-        c = category
-        #logging.debug("REINFORCEMENT.Category id=%d responses to stimulus %s" % (category.id, stimulus))
-        #for w, ru in zip(c.weights, c.reactive_units):
-        #    logging.debug("Reactive unit response %f, weight %f" % (ru.reactive_response(stimulus), w))
-        c.weights = [w + self.beta * ru.reactive_response(stimulus) for w, ru in zip(c.weights, c.reactive_units)]
-

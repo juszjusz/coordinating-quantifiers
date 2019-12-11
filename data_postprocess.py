@@ -1,8 +1,8 @@
-import os
 
 import matplotlib
 from pathlib import Path
 
+from inmemory_calculus import load_inmemory_calculus, inmem
 from path_provider import PathProvider
 from stats import confidence_intervals, means
 
@@ -18,17 +18,14 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, zeros, column_stack, arange, log, amax, zeros, mean, std
-from stimulus import StimulusFactory
+from numpy import linspace, column_stack, arange, log, amax, zeros
 import dill
 
 
 class PlotCategoryCommand:
-    def __init__(self, categories_path, params):
-        x_left = 0
-        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
-        self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    def __init__(self, categories_path, inmem):
         self.categories_path = categories_path
+        self.inmem = inmem
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -36,16 +33,16 @@ class PlotCategoryCommand:
         ax = plt.gca()
         #plt.xscale("symlog")
         ax.xaxis.set_major_formatter(ScalarFormatter())
+        plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         cats = agent.get_categories()
         linestyles = new_linestyles(cats)
 
         for cat in cats:
-            graph = [cat.fun(x_0) for x_0 in self.plot_space]
             color, linestyle = linestyles[cat]
 
-            plt.plot(self.plot_space, graph,
+            plt.plot(self.inmem["DOMAIN"], cat.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]),
                      color=color,
                      linestyle=linestyle,
                      label="%d" % (cat.id))
@@ -63,11 +60,9 @@ def new_linestyles(seq):
 
 
 class PlotLanguageCommand:
-    def __init__(self, lang_path, params):
-        x_left = 0
-        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
-        self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    def __init__(self, lang_path, inmem):
         self.lang_path = lang_path
+        self.inmem = inmem
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -95,7 +90,7 @@ class PlotLanguageCommand:
         for form, categories in forms_to_categories.items():
             color, line = word2linestyles[form]
             for category in categories:
-                plt.plot(self.plot_space, map(category.fun, self.plot_space), color=color, linestyle=line)
+                plt.plot(self.inmem["DOMAIN"], category.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]), color=color, linestyle=line)
             plt.plot([], [], color=color, linestyle=line, label=form)
 
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
@@ -106,11 +101,9 @@ class PlotLanguageCommand:
 
 
 class PlotLanguage2Command:
-    def __init__(self, lang2_path, params):
-        x_left = 0
-        x_right = 1.1 if params['stimulus'] == 'quotient' else params['max_num'] + 1
-        self.plot_space = linspace(x_left, x_right, 20 * (x_right - x_left), False)
+    def __init__(self, lang2_path, inmem):
         self.lang2_path = lang2_path
+        self.inmem = inmem
 
     def __call__(self, agent_index, agent_tuple, step):
         agent = agent_tuple[0]
@@ -120,18 +113,19 @@ class PlotLanguage2Command:
 
         for word in lexicon:
             category2sth = zip(agent.get_categories(), agent.get_categories_by_word(word))
-            fy = [sum([cat.fun(x) * wei for cat, wei in category2sth]) for x in self.plot_space]
+            fy = sum([cat.union(self.inmem['REACTIVE_UNIT_DIST']) * wei for cat, wei in category2sth])
             lang.append([word, fy])
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
         # plt.xscale("symlog")
+        plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())
         word2linestyles = new_linestyles(lexicon)
         for form, y in lang:
             color, linestyle = word2linestyles[form]
-            plt.plot(self.plot_space, y, color=color, linestyle=linestyle)
+            plt.plot(self.inmem['DOMAIN'], y, color=color, linestyle=linestyle)
             plt.plot([], [], color=color, linestyle=linestyle, label=form)
         plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
         plt.tight_layout(pad=0)
@@ -143,7 +137,7 @@ class PlotLanguage2Command:
 
 class PlotMatrixCommand:
 
-    def __init__(self, matrices_path, params):
+    def __init__(self, matrices_path):
         self.matrices_path = matrices_path
 
     def __call__(self, agent_index, agent_tuple, step):
@@ -264,7 +258,6 @@ class PlotMonotonicityCommand:
             self.root_path2 = Path(root_paths[1])
 
         self.params = pickle.load(PathProvider.new_path_provider(self.root_path1.joinpath('run0')).get_simulation_params_path().open('rb'))
-        StimulusFactory.init(self.params['stimulus'], self.params['max_num'], True)
 
         self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
         self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')
@@ -483,7 +476,6 @@ class PlotNumberOfDSCommand:
         self.params = pickle.load(
             PathProvider(run_path).get_simulation_params_path().open('rb'))
         self.whole_lexicon = set()
-        StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
         for step_path in PathProvider(run_path).get_data_paths():
             _, population = pickle.load(step_path.open('rb'))
             if self.active_only:
@@ -545,18 +537,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='plotting data')
 
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
-                        default="simulation")
+                        default="test")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
+    parser.add_argument('--in_memory_calculus_path', '-in_mem', help='path to in memory calculus', type=str, default='inmemory_calculus')
 
     parsed_params = vars(parser.parse_args())
+
+    load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
 
     if len(parsed_params['plot_mons']) > 0:
         pmc = PlotMonotonicityCommand(parsed_params['plot_mons'])
@@ -589,13 +584,13 @@ if __name__ == '__main__':
         params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
 
         if parsed_params['plot_cats']:
-            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path, params))
+            command_executor.add_command(PlotCategoryCommand(path_provider.cats_path, inmem))
         if parsed_params['plot_langs']:
-            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path, params))
+            command_executor.add_command(PlotLanguageCommand(path_provider.lang_path, inmem))
         if parsed_params['plot_langs2']:
-            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path, params))
+            command_executor.add_command(PlotLanguage2Command(path_provider.lang2_path, inmem))
         if parsed_params['plot_matrices']:
-            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path, params))
+            command_executor.add_command(PlotMatrixCommand(path_provider.matrices_path))
 
         path_provider.create_directories()
 

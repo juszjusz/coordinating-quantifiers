@@ -3,31 +3,31 @@ import logging
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
-from perception import ReactiveUnit
-from numpy import empty, array
+from numpy import empty, array, minimum
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
 from numpy import delete
 from numpy import divide
-from math_utils import integrate
-from stimulus import StimulusFactory
 from itertools import izip
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish
 
-
 class Language(Perception):
     gibberish = Gibberish()
 
     def __init__(self, params):
-        Perception.__init__(self, params)
+        Perception.__init__(self)
         self.lexicon = []
         self.lxc = AssociativeMatrix()
         self.delta_inc = params['delta_inc']
         self.delta_dec = params['delta_dec']
         self.delta_inh = params['delta_inh']
+        self.discriminative_threshold = params['discriminative_threshold']
+        self.alpha = params['alpha']  # forgetting
+        self.beta = params['beta']  # learning rate
+        self.super_alpha = params['super_alpha']
 
     def add_new_word(self):
         new_word = Language.gibberish.generate_word()
@@ -40,8 +40,8 @@ class Language(Perception):
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
-        c = Category(id = self.get_cat_id())
-        c.add_reactive_unit(ReactiveUnit(stimulus), weight)
+        c = Category(id=self.get_cat_id())
+        c.add_reactive_unit(stimulus, weight)
         self.categories.append(c)
         # TODO this should work
         self.lxc.add_col()
@@ -49,7 +49,7 @@ class Language(Perception):
 
     def update_category(self, i, stimulus):
         logging.debug("updating category by adding reactive unit centered on %s" % stimulus)
-        self.categories[i].add_reactive_unit(ReactiveUnit(stimulus))
+        self.categories[i].add_reactive_unit(stimulus)
 
     def get_most_connected_word(self, category):
         if category is None:
@@ -125,8 +125,9 @@ class Language(Perception):
     def forget_categories(self, category_in_use):
         category_index = self.categories.index(category_in_use)
         for c in self.categories:
-            c.weights = [self.alpha * w for w in c.weights]
-        to_forget = [j for j in range(len(self.categories)) if max(self.categories[j].weights) < self.super_alpha]
+            c.decrement_weights(self.alpha)
+        to_forget = [j for j in range(len(self.categories))
+                     if self.categories[j].max_weigth() < self.super_alpha and j != category_index]
 
         if len(to_forget):
             self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)
@@ -139,7 +140,7 @@ class Language(Perception):
     def discrimination_game(self, context, topic):
         self.store_ds_result(False)
         winning_category = self.discriminate(context, topic)
-        self.reinforce(winning_category, context[topic])
+        winning_category.reinforce(context[topic], self.beta)
         self.forget_categories(winning_category)
         self.switch_ds_result()
         return self.categories.index(winning_category)
@@ -152,23 +153,25 @@ class Language(Perception):
         old_weights = self.lxc.get_col_by_row(self.lexicon.index(word))
         #logging.debug("Old weights: %s" % str(old_weights))
 
-        incremented_weights = [w + inc for w, inc in zip(old_weights, increments)]
+        incremented_weights = [weight + inc for weight, inc in zip(old_weights, increments)]
         #logging.debug("Incremented weights: %s" % str(incremented_weights))
         self.lxc.set_values(axis=0, index=row, values=incremented_weights)
 
     # based on how much the word meaning covers the category
     def csimilarity(self, word, category):
-        wi = self.lexicon.index(word)
-        coverage = integrate(lambda x: min(self.word_meaning(word, x), category.fun(x)), category.x_left, category.x_right)
-        area = integrate(lambda x: category.fun(x), category.x_left, category.x_right)
-        return coverage / area
+        area = category.union()
+        # omit multiplication by x_delta because all we need is ratio: coverage/area:
+        word_meaning = self.word_meaning(word)
+        coverage = minimum(word_meaning, area)
 
-    def word_meaning(self, word, x):
-        wi = self.lexicon.index(word)
-        return sum([cat.fun(x) * wei for cat, wei in zip(self.categories, self.lxc.__matrix__[wi])])
+        return sum(coverage) / sum(area)
+
+    def word_meaning(self, word):
+        word_index = self.lexicon.index(word)
+        return sum([category.union() * word2category_weigth for category, word2category_weigth in zip(self.categories, self.lxc.__matrix__[word_index])])
 
     def is_monotone(self, word):
-        activations = map(lambda x: self.word_meaning(word, x), StimulusFactory.x)
+        activations = self.word_meaning(word)
         bool_activations = map(lambda x: x > 0.0, activations)
         alt = len([a for a, aa in izip(bool_activations, bool_activations[1:]) if a != aa])
         return alt == 1
