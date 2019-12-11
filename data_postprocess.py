@@ -33,7 +33,7 @@ class PlotCategoryCommand:
         ax = plt.gca()
         #plt.xscale("symlog")
         ax.xaxis.set_major_formatter(ScalarFormatter())
-        #plt.yscale("symlog")
+        plt.yscale("symlog")
         ax.yaxis.set_major_formatter(ScalarFormatter())
 
         cats = agent.get_categories()
@@ -119,7 +119,7 @@ class PlotLanguage2Command:
 
         plt.title("language2 in step {} of agent {}".format(step, agent_index))
         # plt.xscale("symlog")
-        # plt.yscale("symlog")
+        plt.yscale("symlog")
         ax = plt.gca()
         ax.xaxis.set_major_formatter(ScalarFormatter())
         ax.yaxis.set_major_formatter(ScalarFormatter())

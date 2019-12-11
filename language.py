@@ -48,7 +48,7 @@ class Language(Perception):
         return self.lxc.col_count() - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
-        logging.debug("updating category by adding reactive unit centered on %5.2f" % (stimulus.a / stimulus.b))
+        logging.debug("updating category by adding reactive unit centered on %s" % stimulus)
         self.categories[i].add_reactive_unit(stimulus)
 
     def get_most_connected_word(self, category):

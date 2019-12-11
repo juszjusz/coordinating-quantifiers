@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parsed_params = vars(parser.parse_args())
     load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
 
-    stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'])
+    stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
     context_constructor = ContextFactory(stimulus_factory)
 
     simulation_tasks = []
