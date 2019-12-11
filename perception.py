@@ -6,7 +6,7 @@ from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONS
     NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
 from collections import deque
 from inmemory_calculus import inmem
-
+import numpy as np
 
 class Category:
     def __init__(self, id):
