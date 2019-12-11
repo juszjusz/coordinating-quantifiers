@@ -474,25 +474,26 @@ class PlotSuccessCommand:
 
 class PlotNumberOfDSCommand:
 
-    def __init__(self, root_path, threshold=0):
+    def __init__(self, root_path, threshold=0, active_only=False):
         self.root_path = root_path
         self.threshold = threshold
+        self.active_only = active_only
 
-    def get_whole_lexicon(self, run_path, num_agent, active_only=False):
+    def get_whole_lexicon(self, run_path, num_agent):
         self.params = pickle.load(
             PathProvider(run_path).get_simulation_params_path().open('rb'))
         self.whole_lexicon = set()
         StimulusFactory.init(self.params['stimulus'], self.params['max_num'])
         for step_path in PathProvider(run_path).get_data_paths():
             _, population = pickle.load(step_path.open('rb'))
-            if active_only:
+            if self.active_only:
                 self.whole_lexicon = self.whole_lexicon.union(population.agents[num_agent].get_active_lexicon())
             else:
                 self.whole_lexicon=self.whole_lexicon.union(population.agents[num_agent].get_lexicon())
         self.whole_lexicon = list(self.whole_lexicon) # cast to list to preserve the order
 
 
-    def fill_steps(self, run_path, num_agent, active_only=False):
+    def fill_steps(self, run_path, num_agent):
         for step_path in PathProvider(run_path).get_data_paths():
             current_step, population = pickle.load(step_path.open('rb'))
             for word in self.whole_lexicon:
@@ -502,22 +503,33 @@ class PlotNumberOfDSCommand:
                 except ValueError:
                     pass
 
-    def plot(self, run_path, num_agent):
+    def plot(self, run_path, num_agent, min_DS_Num):
         f = plt.figure()
         ax = f.add_subplot(111)
         t = arange(self.dcnum.shape[1])
+        short_legend = []
         for word in self.whole_lexicon:
             i = self.whole_lexicon.index(word)
-            ax.step(t, self.dcnum[i])
-        ax.legend(self.whole_lexicon, bbox_to_anchor=(1.04, 1), loc='upper left')
-        f.savefig(str(run_path.joinpath('num_of_DC_agent_'+str(num_agent)+'.png')), bbox_inches="tight")
+            if self.dcnum[i].max() >= min_DS_Num:
+                ax.step(t, self.dcnum[i])
+                short_legend.append(word)
+        ax.legend(short_legend, bbox_to_anchor=(1.04, 1), loc='upper left')
+        ax.set_title('Number of Discriminative Categories pinned to the word forms. \n '
+                     'Only words having at least '+str(min_DS_Num)+' DC\'s are shown')
+        ax.set_xlabel('Step of the simulation')
+        ax.set_ylabel('Number of Disciminative Categories')
+        if self.active_only:
+            out_filename = str(run_path.joinpath('num_of_DC_agent_ACTIVE_'+str(num_agent)+'.png'))
+        else:
+            out_filename = str(run_path.joinpath('num_of_DC_agent_'+str(num_agent)+'.png'))
+        f.savefig(out_filename, bbox_inches="tight")
 
     def __call__(self, run_num=0, num_agent=0):
-        self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent, active_only=True)
+        self.get_whole_lexicon(self.root_path.joinpath('run' + str(run_num)), num_agent)
         self.dcnum = zeros([len(self.whole_lexicon), self.params['steps']])
 
         self.fill_steps(self.root_path.joinpath('run' + str(run_num)), num_agent)
-        self.plot(self.root_path.joinpath('run' + str(run_num)), num_agent)
+        self.plot(self.root_path.joinpath('run' + str(run_num)), num_agent, 2)
 
         print self.dcnum
 
@@ -562,7 +574,7 @@ if __name__ == '__main__':
         plot_mon_command()
 
     if parsed_params['plot_num_DS']:
-        plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']))
+        plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']), active_only=True)
         plot_num_DS_command()
 
     if parsed_params['plot_success']:
