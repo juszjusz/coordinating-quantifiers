@@ -92,8 +92,8 @@ class GuessingGame:
 
 
         if self.completed and success1:
-            speaker.update_on_success2c(speaker_word, speaker_category)
-            hearer.update_on_success2c(speaker_word, hearer_category)
+            speaker.update_on_success(speaker_word, speaker_category)
+            hearer.update_on_success(speaker_word, hearer_category)
         elif self.completed:
             hearer.update_on_failure(speaker_word, hearer_category)
             speaker.update_on_failure(speaker_word, speaker_category)
