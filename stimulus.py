@@ -3,10 +3,8 @@ from __future__ import division  # force python 3 division in python 2
 from fractions import Fraction
 from random import randint
 
-from inmemory_calculus import inmem
-
 class AbstractStimulus:
-    def is_noticeably_different_from(self, other_stimulus):
+    def is_noticeably_different_from(self, other):
         raise NotImplementedError
 
 
@@ -24,6 +22,14 @@ class ContextFactory:
 
         return [s1, s2]
 
+
+class NumericBasedStimulusFactory:
+    def __init__(self, max):
+        self.__max = max
+
+    def __call__(self):
+        n = randint(0, self.__max)
+        return NumericBasedStimulus(n)
 
 class QuotientBasedStimulusFactory:
     def __init__(self, stimulus_list, max):
@@ -46,6 +52,15 @@ class QuotientBasedStimulusFactory:
         #n, k = self.stimulus_list[index]
         #return QuotientBasedStimulus(index, Fraction(n, k))
 
+class NumericBasedStimulus(AbstractStimulus):
+    def __init__(self, n):
+        self.__n = n
+
+    def __str__(self):
+        return str(self.__n)
+
+    def is_noticeably_different_from(self, other):
+        return True
 
 class QuotientBasedStimulus(AbstractStimulus):
     def __init__(self, index, nk):

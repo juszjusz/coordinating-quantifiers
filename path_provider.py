@@ -34,7 +34,10 @@ class PathProvider:
         return self.data_path.joinpath('step{}.p'.format(step))
 
     def get_simulation_params_path(self):
-        return self.data_path.joinpath('params.p')
+        return self.root_path.joinpath('params.p')
+
+    def get_inmem_calc_path(self):
+        return self.root_path.joinpath('inmem_calc.p')
 
     def create_directory_structure(self):
         os.makedirs(str(self.data_path))
