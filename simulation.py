@@ -16,12 +16,11 @@ from inmemory_calculus import load_inmemory_calculus, inmem
 import os
 import shutil
 
-from stimulus import QuotientBasedStimulusFactory, ContextFactory
+from stimulus import QuotientBasedStimulusFactory, ContextFactory, NumericBasedStimulusFactory
 
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
-import stimulus
 
 class Simulation(Process):
 
@@ -86,8 +85,12 @@ if __name__ == "__main__":
     parsed_params = vars(parser.parse_args())
     load_inmemory_calculus(parsed_params['stimulus'])
 
-    stimulus.stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
-    context_constructor = ContextFactory(stimulus.stimulus_factory)
+    stimulus_factory = None
+    if parsed_params['stimulus'] == 'quotient':
+        stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
+    if parsed_params['stimulus'] == 'numeric':
+        stimulus_factory = NumericBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
+    context_constructor = ContextFactory(stimulus_factory)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:
@@ -134,6 +137,10 @@ if __name__ == "__main__":
     in_mem_path = str(Path(path_provider.root_path).joinpath('inmem_calc.p'))
     with open(in_mem_path, 'wb') as write_inmem:
         dill.dump(inmem, write_inmem)
+
+    stimuluses_path = str(Path(path_provider.root_path).joinpath('stimuluses.p'))
+    with open(stimuluses_path, 'wb') as write_stimuluses:
+        dill.dump(stimulus_factory.generate_all_stimuluses(), write_stimuluses)
 
     if parsed_params['parallel']:
         for simulation_task in simulation_tasks:

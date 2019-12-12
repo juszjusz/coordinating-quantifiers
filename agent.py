@@ -42,8 +42,8 @@ class Population:
     #    self.cs.append(sum(map(Agent.get_communicative_success, self.agents)) / len(self.agents))
     #    self.cs.append(sum(map(Agent.get_communicative_success2, self.agents)) / len(self.agents))
 
-    def get_mon(self):
-       return sum(map(lambda agent: agent.get_monotonicity() * 100.0, self.agents)) / len(self.agents)
+    def get_mon(self, stimuluses):
+       return sum(map(lambda agent: agent.get_monotonicity(stimuluses) * 100.0, self.agents)) / len(self.agents)
 
 
 class Agent:
@@ -90,10 +90,10 @@ class Agent:
     def get_communicative_success12(self):
         return sum(self.cs12_scores) / len(self.cs12_scores)
 
-    def get_active_lexicon(self):
+    def get_active_lexicon(self, stimuluses):
         active_lexicon = set([])
 
-        for s in stimulus.stimulus_factory.get_stimuli():
+        for s in stimuluses:
             if len(self.get_categories()) == 0:
                 continue
             responses = array([c.response(s) for c in self.get_categories()])
@@ -110,8 +110,8 @@ class Agent:
                 continue
         return list(active_lexicon)
 
-    def get_monotonicity(self):
-        active_lexicon = self.get_active_lexicon()
+    def get_monotonicity(self, stimuluses):
+        active_lexicon = self.get_active_lexicon(stimuluses)
         #logging.debug("Active lexicon of agent(%d): %s" % (self.id, active_lexicon))
         mons = map(self.language.is_monotone, active_lexicon)
         #logging.debug("Monotonicity: %s" % mons)

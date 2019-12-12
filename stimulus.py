@@ -1,10 +1,14 @@
 from __future__ import division  # force python 3 division in python 2
 
 from fractions import Fraction
-from random import randint
+from random import randint, choice
+
 
 class AbstractStimulus:
     def is_noticeably_different_from(self, other):
+        raise NotImplementedError
+class AbstractStimulusFactory:
+    def generate_all_stimuluses(self):
         raise NotImplementedError
 
 
@@ -23,15 +27,19 @@ class ContextFactory:
         return [s1, s2]
 
 
-class NumericBasedStimulusFactory:
-    def __init__(self, max):
+class NumericBasedStimulusFactory(AbstractStimulusFactory):
+    def __init__(self, stimulus_list, max):
+        self.stimulus_list = stimulus_list
         self.__max = max
 
     def __call__(self):
-        n = randint(0, self.__max)
+        n = choice(self.stimulus_list)
         return NumericBasedStimulus(n)
 
-class QuotientBasedStimulusFactory:
+    def generate_all_stimuluses(self):
+        return list(map(NumericBasedStimulus, self.stimulus_list))
+
+class QuotientBasedStimulusFactory(AbstractStimulusFactory):
     def __init__(self, stimulus_list, max):
         self.stimulus_list_arr = stimulus_list
         self.stimulus_list = [list(self.stimulus_list_arr[i]) for i in range(0, len(self.stimulus_list_arr))]
@@ -52,8 +60,12 @@ class QuotientBasedStimulusFactory:
         #n, k = self.stimulus_list[index]
         #return QuotientBasedStimulus(index, Fraction(n, k))
 
+    def generate_all_stimuluses(self):
+        return self.filtered_stimulus_list
+
 class NumericBasedStimulus(AbstractStimulus):
     def __init__(self, n):
+        self.index = n
         self.__n = n
 
     def __str__(self):
@@ -73,5 +85,3 @@ class QuotientBasedStimulus(AbstractStimulus):
     def is_noticeably_different_from(self, other):
         ds = 0.3 * min(self.__nk, other.__nk)
         return abs(self.__nk - other.__nk) > ds
-
-stimulus_factory = None

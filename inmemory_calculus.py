@@ -23,12 +23,13 @@ def __load_inmemory_calculus(path, key, dataset_key=u'Dataset1'):
 def load_inmemory_calculus(type):
     root_path = Path(os.path.abspath('inmemory_calculus'))
 
-    if type == 'quotient': # for quotient based we expect the file with reducted quotients
-        __load_inmemory_calculus(root_path.joinpath(type).joinpath('nklist.h5'), 'STIMULUS_LIST')
-
     __load_inmemory_calculus(root_path.joinpath(type).joinpath('R.h5'), 'REACTIVE_UNIT_DIST')
     __load_inmemory_calculus(root_path.joinpath(type).joinpath('RxR.h5'), 'REACTIVE_X_REACTIVE')
     __load_inmemory_calculus(root_path.joinpath(type).joinpath('domain.h5'), 'DOMAIN')
+    if type == 'quotient': # for quotient based we expect the file with reducted quotients
+        __load_inmemory_calculus(root_path.joinpath(type).joinpath('nklist.h5'), 'STIMULUS_LIST')
+    if type == 'numeric':
+        inmem['STIMULUS_LIST'] = np.arange(0, len(inmem['REACTIVE_UNIT_DIST']))
 
     STIMULUS_LIST = inmem['STIMULUS_LIST']
     REACTIVE_UNIT_DIST = inmem['REACTIVE_UNIT_DIST']
@@ -50,7 +51,3 @@ def load_inmemory_calculus(type):
         raise ValueError()
     if not REACTIVE_UNIT_DIST.shape[1] == DOMAIN.shape[0]:
         raise ValueError()
-
-def set_inmem(_inmem):
-    for k, v in _inmem:
-        inmem[k] = v

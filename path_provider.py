@@ -39,6 +39,9 @@ class PathProvider:
     def get_inmem_calc_path(self):
         return self.root_path.joinpath('inmem_calc.p')
 
+    def get_stimuluses_path(self):
+        return self.root_path.joinpath('stimuluses.p')
+
     def create_directory_structure(self):
         os.makedirs(str(self.data_path))
 
