@@ -38,7 +38,7 @@ class Simulation(Process):
         start_time = time.time()
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
-            logging.debug("\n------------\nSTEP %d" % step_with_offset)
+            logging.critical("\n------------\nSTEP %d" % step_with_offset)
             selected_pairs = self.population.select_pairs_per_round(self.population.population_size // 2)
 
             for speaker, hearer in selected_pairs:
@@ -49,6 +49,7 @@ class Simulation(Process):
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
             self.population.update_metrics()
+            logging.critical("cs: %d" % self.population.cs1[-1])
 
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
@@ -66,7 +67,7 @@ class Simulation(Process):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stderr, level=logging.CRITICAL)
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')

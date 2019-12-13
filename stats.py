@@ -4,7 +4,7 @@ from scipy import stats
 from math import sqrt
 
 
-def confidence_interval(sample, level=0.95, method='z'):
+def confidence_interval(sample, level=0.95, method='t'):
     mean_val = mean(sample)
     n = len(sample)
     stdev = std(sample)

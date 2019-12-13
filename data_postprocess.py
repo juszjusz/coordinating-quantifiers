@@ -383,6 +383,7 @@ class PlotSuccessCommand:
         self.root_path = root_path
         self.params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
         self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
+        self.steps = [max(step*10-1, 0) for step in range(1 + self.params['steps']/10)]
         self.samples_cs1 = []
         self.samples_ds = []
         self.samples_cs2 = []
@@ -420,6 +421,8 @@ class PlotSuccessCommand:
             self.samples_cs1.append([populations[run].cs1[step] for run in range(self.params['runs'])])
             self.samples_cs2.append([populations[run].cs2[step] for run in range(self.params['runs'])])
             self.samples_cs12.append([populations[run].cs12[step] for run in range(self.params['runs'])])
+        for step in self.steps:
+            logging.debug(step)
             nw_sample = []
             for r in range(self.params['runs']):
                 run_path = self.root_path.joinpath('run' + str(r))
@@ -434,7 +437,7 @@ class PlotSuccessCommand:
         self.cs12_means = means(self.samples_cs12)
         self.ds_means = means(self.samples_ds)
         self.nw_means = means(self.samples_nw)
-        logging.debug(self.nw_means)
+        #logging.debug(self.nw_means)
 
         self.nw_cis_l, self.nw_cis_u = confidence_intervals(self.samples_nw)
         self.cs1_cis_l, self.cs1_cis_u = confidence_intervals(self.samples_cs1)
@@ -444,38 +447,45 @@ class PlotSuccessCommand:
 
     def plot(self):
         x = range(self.params['steps'])
+        x100 = self.steps
         fig, ax1 = plt.subplots()
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
         plt.ylabel("success")
-        x_ex = range(0, self.params['steps'] + 3)
-        th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
-        plt.plot(x_ex, th, ':', linewidth=0.2)
+        #x_ex = range(0, self.params['steps'] + 3)
+        #th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
+        #plt.plot(x_ex, th, ':', linewidth=0.2)
 
         # for r in range(self.params['runs']):
         #    plt.plot(x, self.array_ds[r], 'r--', linewidth=0.5)
         #    plt.plot(x, self.array_cs[r], 'b-', linewidth=0.5)
 
-        plt.plot(x, self.ds_means, 'r-', linewidth=0.3)
-        plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
-                         color='r', alpha=.2)
+        plt.plot(x, self.ds_means, 'r-', linewidth=0.6)
+        for i in range(0, self.params['runs']):
+            plt.plot(x, [self.samples_ds[s][i] for s in range(0, self.params['steps'])], 'r-', linewidth=0.2, alpha=.3)
+        #plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
+        #                 color='r', alpha=.2)
 
 
-        plt.plot(x, self.cs1_means, 'g--', linewidth=0.3)
-        plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
-                         color='g', alpha=.2)
+        plt.plot(x, self.cs1_means, 'g--', linewidth=0.6)
+        for i in range(0, self.params['runs']):
+            plt.plot(x, [self.samples_cs1[s][i] for s in range(0, self.params['steps'])], 'g-', linewidth=0.2, alpha=.3)
+        #plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
+        #                 color='g', alpha=.2)
 
-        ax1.legend(['dt', 'ds', 'cs'], loc='upper left')
+        #ax1.legend(['discrimination', 'communication'], loc='lower right')
         ax2 = ax1.twinx()
-        ax2.set_ylabel('means size of active lexicon')
+        ax2.set_ylabel('|active lexicon|')
         #ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax2.plot(x, self.nw_means, 'b--', linewidth=0.3)
-        ax2.fill_between(x, self.nw_cis_l, self.nw_cis_u,
+        ax2.plot(x100, self.nw_means, 'b--', linewidth=0.3)
+        #for i in range(0, self.params['runs']):
+        #    ax2.plot(x100, [self.samples_nw[s][i] for s in range(0, len(self.steps))], 'b-', linewidth=0.2, alpha=.3)
+        ax2.fill_between(x100, self.nw_cis_l, self.nw_cis_u,
                          color='b', alpha=.2)
         ax2.set_yticks(range(0, 11, 1), ('0', '1', '2', '3', '4','5','6','7','8','9','10'))
         ax2.tick_params(axis='y')
-        ax2.legend(['n'], loc='lower right')
+        #ax2.legend(['size'], loc='upper right')
 
         #plt.plot(x, self.cs2_means, 'b--', linewidth=0.3)
         #plt.fill_between(x, self.cs2_cis_l, self.cs2_cis_u,
@@ -574,7 +584,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
@@ -608,6 +618,7 @@ if __name__ == '__main__':
     if parsed_params['plot_success']:
         logging.debug('start plot success')
         plot_success_command = PlotSuccessCommand(Path(parsed_params['data_root']))
+        PathProvider.create_dir_if_not_exists(Path(parsed_params['data_root']).joinpath('stats'))
         plot_success_command()
 
     # set commands to be executed
