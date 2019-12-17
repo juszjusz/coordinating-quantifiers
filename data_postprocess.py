@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, column_stack, arange, log, amax, zeros
-import dill
 
 
 class PlotCategoryCommand:
@@ -253,14 +252,14 @@ class Task(Process):
 
 class PlotMonotonicityCommand:
 
-    def __init__(self, root_paths):
+    def __init__(self, root_paths, stimuluses, params):
         self.root_path2 = None
         self.root_path1 = Path(root_paths[0])
         if len(root_paths) > 1:
             self.root_path2 = Path(root_paths[1])
 
-        self.params = pickle.load(PathProvider.new_path_provider(self.root_path1.joinpath('run0')).get_simulation_params_path().open('rb'))
-
+        self.stimuluses = stimuluses
+        self.params = params
         self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
         self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')
         #self.array1 = zeros((self.params['runs'], self.steps))
@@ -283,7 +282,7 @@ class PlotMonotonicityCommand:
                 #logging.debug("Processing %s, %s" % (run_num, run_path))
                 #logging.debug("Processing %s" % "step" + str(step) + ".p")
                 step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
-                sample.append(population.get_mon())
+                sample.append(population.get_mon(self.stimuluses))
                 #logging.debug("mon val %f" % sample[-1])
             self.mon_samples1.append(sample)
         #for step in range(self.params['steps']):
@@ -379,9 +378,10 @@ class PlotMonotonicityCommand:
 
 class PlotSuccessCommand:
 
-    def __init__(self, root_path):
+    def __init__(self, root_path, stimuluses, params):
         self.root_path = root_path
-        self.params = pickle.load(PathProvider.new_path_provider(root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
+        self.params = params
+        self.stimuluses = stimuluses
         self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
         self.samples_cs1 = []
         self.samples_ds = []
@@ -425,7 +425,7 @@ class PlotSuccessCommand:
                 run_path = self.root_path.joinpath('run' + str(r))
                 rsp = run_path.joinpath('data/step' + str(step) + '.p')
                 step, population = pickle.load(rsp.open('rb'))
-                nw_sample.append(sum([len(a.get_active_lexicon()) for a in population.agents]) / psize)
+                nw_sample.append(sum([len(a.get_active_lexicon(self.stimuluses)) for a in population.agents]) / psize)
             self.samples_nw.append(nw_sample)
 
     def compute_stats(self):
@@ -571,7 +571,7 @@ if __name__ == '__main__':
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
                         default="test")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
@@ -579,18 +579,20 @@ if __name__ == '__main__':
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
-    parser.add_argument('--in_memory_calculus_path', '-in_mem', help='path to in memory calculus', type=str, default='inmemory_calculus')
 
     parsed_params = vars(parser.parse_args())
 
     logging.debug("loading pickled simulation from '%s' file", parsed_params['data_root'])
     data_root_path = Path(parsed_params['data_root'])
-    sim_params = pickle.load(PathProvider.new_path_provider(data_root_path.joinpath('run0')).get_simulation_params_path().open('rb'))
-    load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
-    stimulus.stimulus_factory = stimulus.QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], sim_params['max_num'])
+    sim_params = pickle.load(PathProvider.new_path_provider(data_root_path).get_simulation_params_path().open('rb'))
+    unpickled_inmem = pickle.load(PathProvider.new_path_provider(data_root_path).get_inmem_calc_path().open('rb'))
+    unpickled_stimuluses = pickle.load(PathProvider.new_path_provider(data_root_path).get_stimuluses_path().open('rb'))
+
+    for k, v in unpickled_inmem.items():
+        inmem[k] = v
 
     if len(parsed_params['plot_mons']) > 0:
-        pmc = PlotMonotonicityCommand(parsed_params['plot_mons'])
+        pmc = PlotMonotonicityCommand(parsed_params['plot_mons'], unpickled_stimuluses, sim_params)
         pmc()
 
     if not data_root_path.exists():
@@ -598,7 +600,7 @@ if __name__ == '__main__':
         exit()
 
     if parsed_params['plot_mon']:
-        plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']])
+        plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']], unpickled_stimuluses, sim_params)
         plot_mon_command()
 
     if parsed_params['plot_num_DS']:
@@ -607,14 +609,13 @@ if __name__ == '__main__':
 
     if parsed_params['plot_success']:
         logging.debug('start plot success')
-        plot_success_command = PlotSuccessCommand(Path(parsed_params['data_root']))
+        plot_success_command = PlotSuccessCommand(Path(parsed_params['data_root']), unpickled_stimuluses, sim_params)
         plot_success_command()
 
     # set commands to be executed
     for data_path in Path(parsed_params['data_root']).glob('run[0-9]*'):
         path_provider = PathProvider.new_path_provider(data_path)
         command_executor = CommandExecutor()
-        params = pickle.load(path_provider.get_simulation_params_path().open('rb'))
 
         if parsed_params['plot_cats']:
             command_executor.add_command(PlotCategoryCommand(path_provider.cats_path, inmem))
@@ -627,7 +628,7 @@ if __name__ == '__main__':
 
         path_provider.create_directories()
 
-        last_step = params['steps'] - 1
+        last_step = sim_params['steps'] - 1
         _, last_population = pickle.load(path_provider.get_simulation_step_path(last_step).open('rb'))
         path_provider.get_simulation_step_path(last_step)
 
