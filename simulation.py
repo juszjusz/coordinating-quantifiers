@@ -38,7 +38,7 @@ class Simulation(Process):
         start_time = time.time()
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
-            logging.debug("\n------------\nSTEP %d" % step_with_offset)
+            logging.critical("\n------------\nSTEP %d" % step_with_offset)
             selected_pairs = self.population.select_pairs_per_round(self.population.population_size // 2)
 
             for speaker, hearer in selected_pairs:

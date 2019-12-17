@@ -250,6 +250,109 @@ class Task(Process):
         self.execute_commands(self.chunk, self.last_population)
 
 
+class PlotConvexityCommand:
+
+    def __init__(self, root_paths, stimuluses, params):
+        self.root_path2 = None
+        self.root_path1 = Path(root_paths[0])
+        if len(root_paths) > 1:
+            self.root_path2 = Path(root_paths[1])
+
+        self.stimuluses = stimuluses
+        self.params = params
+
+        self.steps = [max(step*10-1, 0) for step in range(1 + self.params['steps']/10)]
+        logging.critical(self.steps)
+        #self.steps = range(0, self.params['steps'])
+        self.conv_plot_path = self.root_path1.joinpath('stats/convexity.pdf')
+        #self.array1 = zeros((self.params['runs'], self.steps))
+        self.conv_samples1 = []
+        #self.array2 = zeros((self.params['runs'], self.steps))
+        self.conv_samples2 = []
+        self.conv_means1 = []
+        self.conv_cis1_l = []
+        self.conv_cis1_u = []
+        self.conv_means2 = []
+        self.conv_cis2_l = []
+        self.conv_cis2_u = []
+
+    def get_data(self):
+        #logging.debug("Root path %s" % self.root_path1)
+        for step in self.steps:
+            logging.debug("Processing step %d" % step)
+            sample = []
+            for run_num, run_path in enumerate(self.root_path1.glob('run[0-9]*')):
+                #logging.debug("Processing %s, %s" % (run_num, run_path))
+                #logging.debug("Processing %s" % "step" + str(step) + ".p")
+                step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                sample.append(population.get_convexity(self.stimuluses))
+                #logging.debug("mon val %f" % sample[-1])
+            self.conv_samples1.append(sample)
+        #for step in range(self.params['steps']):
+        #    self.mon_samples1.append(list(self.array1[:, max(step*100-1, 0)]))
+
+        if self.root_path2 is not None:
+            logging.debug("Root path %s" % self.root_path2)
+            for step in self.steps:
+                logging.debug("Processing step %d" % step)
+                sample = []
+                for run_num, run_path in enumerate(self.root_path2.glob('run[0-9]')):
+                    logging.debug("Processing %s, %s" % (run_num, run_path))
+                    #for step_path in PathProvider(run_path).get_data_paths():
+                    #logging.debug("Processing %s" % step_path)
+                    step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                    #self.array2[run_num, step] = population.get_mon()
+                    #logging.debug("mon val %f" % self.array2[run_num, step])
+                    sample.append(population.get_convexity(self.stimuluses))
+                self.conv_samples2.append(sample)
+                #for step in range(self.params['steps']):
+                #self.mon_samples2.append(list(self.array2[:, step]))
+
+    def compute_stats(self):
+        logging.debug('in compute_stats')
+        self.conv_means1 = means(self.conv_samples1)
+        #logging.debug(len(self.mon_means1))
+
+        self.conv_cis1_l, self.conv_cis1_u = confidence_intervals(self.conv_samples1)
+
+        if self.root_path2 is not None:
+            self.mon_means2 = means(self.conv_samples2)
+            self.mon_cis2_l, self.mon_cis2_u = confidence_intervals(self.conv_samples2)
+
+    def plot(self):
+        #x = range(1, self.params['steps'] + 1)
+        x = self.steps
+        plt.ylim(bottom=50)
+        plt.ylim(top=105)
+        plt.xlabel("step")
+        plt.ylabel("convexity")
+
+        #for r in range(self.runs):
+        #    plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
+
+        plt.plot(x, self.conv_means1, 'k-', linewidth=0.3)
+
+        for i in range(0, self.params['runs']):
+            logging.critical("run %d" % i)
+            plt.plot(x, [self.conv_samples1[s][i] for s in range(0, len(self.steps))], 'k-', linewidth=0.2, alpha=.3)
+
+        if self.root_path2 is not None:
+            plt.plot(x, self.conv_means2, 'b--', linewidth=0.3)
+            plt.fill_between(x, self.conv_cis2_l, self.conv_cis2_u,
+                             color='b', alpha=.2)
+            plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
+        else:
+            #plt.legend([str(self.root_path1)], loc='lower right')
+            plt.legend(['convexity'], loc='lower right')
+        plt.savefig(str(self.conv_plot_path))
+        plt.close()
+
+    def __call__(self):
+        self.get_data()
+        self.compute_stats()
+        self.plot()
+
+
 class PlotMonotonicityCommand:
 
     def __init__(self, root_paths, stimuluses, params):
@@ -383,6 +486,7 @@ class PlotSuccessCommand:
         self.params = params
         self.stimuluses = stimuluses
         self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
+        self.steps = [max(step*10-1, 0) for step in range(1 + self.params['steps']/10)]
         self.samples_cs1 = []
         self.samples_ds = []
         self.samples_cs2 = []
@@ -420,6 +524,8 @@ class PlotSuccessCommand:
             self.samples_cs1.append([populations[run].cs1[step] for run in range(self.params['runs'])])
             self.samples_cs2.append([populations[run].cs2[step] for run in range(self.params['runs'])])
             self.samples_cs12.append([populations[run].cs12[step] for run in range(self.params['runs'])])
+        for step in self.steps:
+            logging.debug(step)
             nw_sample = []
             for r in range(self.params['runs']):
                 run_path = self.root_path.joinpath('run' + str(r))
@@ -434,7 +540,7 @@ class PlotSuccessCommand:
         self.cs12_means = means(self.samples_cs12)
         self.ds_means = means(self.samples_ds)
         self.nw_means = means(self.samples_nw)
-        logging.debug(self.nw_means)
+        #logging.debug(self.nw_means)
 
         self.nw_cis_l, self.nw_cis_u = confidence_intervals(self.samples_nw)
         self.cs1_cis_l, self.cs1_cis_u = confidence_intervals(self.samples_cs1)
@@ -444,38 +550,45 @@ class PlotSuccessCommand:
 
     def plot(self):
         x = range(self.params['steps'])
+        x100 = self.steps
         fig, ax1 = plt.subplots()
         plt.ylim(bottom=0)
         plt.ylim(top=100)
         plt.xlabel("step")
         plt.ylabel("success")
-        x_ex = range(0, self.params['steps'] + 3)
-        th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
-        plt.plot(x_ex, th, ':', linewidth=0.2)
+        #x_ex = range(0, self.params['steps'] + 3)
+        #th = [self.params['discriminative_threshold'] * 100 for i in x_ex]
+        #plt.plot(x_ex, th, ':', linewidth=0.2)
 
         # for r in range(self.params['runs']):
         #    plt.plot(x, self.array_ds[r], 'r--', linewidth=0.5)
         #    plt.plot(x, self.array_cs[r], 'b-', linewidth=0.5)
 
-        plt.plot(x, self.ds_means, 'r-', linewidth=0.3)
-        plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
-                         color='r', alpha=.2)
+        plt.plot(x, self.ds_means, 'r-', linewidth=0.6)
+        for i in range(0, self.params['runs']):
+            plt.plot(x, [self.samples_ds[s][i] for s in range(0, self.params['steps'])], 'r-', linewidth=0.2, alpha=.3)
+        #plt.fill_between(x, self.ds_cis_l, self.ds_cis_u,
+        #                 color='r', alpha=.2)
 
 
-        plt.plot(x, self.cs1_means, 'g--', linewidth=0.3)
-        plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
-                         color='g', alpha=.2)
+        plt.plot(x, self.cs1_means, 'g--', linewidth=0.6)
+        for i in range(0, self.params['runs']):
+            plt.plot(x, [self.samples_cs1[s][i] for s in range(0, self.params['steps'])], 'g-', linewidth=0.2, alpha=.3)
+        #plt.fill_between(x, self.cs1_cis_l, self.cs1_cis_u,
+        #                 color='g', alpha=.2)
 
-        ax1.legend(['dt', 'ds', 'cs'], loc='upper left')
+        #ax1.legend(['discrimination', 'communication'], loc='lower right')
         ax2 = ax1.twinx()
-        ax2.set_ylabel('means size of active lexicon')
+        ax2.set_ylabel('|active lexicon|')
         #ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax2.plot(x, self.nw_means, 'b--', linewidth=0.3)
-        ax2.fill_between(x, self.nw_cis_l, self.nw_cis_u,
+        ax2.plot(x100, self.nw_means, 'b--', linewidth=0.3)
+        #for i in range(0, self.params['runs']):
+        #    ax2.plot(x100, [self.samples_nw[s][i] for s in range(0, len(self.steps))], 'b-', linewidth=0.2, alpha=.3)
+        ax2.fill_between(x100, self.nw_cis_l, self.nw_cis_u,
                          color='b', alpha=.2)
         ax2.set_yticks(range(0, 11, 1), ('0', '1', '2', '3', '4','5','6','7','8','9','10'))
         ax2.tick_params(axis='y')
-        ax2.legend(['n'], loc='lower right')
+        #ax2.legend(['size'], loc='upper right')
 
         #plt.plot(x, self.cs2_means, 'b--', linewidth=0.3)
         #plt.fill_between(x, self.cs2_cis_l, self.cs2_cis_u,
@@ -499,19 +612,19 @@ class PlotSuccessCommand:
 
 class PlotNumberOfDSCommand:
 
-    def __init__(self, root_path, threshold=0, active_only=False):
+    def __init__(self, root_path, stimuluses, params, threshold=0, active_only=False):
         self.root_path = root_path
+        self.stimuluses = stimuluses
+        self.params = params
         self.threshold = threshold
         self.active_only = active_only
 
     def get_whole_lexicon(self, run_path, num_agent):
-        self.params = pickle.load(
-            PathProvider(run_path).get_simulation_params_path().open('rb'))
         self.whole_lexicon = set()
         for step_path in PathProvider(run_path).get_data_paths():
             _, population = pickle.load(step_path.open('rb'))
             if self.active_only:
-                self.whole_lexicon = self.whole_lexicon.union(population.agents[num_agent].get_active_lexicon())
+                self.whole_lexicon = self.whole_lexicon.union(population.agents[num_agent].get_active_lexicon(self.stimuluses))
             else:
                 self.whole_lexicon=self.whole_lexicon.union(population.agents[num_agent].get_lexicon())
         self.whole_lexicon = list(self.whole_lexicon) # cast to list to preserve the order
@@ -571,12 +684,13 @@ if __name__ == '__main__':
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
                         default="test")
     parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
-    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=True)
+    parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
-    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=True)
+    parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
+    parser.add_argument('--plot_conv', '-conv', help='plot convexity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
@@ -603,8 +717,12 @@ if __name__ == '__main__':
         plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']], unpickled_stimuluses, sim_params)
         plot_mon_command()
 
+    if parsed_params['plot_conv']:
+        plot_conv_command = PlotConvexityCommand([parsed_params['data_root']], unpickled_stimuluses, sim_params)
+        plot_conv_command()
+
     if parsed_params['plot_num_DS']:
-        plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']), active_only=True)
+        plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']), unpickled_stimuluses, sim_params, active_only=True)
         plot_num_DS_command()
 
     if parsed_params['plot_success']:

@@ -29,14 +29,15 @@ class NO_ASSOCIATED_CATEGORIES(LanguageError):
 class NO_CATEGORY(PerceptionError):
     pass
 
+# agent has categories but cannot discriminate
+class NO_DISCRIMINATION(PerceptionError):
+    pass
 
 # agent has categories but is unable to discriminate, lower response for stimulus 1
 class NO_DISCRIMINATION_LOWER_1(PerceptionError):
 
     def __init__(self, i):
         self.i = i
-
-
 
 # agent has categories but is unable to discriminate, lower response for stimulus 2
 class NO_DISCRIMINATION_LOWER_2(PerceptionError):

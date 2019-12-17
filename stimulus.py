@@ -83,5 +83,5 @@ class QuotientBasedStimulus(AbstractStimulus):
         return str(self.__nk) + ' = ' + str(float(self.__nk))
 
     def is_noticeably_different_from(self, other):
-        ds = 0.3 * min(self.__nk, other.__nk)
+        ds = 0.3 * self.__nk
         return abs(self.__nk - other.__nk) > ds

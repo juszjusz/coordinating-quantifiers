@@ -2,11 +2,11 @@ from __future__ import division  # force python 3 division in python 2
 
 import matplotlib.pyplot as plt
 
-from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
-    NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY
+from guessing_game_exceptions import NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY, NO_DISCRIMINATION
 from collections import deque
 from inmemory_calculus import inmem
 import numpy as np
+from random import choice
 
 class Category:
     def __init__(self, id):
@@ -28,7 +28,7 @@ class Category:
         responses = [self.response(s) for s in stimuli]
         max_response = max(responses)
         which = [i for i, j in enumerate(responses) if j == max_response]
-        return which[0] if len(which) == 1 else None
+        return which[0] if len(which) == 1 else choice([0,1])
         # TODO example: responses == [0.0, 0.0]
 
     def reinforce(self, stimulus, beta, REACTIVE_X_REACTIVE=None):
@@ -90,6 +90,15 @@ class Perception:
         self.ds_scores[-1] = 1 - self.ds_scores[-1]
         self.discriminative_success = sum(self.ds_scores) / len(self.ds_scores)
 
+    def get_best_matching_category(self, stimulus):
+        responses = [c.response(stimulus) for c in self.categories]
+        try:
+            max_resp = max(responses)
+        except ValueError:
+            return None
+        max_args = [i for i, j in enumerate(responses) if j == max_resp]
+        return max_args[0]
+
     def discriminate(self, context, topic):
         if not self.categories:
             # self.store_ds_result(Perception.Result.FAILURE)
@@ -102,30 +111,25 @@ class Perception:
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_NOTICEABLE_DIFFERENCE
 
-        responses1 = [c.response(s1) for c in self.categories]
-        responses2 = [c.response(s2) for c in self.categories]
-        max1, max2 = max(responses1), max(responses2)
-        max_args1 = [i for i, j in enumerate(responses1) if j == max1]
-        max_args2 = [i for i, j in enumerate(responses2) if j == max2]
-
+        i = self.get_best_matching_category(s1)
+        j = self.get_best_matching_category(s2)
         # TODO discuss
-        if max1 == 0.0:
-            # self.store_ds_result(Perception.Result.FAILURE)
-            raise NO_POSITIVE_RESPONSE_1
+        #if max1 == 0.0:
+        #    # self.store_ds_result(Perception.Result.FAILURE)
+        #    raise NO_POSITIVE_RESPONSE_1
 
-        if max2 == 0.0:
-            # self.store_ds_result(Perception.Result.FAILURE)
-            raise NO_POSITIVE_RESPONSE_2
+        #if max2 == 0.0:
+        #    # self.store_ds_result(Perception.Result.FAILURE)
+        #    raise NO_POSITIVE_RESPONSE_2
 
         #if len(max_args1) > 1 or len(max_args2) > 1:
         #    raise Exception("Two categories give the same maximal value for stimulus")
 
-        i, j = max_args1[0], max_args2[0]
-
         if i == j:
+            raise NO_DISCRIMINATION
             # self.store_ds_result(Perception.Result.FAILURE)
-            raise NO_DISCRIMINATION_LOWER_1(i) if max1 < max2 else \
-                NO_DISCRIMINATION_LOWER_2(i)
+            #raise NO_DISCRIMINATION_LOWER_1(i) if max1 < max2 else \
+            #    NO_DISCRIMINATION_LOWER_2(i)
 
         # discrimination successful
         # self.store_ds_result(Perception.Result.SUCCESS)

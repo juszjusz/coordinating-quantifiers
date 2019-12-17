@@ -7,7 +7,9 @@ from random import sample
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 import stimulus
+from itertools import izip
 from numpy import array
+
 
 class Population:
 
@@ -44,6 +46,9 @@ class Population:
 
     def get_mon(self, stimuluses):
        return sum(map(lambda agent: agent.get_monotonicity(stimuluses) * 100.0, self.agents)) / len(self.agents)
+
+    def get_convexity(self, stimuluses):
+        return sum(map(lambda agent: agent.get_convexity(stimuluses) * 100.0, self.agents)) / len(self.agents)
 
 
 class Agent:
@@ -90,25 +95,26 @@ class Agent:
     def get_communicative_success12(self):
         return sum(self.cs12_scores) / len(self.cs12_scores)
 
-    def get_active_lexicon(self, stimuluses):
-        active_lexicon = set([])
+    def get_best_matching_words(self, stimuluses):
+        words = [self.get_best_matching_word(s) for s in stimuluses]
+        return words
 
-        for s in stimuluses:
-            if len(self.get_categories()) == 0:
-                continue
-            responses = array([c.response(s) for c in self.get_categories()])
-            # responses = responses[~isnan(responses)] # take care of nan's
-            max_resp = max(responses)
-            if max_resp == 0.0:
-                continue
-            max_args = [i for i, j in enumerate(responses) if j == max_resp]
-            ci = max_args[0]
+    def get_best_matching_word(self, stimulus):
+        category = self.get_best_matching_category(stimulus)
+        if category is None:
+            return "?"
+        else:
             try:
-                w = self.get_most_connected_word(ci)
-                active_lexicon.add(w)
+                word = self.get_most_connected_word(category)
             except NO_WORD_FOR_CATEGORY:
-                continue
-        return list(active_lexicon)
+                return "?"
+            return word
+
+    def get_active_lexicon(self, stimuluses):
+        best_matching_words = set(self.get_best_matching_words(stimuluses))
+        active_lexicon = best_matching_words.difference({"?"})
+        logging.debug(active_lexicon)
+        return active_lexicon
 
     def get_monotonicity(self, stimuluses):
         active_lexicon = self.get_active_lexicon(stimuluses)
@@ -116,6 +122,21 @@ class Agent:
         mons = map(self.language.is_monotone, active_lexicon)
         #logging.debug("Monotonicity: %s" % mons)
         return mons.count(True)/len(mons) if len(mons) > 0 else 0.0
+
+    def get_convexity(self, stimuluses):
+
+        def check_convexity(word, best_matching_words):
+            occurrences = [int(w == word) for w in best_matching_words]
+            #logging.critical('Agent %d %s meaning = %s' % (self.id, word, occurrences))
+            alt = len([v for v, v_next in izip(occurrences, occurrences[1:]) if v != v_next])
+            return alt <= 2
+
+        best_matching_words = self.get_best_matching_words(stimuluses)
+        active_words = set(best_matching_words).difference(set('?'))
+        convexities = [check_convexity(w, best_matching_words) for w in active_words]
+        convexity = convexities.count(True) / len(convexities) if len(convexities) > 0 else 0.0
+        #logging.critical('Agent %d convexity: %d' % (self.id, convexity))
+        return convexity
 
     def get_most_connected_word(self, category):
         return self.language.get_most_connected_word(category)
@@ -126,6 +147,9 @@ class Agent:
     def get_categories(self):
         return self.language.categories
 
+    def get_best_matching_category(self, stimulus):
+        return self.language.get_best_matching_category(stimulus)
+
     def get_categories_by_word(self, word):
         return self.language.get_categories_by_word(word)
 
@@ -135,15 +159,18 @@ class Agent:
     def get_words_by_category(self, category):
         return self.language.get_words_by_category(category)
 
-    def learn_stimulus(self, context, n, category=None):
-        logging.debug(" learns stimulus %d by " % (n + 1))
-        if (self.language.discriminative_success >= self.language.discriminative_threshold) and (category is not None):
+    def learn_stimulus(self, context, n):
+        logging.debug("with discriminative success %f learns stimulus %d by " % (self.language.discriminative_success, n + 1))
+        #logging.debug("category is not None: %d" % int(category is not None))
+        #logging.debug("above threshold: %d" % int(self.language.discriminative_success >= self.language.discriminative_threshold))
+        if self.language.discriminative_success >= self.language.discriminative_threshold:
+            category = self.get_best_matching_category(context[n])
             logging.debug("updating category")
             self.language.update_category(category, context[n])
-            return category
+            #return category
         else:
             logging.debug("adding new category centered on %s" % context[n])
-            return self.language.add_category(context[n])
+            self.language.add_category(context[n])
 
     def update_on_failure(self, word, category):
         self.language.decrement_word2category_connection(word, category)
@@ -185,8 +212,8 @@ class Hearer(Agent):
 
         category = self.language.categories[category]
         topic = category.select(context)
-        if topic is None:
-            raise NO_DIFFERENCE_FOR_CATEGORY
+        #if topic is None:
+        #    raise NO_DIFFERENCE_FOR_CATEGORY
         return topic
 
     # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
