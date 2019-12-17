@@ -44,11 +44,11 @@ class Population:
     #    self.cs.append(sum(map(Agent.get_communicative_success, self.agents)) / len(self.agents))
     #    self.cs.append(sum(map(Agent.get_communicative_success2, self.agents)) / len(self.agents))
 
-    def get_mon(self):
-       return sum(map(lambda agent: agent.get_monotonicity() * 100.0, self.agents)) / len(self.agents)
+    def get_mon(self, stimuluses):
+       return sum(map(lambda agent: agent.get_monotonicity(stimuluses) * 100.0, self.agents)) / len(self.agents)
 
-    def get_convexity(self):
-        return sum(map(lambda agent: agent.get_convexity() * 100.0, self.agents)) / len(self.agents)
+    def get_convexity(self, stimuluses):
+        return sum(map(lambda agent: agent.get_convexity(stimuluses) * 100.0, self.agents)) / len(self.agents)
 
 
 class Agent:
@@ -95,9 +95,8 @@ class Agent:
     def get_communicative_success12(self):
         return sum(self.cs12_scores) / len(self.cs12_scores)
 
-    def get_best_matching_words(self):
-        stimuli = stimulus.stimulus_factory.get_stimuli()
-        words = [self.get_best_matching_word(s) for s in stimuli]
+    def get_best_matching_words(self, stimuluses):
+        words = [self.get_best_matching_word(s) for s in stimuluses]
         return words
 
     def get_best_matching_word(self, stimulus):
@@ -111,39 +110,20 @@ class Agent:
                 return "?"
             return word
 
-    def get_active_lexicon(self):
-        best_matching_words = set(self.get_best_matching_words())
-        active_lexicon = best_matching_words.difference(set(["?"]))
+    def get_active_lexicon(self, stimuluses):
+        best_matching_words = set(self.get_best_matching_words(stimuluses))
+        active_lexicon = best_matching_words.difference({"?"})
         logging.debug(active_lexicon)
         return active_lexicon
 
-        # active_lexicon = set([])
-        #
-        # for s in stimulus.stimulus_factory.get_stimuli():
-        #     if len(self.get_categories()) == 0:
-        #         continue
-        #     responses = array([c.response(s) for c in self.get_categories()])
-        #     # responses = responses[~isnan(responses)] # take care of nan's
-        #     max_resp = max(responses)
-        #     if max_resp == 0.0:
-        #         continue
-        #     max_args = [i for i, j in enumerate(responses) if j == max_resp]
-        #     ci = max_args[0]
-        #     try:
-        #         w = self.get_most_connected_word(ci)
-        #         active_lexicon.add(w)
-        #     except NO_WORD_FOR_CATEGORY:
-        #         continue
-        # return list(active_lexicon)
-
-    def get_monotonicity(self):
-        active_lexicon = self.get_active_lexicon()
+    def get_monotonicity(self, stimuluses):
+        active_lexicon = self.get_active_lexicon(stimuluses)
         #logging.debug("Active lexicon of agent(%d): %s" % (self.id, active_lexicon))
         mons = map(self.language.is_monotone, active_lexicon)
         #logging.debug("Monotonicity: %s" % mons)
         return mons.count(True)/len(mons) if len(mons) > 0 else 0.0
 
-    def get_convexity(self):
+    def get_convexity(self, stimuluses):
 
         def check_convexity(word, best_matching_words):
             occurrences = [int(w == word) for w in best_matching_words]
@@ -151,7 +131,7 @@ class Agent:
             alt = len([v for v, v_next in izip(occurrences, occurrences[1:]) if v != v_next])
             return alt <= 2
 
-        best_matching_words = self.get_best_matching_words()
+        best_matching_words = self.get_best_matching_words(stimuluses)
         active_words = set(best_matching_words).difference(set('?'))
         convexities = [check_convexity(w, best_matching_words) for w in active_words]
         convexity = convexities.count(True) / len(convexities) if len(convexities) > 0 else 0.0

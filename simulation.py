@@ -16,12 +16,11 @@ from inmemory_calculus import load_inmemory_calculus, inmem
 import os
 import shutil
 
-from stimulus import QuotientBasedStimulusFactory, ContextFactory
+from stimulus import QuotientBasedStimulusFactory, ContextFactory, NumericBasedStimulusFactory
 
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
-import stimulus
 
 class Simulation(Process):
 
@@ -35,6 +34,7 @@ class Simulation(Process):
         self.context_constructor = context_constructor
 
     def run(self):
+
         start_time = time.time()
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
@@ -54,13 +54,6 @@ class Simulation(Process):
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
                 dill.dump((step_with_offset, self.population), write_handle)
-
-        params_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('params.p'))
-        with open(params_path, 'wb') as write_params:
-            dill.dump(self.params, write_params)
-        in_mem_path = str(Path(self.path_provider.root_path).joinpath('data').joinpath('inmem_calc.p'))
-        with open(in_mem_path, 'wb') as write_inmem:
-            dill.dump(inmem, write_inmem)
 
         exec_time = time.time() - start_time
         logging.debug("simulation {} took {}sec (with params {})".format(self.num, exec_time, self.params))
@@ -89,13 +82,16 @@ if __name__ == "__main__":
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
                         type=str)
     parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=True)
-    parser.add_argument('--in_memory_calculus_path', '-in_mem', help='path to in memory calculus', type=str, default='inmemory_calculus')
 
     parsed_params = vars(parser.parse_args())
-    load_inmemory_calculus(parsed_params['in_memory_calculus_path'])
+    load_inmemory_calculus(parsed_params['stimulus'])
 
-    stimulus.stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
-    context_constructor = ContextFactory(stimulus.stimulus_factory)
+    stimulus_factory = None
+    if parsed_params['stimulus'] == 'quotient':
+        stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
+    if parsed_params['stimulus'] == 'numeric':
+        stimulus_factory = NumericBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
+    context_constructor = ContextFactory(stimulus_factory)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:
@@ -105,13 +101,12 @@ if __name__ == "__main__":
             with open(pickled_simulation_file, 'rb') as read_handle:
                 step, population = pickle.load(read_handle)
 
-        path_provider = PathProvider.new_path_provider(parsed_params['simulation_name'])
         simulation_tasks.append(Simulation(params=parsed_params,
                                            step_offset=step + 1,
                                            population=population,
                                            context_constructor=context_constructor,
                                            num=0,
-                                           path_provider=path_provider))
+                                           path_provider=PathProvider.new_path_provider(parsed_params['simulation_name'])))
     else:
         simulation_path = os.path.abspath(parsed_params['simulation_name'])
         if os.path.exists(simulation_path):
@@ -134,6 +129,19 @@ if __name__ == "__main__":
             #     simulation_tasks.append(simulation)
             # else:
             simulation.run()
+
+    path_provider = PathProvider.new_path_provider(parsed_params['simulation_name'])
+    params_path = str(Path(path_provider.root_path).joinpath('params.p'))
+    with open(params_path, 'wb') as write_params:
+        dill.dump(parsed_params, write_params)
+
+    in_mem_path = str(Path(path_provider.root_path).joinpath('inmem_calc.p'))
+    with open(in_mem_path, 'wb') as write_inmem:
+        dill.dump(inmem, write_inmem)
+
+    stimuluses_path = str(Path(path_provider.root_path).joinpath('stimuluses.p'))
+    with open(stimuluses_path, 'wb') as write_stimuluses:
+        dill.dump(stimulus_factory.generate_all_stimuluses(), write_stimuluses)
 
     if parsed_params['parallel']:
         for simulation_task in simulation_tasks:
