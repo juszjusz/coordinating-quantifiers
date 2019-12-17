@@ -251,6 +251,109 @@ class Task(Process):
         self.execute_commands(self.chunk, self.last_population)
 
 
+class PlotConvexityCommand:
+
+    def __init__(self, root_paths):
+        self.root_path2 = None
+        self.root_path1 = Path(root_paths[0])
+        if len(root_paths) > 1:
+            self.root_path2 = Path(root_paths[1])
+
+        self.params = pickle.load(PathProvider.new_path_provider(self.root_path1.joinpath('run0')).get_simulation_params_path().open('rb'))
+
+
+        self.steps = [max(step*10-1, 0) for step in range(1 + self.params['steps']/10)]
+        logging.critical(self.steps)
+        #self.steps = range(0, self.params['steps'])
+        self.conv_plot_path = self.root_path1.joinpath('stats/convexity.pdf')
+        #self.array1 = zeros((self.params['runs'], self.steps))
+        self.conv_samples1 = []
+        #self.array2 = zeros((self.params['runs'], self.steps))
+        self.conv_samples2 = []
+        self.conv_means1 = []
+        self.conv_cis1_l = []
+        self.conv_cis1_u = []
+        self.conv_means2 = []
+        self.conv_cis2_l = []
+        self.conv_cis2_u = []
+
+    def get_data(self):
+        #logging.debug("Root path %s" % self.root_path1)
+        for step in self.steps:
+            logging.debug("Processing step %d" % step)
+            sample = []
+            for run_num, run_path in enumerate(self.root_path1.glob('run[0-9]*')):
+                #logging.debug("Processing %s, %s" % (run_num, run_path))
+                #logging.debug("Processing %s" % "step" + str(step) + ".p")
+                step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                sample.append(population.get_convexity())
+                #logging.debug("mon val %f" % sample[-1])
+            self.conv_samples1.append(sample)
+        #for step in range(self.params['steps']):
+        #    self.mon_samples1.append(list(self.array1[:, max(step*100-1, 0)]))
+
+        if self.root_path2 is not None:
+            logging.debug("Root path %s" % self.root_path2)
+            for step in self.steps:
+                logging.debug("Processing step %d" % step)
+                sample = []
+                for run_num, run_path in enumerate(self.root_path2.glob('run[0-9]')):
+                    logging.debug("Processing %s, %s" % (run_num, run_path))
+                    #for step_path in PathProvider(run_path).get_data_paths():
+                    #logging.debug("Processing %s" % step_path)
+                    step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                    #self.array2[run_num, step] = population.get_mon()
+                    #logging.debug("mon val %f" % self.array2[run_num, step])
+                    sample.append(population.get_convexity())
+                self.conv_samples2.append(sample)
+                #for step in range(self.params['steps']):
+                #self.mon_samples2.append(list(self.array2[:, step]))
+
+    def compute_stats(self):
+        logging.debug('in compute_stats')
+        self.conv_means1 = means(self.conv_samples1)
+        #logging.debug(len(self.mon_means1))
+
+        self.conv_cis1_l, self.conv_cis1_u = confidence_intervals(self.conv_samples1)
+
+        if self.root_path2 is not None:
+            self.mon_means2 = means(self.conv_samples2)
+            self.mon_cis2_l, self.mon_cis2_u = confidence_intervals(self.conv_samples2)
+
+    def plot(self):
+        #x = range(1, self.params['steps'] + 1)
+        x = self.steps
+        plt.ylim(bottom=50)
+        plt.ylim(top=105)
+        plt.xlabel("step")
+        plt.ylabel("convexity")
+
+        #for r in range(self.runs):
+        #    plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
+
+        plt.plot(x, self.conv_means1, 'k-', linewidth=0.3)
+
+        for i in range(0, self.params['runs']):
+            logging.critical("run %d" % i)
+            plt.plot(x, [self.conv_samples1[s][i] for s in range(0, len(self.steps))], 'k-', linewidth=0.2, alpha=.3)
+
+        if self.root_path2 is not None:
+            plt.plot(x, self.conv_means2, 'b--', linewidth=0.3)
+            plt.fill_between(x, self.conv_cis2_l, self.conv_cis2_u,
+                             color='b', alpha=.2)
+            plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
+        else:
+            #plt.legend([str(self.root_path1)], loc='lower right')
+            plt.legend(['convexity'], loc='lower right')
+        plt.savefig(str(self.conv_plot_path))
+        plt.close()
+
+    def __call__(self):
+        self.get_data()
+        self.compute_stats()
+        self.plot()
+
+
 class PlotMonotonicityCommand:
 
     def __init__(self, root_paths):
@@ -587,6 +690,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
+    parser.add_argument('--plot_conv', '-conv', help='plot convexity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
     parser.add_argument('--in_memory_calculus_path', '-in_mem', help='path to in memory calculus', type=str, default='inmemory_calculus')
@@ -610,6 +714,10 @@ if __name__ == '__main__':
     if parsed_params['plot_mon']:
         plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']])
         plot_mon_command()
+
+    if parsed_params['plot_conv']:
+        plot_conv_command = PlotConvexityCommand([parsed_params['data_root']])
+        plot_conv_command()
 
     if parsed_params['plot_num_DS']:
         plot_num_DS_command = PlotNumberOfDSCommand(Path(parsed_params['data_root']), active_only=True)

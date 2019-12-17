@@ -7,6 +7,7 @@ from random import sample
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 import stimulus
+from itertools import izip
 from numpy import array
 
 
@@ -45,6 +46,9 @@ class Population:
 
     def get_mon(self):
        return sum(map(lambda agent: agent.get_monotonicity() * 100.0, self.agents)) / len(self.agents)
+
+    def get_convexity(self):
+        return sum(map(lambda agent: agent.get_convexity() * 100.0, self.agents)) / len(self.agents)
 
 
 class Agent:
@@ -138,6 +142,21 @@ class Agent:
         mons = map(self.language.is_monotone, active_lexicon)
         #logging.debug("Monotonicity: %s" % mons)
         return mons.count(True)/len(mons) if len(mons) > 0 else 0.0
+
+    def get_convexity(self):
+
+        def check_convexity(word, best_matching_words):
+            occurrences = [int(w == word) for w in best_matching_words]
+            #logging.critical('Agent %d %s meaning = %s' % (self.id, word, occurrences))
+            alt = len([v for v, v_next in izip(occurrences, occurrences[1:]) if v != v_next])
+            return alt <= 2
+
+        best_matching_words = self.get_best_matching_words()
+        active_words = set(best_matching_words).difference(set('?'))
+        convexities = [check_convexity(w, best_matching_words) for w in active_words]
+        convexity = convexities.count(True) / len(convexities) if len(convexities) > 0 else 0.0
+        #logging.critical('Agent %d convexity: %d' % (self.id, convexity))
+        return convexity
 
     def get_most_connected_word(self, category):
         return self.language.get_most_connected_word(category)
