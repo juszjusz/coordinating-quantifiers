@@ -2,8 +2,7 @@ from __future__ import division  # force python 3 division in python 2
 
 import matplotlib.pyplot as plt
 
-from guessing_game_exceptions import NO_POSITIVE_RESPONSE_1, NO_POSITIVE_RESPONSE_2, NO_DISCRIMINATION_LOWER_1, \
-    NO_DISCRIMINATION_LOWER_2, NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY, NO_DISCRIMINATION
+from guessing_game_exceptions import NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY, NO_DISCRIMINATION
 from collections import deque
 from inmemory_calculus import inmem
 import numpy as np

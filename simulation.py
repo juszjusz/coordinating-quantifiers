@@ -49,7 +49,6 @@ class Simulation(Process):
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
             self.population.update_metrics()
-            logging.critical("cs: %d" % self.population.cs1[-1])
 
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
@@ -60,7 +59,7 @@ class Simulation(Process):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stderr, level=logging.CRITICAL)
+    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
