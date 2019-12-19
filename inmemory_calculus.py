@@ -29,7 +29,7 @@ def load_inmemory_calculus(type):
     if type == 'quotient': # for quotient based we expect the file with reducted quotients
         __load_inmemory_calculus(root_path.joinpath(type).joinpath('nklist.h5'), 'STIMULUS_LIST')
     if type == 'numeric':
-        inmem['STIMULUS_LIST'] = np.arange(0, len(inmem['REACTIVE_UNIT_DIST']))
+        inmem['STIMULUS_LIST'] = np.arange(1, len(inmem['REACTIVE_UNIT_DIST']) + 1)
 
     STIMULUS_LIST = inmem['STIMULUS_LIST']
     REACTIVE_UNIT_DIST = inmem['REACTIVE_UNIT_DIST']

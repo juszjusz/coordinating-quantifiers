@@ -21,6 +21,7 @@ class Language(Perception):
         Perception.__init__(self)
         self.lexicon = []
         self.lxc = AssociativeMatrix()
+        self.stm = params['stimulus']
         self.delta_inc = params['delta_inc']
         self.delta_dec = params['delta_dec']
         self.delta_inh = params['delta_inh']
@@ -170,9 +171,20 @@ class Language(Perception):
         word_index = self.lexicon.index(word)
         return sum([category.union() * word2category_weigth for category, word2category_weigth in zip(self.categories, self.lxc.__matrix__[word_index])])
 
-    def is_monotone(self, word):
-        activations = self.word_meaning(word)
-        bool_activations = map(lambda x: x > 0.0, activations)
+    def semantic_meaning(self, word, stimuli):
+        word_index = self.lexicon.index(word)
+        activations = [sum([float(c.response(s) > 0.0) * float(self.lxc.get_value(word_index, self.categories.index(c)) > 0.0) for c in self.categories]) for s in stimuli]
+        flat_bool_activations = map(lambda x: int(x > 0.0), activations)
+        mean_bool_activations = []
+        for i in range(0, len(flat_bool_activations)):
+            window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
+            mean_bool_activations.append(int(sum(window)/len(window) > 0.5))
+        #logging.critical("Word %s ba: %s" % (word, bool_activations))
+        #logging.critical("Word %s mba: %s" % (word, mean_bool_activations))
+        return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
+
+    def is_monotone(self, word, stimuli):
+        bool_activations = self.semantic_meaning(word, stimuli)
         alt = len([a for a, aa in izip(bool_activations, bool_activations[1:]) if a != aa])
         return alt == 1
 

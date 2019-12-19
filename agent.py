@@ -110,30 +110,47 @@ class Agent:
                 return "?"
             return word
 
+    def pragmatic_meaning(self, word, stimuli):
+        best_matching_words = self.get_best_matching_words(stimuli)
+        occurrences = [int(w == word) for w in best_matching_words]
+        mean_occurrences = []
+        for i in range(0, len(occurrences)):
+            window = occurrences[max(0, i - 5):min(len(occurrences), i + 5)]
+            mean_occurrences.append(int(sum(window) / len(window) > 0.5))
+        return occurrences if self.language.stm == 'numeric' else mean_occurrences
+        #alt = len([v for v, v_next in izip(occurrences, occurrences[1:]) if v != v_next])
+        #alt_mean = len([v for v, v_next in izip(mean_occurrences, mean_occurrences[1:]) if v != v_next])
+
+    def semantic_meaning(self, stimuli):
+        return self.language.semantic_meaning(stimuli)
+
     def get_active_lexicon(self, stimuluses):
         best_matching_words = set(self.get_best_matching_words(stimuluses))
         active_lexicon = best_matching_words.difference({"?"})
-        logging.debug(active_lexicon)
+        #logging.debug(active_lexicon)
         return active_lexicon
 
     def get_monotonicity(self, stimuluses):
         active_lexicon = self.get_active_lexicon(stimuluses)
         #logging.debug("Active lexicon of agent(%d): %s" % (self.id, active_lexicon))
-        mons = map(self.language.is_monotone, active_lexicon)
+        #mons = map(self.language.is_monotone, active_lexicon)
+        mons = [self.language.is_monotone(word, stimuluses) for word in active_lexicon]
         #logging.debug("Monotonicity: %s" % mons)
         return mons.count(True)/len(mons) if len(mons) > 0 else 0.0
 
     def get_convexity(self, stimuluses):
 
-        def check_convexity(word, best_matching_words):
-            occurrences = [int(w == word) for w in best_matching_words]
-            #logging.critical('Agent %d %s meaning = %s' % (self.id, word, occurrences))
-            alt = len([v for v, v_next in izip(occurrences, occurrences[1:]) if v != v_next])
+        def check_convexity(word):
+            meaning = self.pragmatic_meaning(word, stimuluses)
+            alt = len([v for v, v_next in izip(meaning, meaning[1:]) if v != v_next])
+            #logging.critical('Agent %d %s meaning (%d) = %s' % (self.id, word, alt <= 2, meaning))
             return alt <= 2
 
         best_matching_words = self.get_best_matching_words(stimuluses)
+        #logging.critical("bmw: %s" % best_matching_words)
         active_words = set(best_matching_words).difference(set('?'))
-        convexities = [check_convexity(w, best_matching_words) for w in active_words]
+        convexities = [check_convexity(w) for w in active_words]
+        #logging.critical(convexities)
         convexity = convexities.count(True) / len(convexities) if len(convexities) > 0 else 0.0
         #logging.critical('Agent %d convexity: %d' % (self.id, convexity))
         return convexity

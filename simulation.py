@@ -67,13 +67,13 @@ if __name__ == "__main__":
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient')
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int, default=100)
     parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)
-    parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.1)
-    parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.1)
-    parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.1)
-    parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.1)
+    parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.2)
+    parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.2)
+    parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.2)
+    parser.add_argument('--alpha', '-a', help='forgetting rate', type=float, default=.01)
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
-                        type=float, default=.01)
-    parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.1)
+                        type=float, default=.001)
+    parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
     parser.add_argument('--steps', '-s', help='number of steps', type=int, default=200)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on', type=bool,
@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
     stimuluses_path = str(Path(path_provider.root_path).joinpath('stimuluses.p'))
     with open(stimuluses_path, 'wb') as write_stimuluses:
-        dill.dump(stimulus_factory.generate_all_stimuluses(), write_stimuluses)
+        dill.dump(stimulus_factory.get_all_stimuli(), write_stimuluses)
 
     if parsed_params['parallel']:
         for simulation_task in simulation_tasks:

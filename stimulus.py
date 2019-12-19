@@ -7,8 +7,10 @@ from random import randint, choice
 class AbstractStimulus:
     def is_noticeably_different_from(self, other):
         raise NotImplementedError
+
+
 class AbstractStimulusFactory:
-    def generate_all_stimuluses(self):
+    def get_all_stimuli(self):
         raise NotImplementedError
 
 
@@ -29,15 +31,17 @@ class ContextFactory:
 
 class NumericBasedStimulusFactory(AbstractStimulusFactory):
     def __init__(self, stimulus_list, max):
-        self.stimulus_list = stimulus_list
         self.__max = max
+        self.stimulus_list = stimulus_list
+        self.filtered_stimulus_list = [NumericBasedStimulus(n) for n in self.stimulus_list if n <= self.__max]
 
     def __call__(self):
-        n = choice(self.stimulus_list)
-        return NumericBasedStimulus(n)
+        nbs = choice(self.filtered_stimulus_list)
+        return nbs
 
-    def generate_all_stimuluses(self):
-        return list(map(NumericBasedStimulus, self.stimulus_list))
+    def get_all_stimuli(self):
+        return self.filtered_stimulus_list
+
 
 class QuotientBasedStimulusFactory(AbstractStimulusFactory):
     def __init__(self, stimulus_list, max):
@@ -60,19 +64,22 @@ class QuotientBasedStimulusFactory(AbstractStimulusFactory):
         #n, k = self.stimulus_list[index]
         #return QuotientBasedStimulus(index, Fraction(n, k))
 
-    def generate_all_stimuluses(self):
+    def get_all_stimuli(self):
         return self.filtered_stimulus_list
+
 
 class NumericBasedStimulus(AbstractStimulus):
     def __init__(self, n):
-        self.index = n
+        self.index = n - 1
         self.__n = n
 
     def __str__(self):
         return str(self.__n)
 
     def is_noticeably_different_from(self, other):
-        return True
+        ds = 0.3 * self.__n
+        return abs(self.__n - other.__n) > ds
+
 
 class QuotientBasedStimulus(AbstractStimulus):
     def __init__(self, index, nk):
