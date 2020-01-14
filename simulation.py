@@ -49,6 +49,7 @@ class Simulation(Process):
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
             self.population.update_metrics()
+            #logging.critical(self.population.get_meanings(self.context_constructor.new_stimulus.get_all_stimuli()))
 
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:

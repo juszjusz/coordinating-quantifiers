@@ -182,6 +182,7 @@ class Language(Perception):
         #logging.critical("Word %s ba: %s" % (word, bool_activations))
         #logging.critical("Word %s mba: %s" % (word, mean_bool_activations))
         return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
+        #return flat_bool_activations
 
     def is_monotone(self, word, stimuli):
         bool_activations = self.semantic_meaning(word, stimuli)

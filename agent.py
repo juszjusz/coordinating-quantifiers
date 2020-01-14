@@ -8,7 +8,7 @@ from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 import stimulus
 from itertools import izip
-from numpy import array
+from numpy import ndarray, asarray
 
 
 class Population:
@@ -49,6 +49,13 @@ class Population:
 
     def get_convexity(self, stimuluses):
         return sum(map(lambda agent: agent.get_convexity(stimuluses) * 100.0, self.agents)) / len(self.agents)
+
+    def get_meanings(self, stimuluses):
+        arr = ndarray(shape=(self.population_size, len(stimuluses)), dtype='S10')
+        for a in range(0, self.population_size):
+            bmw = asarray(self.agents[a].get_best_matching_words(stimuluses), dtype='S10')
+            arr[a] = bmw
+        return arr
 
 
 class Agent:

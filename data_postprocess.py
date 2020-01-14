@@ -19,8 +19,8 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
-from numpy import linspace, column_stack, arange, log, amax, zeros
-
+from numpy import linspace, column_stack, arange, log, amax, zeros, ndarray, asarray
+import h5py
 
 class PlotCategoryCommand:
     def __init__(self, categories_path, inmem):
@@ -250,6 +250,32 @@ class Task(Process):
         self.execute_commands(self.chunk, self.last_population)
 
 
+class MakeHdf5:
+    def __init__(self, root_path, stimuluses, params):
+        self.root_path1 = Path(root_path)
+        self.stimuluses = stimuluses
+        self.params = params
+
+        #logging.critical(self.steps)
+        #self.steps = range(3, self.params['steps'])
+        self.steps = [max(step * 10 - 1, 0) for step in range(1 + self.params['steps'] / 10)]
+        #self.hdf_path = self.root_path1.joinpath('stats/meanings.h5')
+
+    def __call__(self):
+        f = h5py.File("m.h5", "w")
+        for run_num, run_path in enumerate(self.root_path1.glob('run[0-9]*')):
+            hdf_list = []
+            for step in self.steps:
+                logging.debug("Run %d, step %d" % (run_num, step))
+                step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
+                meanings = population.get_meanings(unpickled_stimuluses)
+                hdf_list.append(meanings)
+            hdf_arr = asarray(hdf_list)
+            f.create_dataset(name='run%d' % run_num, data=hdf_arr)
+        f.close()
+        logging.debug("FINISHED")
+
+
 class PlotConvexityCommand:
 
     def __init__(self, root_paths, stimuluses, params):
@@ -403,7 +429,7 @@ class PlotMonotonicityCommand:
                     step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
                     #self.array2[run_num, step] = population.get_mon()
                     #logging.debug("mon val %f" % self.array2[run_num, step])
-                    sample.append(population.get_mon())
+                    sample.append(population.get_mon(self.stimuluses))
                 self.mon_samples2.append(sample)
                 #for step in range(self.params['steps']):
                 #self.mon_samples2.append(list(self.array2[:, step]))
@@ -438,7 +464,7 @@ class PlotMonotonicityCommand:
             plt.plot(x, self.mon_means2, 'b--', linewidth=0.3)
             plt.fill_between(x, self.mon_cis2_l, self.mon_cis2_u,
                              color='b', alpha=.2)
-            plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
+            plt.legend(['mon. no ANS', 'mon. ANS'], loc='best')
         else:
             plt.legend([str(self.root_path1)], loc='best')
 
@@ -586,7 +612,8 @@ class PlotSuccessCommand:
         #    ax2.plot(x100, [self.samples_nw[s][i] for s in range(0, len(self.steps))], 'b-', linewidth=0.2, alpha=.3)
         ax2.fill_between(x100, self.nw_cis_l, self.nw_cis_u,
                          color='b', alpha=.2)
-        ax2.set_yticks(range(0, 11, 1), ('0', '1', '2', '3', '4','5','6','7','8','9','10'))
+        ax2.set_yticks(range(0, 15, 1), ('0', '1', '2', '3', '4','5','6','7','8','9','10','11','12','13','14'))
+        #,'10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29'
         ax2.tick_params(axis='y')
         #ax2.legend(['size'], loc='upper right')
 
@@ -692,6 +719,7 @@ if __name__ == '__main__':
     parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
     parser.add_argument('--plot_conv', '-conv', help='plot convexity', type=str, nargs='+', default='')
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
+    parser.add_argument('--hdf_franek', '-hdf', help='hdf franek', type=bool, default=False)
     parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
 
     parsed_params = vars(parser.parse_args())
@@ -705,8 +733,16 @@ if __name__ == '__main__':
     for k, v in unpickled_inmem.items():
         inmem[k] = v
 
-    if len(parsed_params['plot_mons']) > 0:
-        pmc = PlotMonotonicityCommand(parsed_params['plot_mons'], unpickled_stimuluses, sim_params)
+    if parsed_params['hdf_franek']:
+        hdf_command = MakeHdf5(parsed_params['data_root'], unpickled_stimuluses, sim_params)
+        hdf_command()
+
+    if len(parsed_params['plot_mons']) == 2:
+        logging.critical("PLOTTING MONOTONICITY")
+        data_root_path1 = Path(parsed_params['plot_mons'][0])
+        unpickled_stimuluses1 = pickle.load(PathProvider.new_path_provider(data_root_path1).get_stimuluses_path().open('rb'))
+        simulation1_params = pickle.load(PathProvider.new_path_provider(data_root_path1).get_simulation_params_path().open('rb'))
+        pmc = PlotMonotonicityCommand(parsed_params['plot_mons'], unpickled_stimuluses1, simulation1_params)
         pmc()
 
     if not data_root_path.exists():
