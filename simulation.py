@@ -82,9 +82,10 @@ if __name__ == "__main__":
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
                         type=str)
     parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=True)
+    parser.add_argument('--in_mem_calculus_path', '-path', help='path to precomputed integrals', type=str, default='inmemory_calculus')
 
     parsed_params = vars(parser.parse_args())
-    load_inmemory_calculus(parsed_params['stimulus'])
+    load_inmemory_calculus(parsed_params['in_mem_calculus_path'], parsed_params['stimulus'])
 
     stimulus_factory = None
     if parsed_params['stimulus'] == 'quotient':

@@ -20,8 +20,8 @@ def __load_inmemory_calculus(path, key, dataset_key=u'Dataset1'):
 
     inmem[key] = read_h5_data(path)[dataset_key]
 
-def load_inmemory_calculus(type):
-    root_path = Path(os.path.abspath('inmemory_calculus'))
+def load_inmemory_calculus(path, type):
+    root_path = Path(os.path.abspath(path))
 
     __load_inmemory_calculus(root_path.joinpath(type).joinpath('R.h5'), 'REACTIVE_UNIT_DIST')
     __load_inmemory_calculus(root_path.joinpath(type).joinpath('RxR.h5'), 'REACTIVE_X_REACTIVE')
