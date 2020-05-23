@@ -1,6 +1,7 @@
 .idea
 venv
 **/__pycache__
+gibberish.egg-info
 *.png
 *.db
 *.pdf
