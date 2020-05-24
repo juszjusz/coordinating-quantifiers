@@ -1,5 +1,8 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
+
+from picklable_itertools import izip
+
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
@@ -9,7 +12,6 @@ from numpy import zeros
 from numpy import row_stack
 from numpy import delete
 from numpy import divide
-from itertools import izip
 
 # clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
 from gibberish import Gibberish

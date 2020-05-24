@@ -1,13 +1,14 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
 
+from picklable_itertools import izip
+
 from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
 from random import sample
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
 import stimulus
-from itertools import izip
 from numpy import ndarray, asarray
 
 

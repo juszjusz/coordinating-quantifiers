@@ -216,7 +216,7 @@ class CommandExecutor:
             chunk_size = max(200 / len(last_population), 1)
         else:
             chunk_size = max(len(data_paths) / parallelism, 1)
-
+        chunk_size = int(chunk_size)
         tasks = []
         for data_path_chunk in chunks(data_paths, chunk_size):
             tasks.append(new_chunked_task(self.execute_commands, data_path_chunk, last_population))
@@ -695,9 +695,9 @@ class PlotNumberOfDSCommand:
         self.fill_steps(self.root_path.joinpath('run' + str(run_num)), num_agent)
         self.plot(self.root_path.joinpath('run' + str(run_num)), num_agent, 2)
 
-        print self.dcnum
+        print(self.dcnum)
 
-        print self.whole_lexicon
+        print(self.whole_lexicon)
         # for run_num, run_path in enumerate(self.root_path.glob('*')):
         #     for step in  PathProvider(run_path).get_data_paths():
         #         print '{}  {}'.format(run_path, step)
