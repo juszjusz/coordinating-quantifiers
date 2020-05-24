@@ -11,7 +11,7 @@ visualizations giving the perspective of the language development on step and ag
 as the cumulative level, i.e. language effectiveness measured as a discriminative success.
 In the following sections the tuning and the execution of the simulation will be described. 
 ## Build
-In order to run program you will need python ver. 2.7 with following dependencies:
+In order to run program you will need python ver. 2.7 with the following dependencies:
 
 
 ## Basic Setup and Execution
@@ -28,7 +28,6 @@ command:
 ```commandline
 python data_plot.py ...
 ``` 
-
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=YOUTUBE_VIDEO_ID_HERE
-" target="_blank"><img src="http://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg" 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=gMqZR3pqMjg
+" target="_blank"><img src="http://img.youtube.com/vi/gMqZR3pqMjg/0.jpg" 
 alt="IMAGE ALT TEXT HERE" width="240" height="180" border="10" /></a>
