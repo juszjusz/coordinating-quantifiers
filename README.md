@@ -11,9 +11,14 @@ visualizations giving the perspective of the language development on step and ag
 as the cumulative level, i.e. language effectiveness measured as a discriminative success.
 In the following sections the tuning and the execution of the simulation will be described. 
 ## Build
-In order to run program you will need python ver. 2.7 with the following dependencies:
-
-
+In order to run the program you will need python ver. 3.6 with dependencies specified in [requirements.txt]() file, to setup these dependencies you may run 
+a following command in terminal (assuming that terminal is opened in project root directory):
+```commandline
+>>> pip install -r requirements.txt
+```
+It is recommended, although not necessary, to isolate the program environment together with its requirements by creating 
+a virtual environment, you may find this resource [venv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/)
+helpful.
 ## Basic Setup and Execution
 To launch simulation where 10 agents interacts with each other over the 100 rounds run the 
 following command in terminal:
