@@ -37,6 +37,7 @@ To map, internal to program language representation, on human readable plots you
 >>> python data_plot.py ...
 ``` 
 ## Data Plot
+###Matrices
 Data plot offers set of parameters that allows you to plot simulation results.
 To plot matrices run:
 ```commandline
@@ -50,8 +51,13 @@ Matrix columns correspond to categories to which successive integers had been as
 the rightmost column the mapping between word to category strength and color intensity had been
 depicted in the ascending order (from bottom to top).   
 ![matrix](/data_plot_examples/matrix9_31.png)  
-
-## Animated Plots
+###Language 
+###Categories
+To plot categories run:
+```commandline
+>>> python data_plot.py --plot_categories
+```
+### Animated Plots
 Below you may observe an animation of the resulting plots:
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=gMqZR3pqMjg
