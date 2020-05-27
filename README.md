@@ -43,8 +43,10 @@ To plot matrices run:
 >>> python data_plot.py --plot_matrices
 ```
 The above command will output plots to simulation_results/matrices naming matrixN_S.png 
-where N, S are numbers standing for agent and simulation step respectively, i.e. 
+where N, S are numbers standing for agent and simulation step respectively, i.e. matrix9_31.png
+depicts words and categories association for 9th agent at 31th step. 
 ![matrix](/data_plot_examples/matrix9_31.png)  
+
 ## Animated Plots
 Below you may observe an animation of the resulting plots:
 
