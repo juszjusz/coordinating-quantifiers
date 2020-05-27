@@ -44,7 +44,11 @@ To plot matrices run:
 ```
 The above command will output plots to simulation_results/matrices naming matrixN_S.png 
 where N, S are numbers standing for agent and simulation step respectively, i.e. matrix9_31.png
-depicts words and categories association for 9th agent at 31th step. 
+depicts words and categories association for 9th agent at 31th step. Matrix rows correspond
+to agent words, i.e. agent' lexicon consists of sheil, krouds, mcdueds, ..., schroints.
+Matrix columns correspond to categories to which successive integers had been assigned. On
+the rightmost column the mapping between word to category strength and color intensity had been
+depicted in the ascending order (from bottom to top).   
 ![matrix](/data_plot_examples/matrix9_31.png)  
 
 ## Animated Plots
