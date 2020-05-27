@@ -31,7 +31,7 @@ following command in terminal:
 Simulation will output a serialized representation of language development per agent. Development of agent'
 language will be represented as a sequence of matrices where numeric values in matrix cells
 correspond to a strengthness of  association between word and category. 
-To map this, internal to program language representation, on human readable plots you may run 
+To map, internal to program language representation, on human readable plots you may run 
 [data_postprocess.py](https://github.com/juszjusz/coordinating-quantifiers/blob/master/data_postprocess.py)
 ```commandline
 >>> python data_plot.py ...
