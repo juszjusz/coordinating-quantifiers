@@ -18,23 +18,34 @@ a following command in terminal (assuming that terminal is opened in project roo
 >>> pip install -r requirements.txt
 ```
 It is recommended, although not necessary, to isolate the program environment together with its requirements by creating 
-a virtual environment, you may find this resource [venv](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/)
-helpful.
-## Basic Setup and Execution
+a virtual environment, 
+[this](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) 
+might be use as guide to create a python virtual environment.
+
+## Simulation
 To launch simulation where 10 agents interacts with each other over the 100 rounds run the 
 following command in terminal:
 ```commandline
 >>> python simulation.py -p 10 -s 100 -r 2
 ``` 
-Simulation will output a representation of language development per agent represented as 
-a sequence of matrices, i.e. for agent A matrices m_A_1, m_A_2, ..., m_A_100 where m_A_i 
-represents i=1, 2, ..., 100 corresponds to simulation steps and A represents agent. 
-To map this - internal to program representation - on human readable plots run the following
-command:
+Simulation will output a serialized representation of language development per agent. Development of agent'
+language will be represented as a sequence of matrices where numeric values in matrix cells
+correspond to a strengthness of  association between word and category. 
+To map this, internal to program language representation, on human readable plots you may run 
+[data_postprocess.py](https://github.com/juszjusz/coordinating-quantifiers/blob/master/data_postprocess.py)
 ```commandline
-python data_plot.py ...
+>>> python data_plot.py ...
 ``` 
-## Animated plots
+## Data Plot
+Data plot offers set of parameters that allows you to plot simulation results.
+To plot matrices run:
+```commandline
+>>> python data_plot.py --plot_matrices
+```
+The above command will output plots to simulation_results/matrices naming matrixN_S.png 
+where N, S are numbers standing for agent and simulation step respectively, i.e. 
+![matrix](/data_plot_examples/matrix9_31.png)  
+## Animated Plots
 Below you may observe an animation of the resulting plots:
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=gMqZR3pqMjg
