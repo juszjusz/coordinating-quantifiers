@@ -20,30 +20,30 @@ a following command in terminal (assuming that terminal is opened in project roo
 It is recommended, although not necessary, to isolate the program environment together with its requirements by creating 
 a virtual environment, 
 [this](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) 
-might be use as guide to create a python virtual environment.
+might be a guideline to create a python virtual environment.
 
 ## Simulation
-To launch simulation where 10 agents interacts with each other over the 100 rounds run the 
-following command in terminal:
+To launch simulation where 10 agents interacts with each other over the 100 rounds run
 ```commandline
->>> python simulation.py -p 10 -s 100 -r 2
+python simulation.py -p 10 -s 100 -r 2
 ``` 
 Simulation will output a serialized representation of language development per agent. Development of agent'
 language will be represented as a sequence of matrices where numeric values in matrix cells
-correspond to a strengthness of  association between word and category. 
-To map, internal to program language representation, on human readable plots you may run 
+correspond to a strength of association between word and category. 
+## Data Plot
+To map an internal to program language representation to human readable plots run 
 [data_postprocess.py](https://github.com/juszjusz/coordinating-quantifiers/blob/master/data_postprocess.py)
 ```commandline
->>> python data_plot.py ...
+python data_plot.py --plot_matrices --plot
 ``` 
-## Data Plot
+Each of the flags (--plot_matrices, --plot_..) is independent of another, so that any combination of such 
+is permissible. The following subsections correspond to these flags and elaborate on their usage. 
 ###Matrices
-Data plot offers set of parameters that allows you to plot simulation results.
-To plot matrices run:
+Passing *-plot_matrices* as *data_plot.py* as an argument results in matrix plots.
 ```commandline
->>> python data_plot.py --plot_matrices
+python data_plot.py --plot_matrices
 ```
-The above command will output plots to simulation_results/matrices naming matrixN_S.png 
+The above command will output plots to *simulation_results/matrices* naming matrixN_S.png 
 where N, S are numbers standing for agent and simulation step respectively, i.e. matrix9_31.png
 depicts words and categories association for 9th agent at 31th step. Matrix rows correspond
 to agent words, i.e. agent' lexicon consists of sheil, krouds, mcdueds, ..., schroints.
