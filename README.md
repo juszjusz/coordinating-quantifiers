@@ -19,8 +19,8 @@ a following command in terminal (assuming that terminal is opened in project roo
 ```
 It is recommended, although not necessary, to isolate the program environment together with its requirements by creating 
 a virtual environment, 
-[this](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/) 
-might be a guideline to create a python virtual environment.
+a guideline to create a python virtual environment is
+[here](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/). 
 
 ## Simulation
 To launch simulation where 10 agents interacts with each other over the 100 rounds run
@@ -37,7 +37,7 @@ To map an internal to program language representation to human readable plots ru
 python data_plot.py --plot_matrices --plot
 ``` 
 Each of the flags (--plot_matrices, --plot_..) is independent of another, so that any combination of such 
-is permissible. The following subsections correspond to these flags and elaborate on their usage. 
+is permissible. The following subsections explain usage of these flags.
 ###Matrices
 Passing *-plot_matrices* as *data_plot.py* as an argument results in matrix plots.
 ```commandline
