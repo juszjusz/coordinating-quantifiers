@@ -17,6 +17,7 @@ import os
 import shutil
 
 from stimulus import QuotientBasedStimulusFactory, ContextFactory, NumericBasedStimulusFactory
+from random_word_gen import RandomWordGen
 
 matplotlib.use('Agg')
 from agent import Population
@@ -94,6 +95,8 @@ if __name__ == "__main__":
         stimulus_factory = NumericBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
     context_constructor = ContextFactory(stimulus_factory)
 
+    word_gen = RandomWordGen(seed=0)
+
     simulation_tasks = []
     if parsed_params['load_simulation']:
         for run in Path(parsed_params['load_simulation']).glob('*'):
@@ -116,7 +119,7 @@ if __name__ == "__main__":
         os.makedirs(simulation_path + '/stats')
 
         for run in range(parsed_params['runs']):
-            population = Population(parsed_params)
+            population = Population(parsed_params, word_gen)
             root_path = Path(simulation_path).joinpath('run' + str(run))
             path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()

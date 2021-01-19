@@ -11,15 +11,12 @@ from numpy import delete
 from numpy import divide
 from itertools import izip
 
-# clone https://github.com/greghaskins/gibberish.git and run ~$ python setup.py install
-from gibberish import Gibberish
-
 class Language(Perception):
-    gibberish = Gibberish()
 
-    def __init__(self, params):
+    def __init__(self, params, word_gen):
         Perception.__init__(self)
         self.lexicon = []
+        self.word_gen = word_gen
         self.lxc = AssociativeMatrix()
         self.stm = params['stimulus']
         self.delta_inc = params['delta_inc']
@@ -31,7 +28,7 @@ class Language(Perception):
         self.super_alpha = params['super_alpha']
 
     def add_new_word(self):
-        new_word = Language.gibberish.generate_word()
+        new_word = self.word_gen()
         self.add_word(new_word)
         return new_word
 

@@ -6,16 +6,15 @@ from language import Language
 from random import sample
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
-import stimulus
 from itertools import izip
 from numpy import ndarray, asarray
 
 
 class Population:
 
-    def __init__(self, params):
+    def __init__(self, params, word_gen):
         self.population_size = params['population_size']
-        self.agents = [Agent(agent_id, Language(params), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
+        self.agents = [Agent(agent_id, Language(params, word_gen), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
         self.ds = []
         self.cs1 = []
         self.cs2 = []
