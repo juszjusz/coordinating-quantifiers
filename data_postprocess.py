@@ -2,8 +2,7 @@
 import matplotlib
 from pathlib import Path
 
-from inmemory_calculus import load_inmemory_calculus, inmem
-import stimulus
+from inmemory_calculus import inmem
 from path_provider import PathProvider
 from stats import confidence_intervals, means
 
@@ -203,35 +202,38 @@ class CommandExecutor:
     def add_command(self, command):
         self.commands.append(command)
 
-    def execute_commands_in_parallel(self, data_paths, last_population, parallelism=0):
+    def execute_commands_in_parallel(self, data_paths, data_path, last_step, parallelism=0):
         def chunks(list, chunk_size):
             for i in range(0, len(list), chunk_size):
                 yield list[i:i + chunk_size]
 
-        def new_chunked_task(execute_commands, chunk, last_population):
-            return Task(execute_commands, chunk=chunk, last_population=last_population)
+        def new_chunked_task(execute_commands, chunk, data_path, last_step):
+            return Task(execute_commands, chunk=chunk, data_path=data_path, last_step=last_step)
 
         # for 0 parallelism is unbounded, we require that len(population) * chunk_size == 200
         if parallelism == 0:
-            chunk_size = max(200 / len(last_population), 1)
+            chunk_size = max(200 / len(last_step), 1)
         else:
             chunk_size = max(len(data_paths) / parallelism, 1)
         chunk_size = int(chunk_size)
         tasks = []
         for data_path_chunk in chunks(data_paths, chunk_size):
-            tasks.append(new_chunked_task(self.execute_commands, data_path_chunk, last_population))
+            tasks.append(new_chunked_task(self.execute_commands, data_path_chunk, data_path, last_step))
             tasks[-1].start()
+            logging.log(logging.DEBUG, 'started process with {} pid'.format(tasks[-1].pid))
 
         for task in tasks:
             task.join()
 
-    def execute_commands(self, data_paths, last_population):
+    def execute_commands(self, data_paths, data_path, last_step):
         def execute_commands_per_agent(self, agent_index, agent_tuple, step):
             for command_exec in self.commands:
                 if agent_tuple[0].language.lxc.size():
                     command_exec(agent_index, agent_tuple, step)
 
         for path in data_paths:
+            logging.log(logging.DEBUG, last_step)
+            _, last_population = pickle.load(PathProvider(data_path).get_simulation_step_path(last_step).open('rb'))
             step, population = pickle.load(path.open('rb'))
             for agent_index, agent_tuple in enumerate(zip(population, last_population)):
                 # assert that zip between agent at current and last step is valid
@@ -240,14 +242,15 @@ class CommandExecutor:
 
 
 class Task(Process):
-    def __init__(self, execute_commands, chunk, last_population):
+    def __init__(self, execute_commands, chunk, data_path, last_step):
         super(Task, self).__init__()
         self.chunk = chunk
-        self.last_population = last_population
         self.execute_commands = execute_commands
+        self.data_path = data_path
+        self.last_step = last_step
 
     def run(self):
-        self.execute_commands(self.chunk, self.last_population)
+        self.execute_commands(self.chunk, self.data_path, self.last_step)
 
 
 class MakeHdf5:
@@ -258,7 +261,7 @@ class MakeHdf5:
 
         #logging.critical(self.steps)
         #self.steps = range(3, self.params['steps'])
-        self.steps = [max(step * 10 - 1, 0) for step in range(1 + self.params['steps'] / 10)]
+        self.steps = [max(step * 10 - 1, 0) for step in range(1 + int(self.params['steps'] / 10))]
         #self.hdf_path = self.root_path1.joinpath('stats/meanings.h5')
 
     def __call__(self):
@@ -389,7 +392,7 @@ class PlotMonotonicityCommand:
 
         self.stimuluses = stimuluses
         self.params = params
-        self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
+        self.steps = [max(step*100-1, 0) for step in range(1 + int(self.params['steps']/100))]
         self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')
         #self.array1 = zeros((self.params['runs'], self.steps))
         self.mon_samples1 = []
@@ -512,7 +515,7 @@ class PlotSuccessCommand:
         self.params = params
         self.stimuluses = stimuluses
         self.succ_plot_path = self.root_path.joinpath('stats/succ.pdf')
-        self.steps = [max(step*10-1, 0) for step in range(1 + self.params['steps']/10)]
+        self.steps = [max(step*10-1, 0) for step in range(1 + int(self.params['steps']/10))]
         self.samples_cs1 = []
         self.samples_ds = []
         self.samples_cs2 = []
@@ -783,15 +786,14 @@ if __name__ == '__main__':
         path_provider.create_directories()
 
         last_step = sim_params['steps'] - 1
-        _, last_population = pickle.load(path_provider.get_simulation_step_path(last_step).open('rb'))
         path_provider.get_simulation_step_path(last_step)
 
         start_time = time.time()
         # PlotMonotonicity(parsed_params['data_root'])()
         data_paths = path_provider.get_data_paths()
         if parsed_params['parallelism'] == 1:
-            command_executor.execute_commands(data_paths, last_population)
+            command_executor.execute_commands(data_paths, data_path, last_step)
         else:
-            command_executor.execute_commands_in_parallel(data_paths, last_population, parsed_params['parallelism'])
+            command_executor.execute_commands_in_parallel(data_paths, data_path, last_step, parsed_params['parallelism'])
 
-        logging.debug('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))
+        logging.log(logging.INFO, 'execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))

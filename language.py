@@ -173,7 +173,7 @@ class Language(Perception):
     def semantic_meaning(self, word, stimuli):
         word_index = self.lexicon.index(word)
         activations = [sum([float(c.response(s) > 0.0) * float(self.lxc.get_value(word_index, self.categories.index(c)) > 0.0) for c in self.categories]) for s in stimuli]
-        flat_bool_activations = map(lambda x: int(x > 0.0), activations)
+        flat_bool_activations = list(map(lambda x: int(x > 0.0), activations))
         mean_bool_activations = []
         for i in range(0, len(flat_bool_activations)):
             window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
