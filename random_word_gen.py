@@ -1,4 +1,8 @@
 import numpy.random as random
+import os
+
+from pathlib import Path
+from path_provider import PathProvider
 
 
 class RandomWordGen:
@@ -7,7 +11,8 @@ class RandomWordGen:
         if seed is not None:
             random.seed(seed)
 
-        with open(r'sorted_syllables.txt') as f:
+        path = Path(os.path.abspath('.')).joinpath('sorted_syllables.txt')
+        with open(path) as f:
             self.syllables = f.read().splitlines()
         self.gen_syllable = lambda: random.choice(self.syllables)
 
