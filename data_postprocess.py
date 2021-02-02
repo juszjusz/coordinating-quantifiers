@@ -2,6 +2,8 @@
 import matplotlib
 from pathlib import Path
 
+from matplotlib.animation import FuncAnimation
+
 from inmemory_calculus import inmem
 from path_provider import PathProvider
 from stats import confidence_intervals, means
@@ -26,33 +28,39 @@ class PlotCategoryCommand:
         self.categories_path = categories_path
         self.inmem = inmem
 
-    def __call__(self, agent_index, agent_tuple, step):
-        agent = agent_tuple[0]
+    def __call__(self, agent_index, agent):
         plt.title("categories")
-        ax = plt.gca()
-        #plt.xscale("symlog")
-        ax.xaxis.set_major_formatter(ScalarFormatter())
-        plt.yscale("symlog")
-        ax.yaxis.set_major_formatter(ScalarFormatter())
+        fig = plt.figure()
+        ax = plt.axes(xlim=(0, 2), ylim=(0, 250))
+        cat_size = 0
+        for step in agent:
+            cat_size = max(cat_size, len(step.get_categories()))
 
-        cats = agent.get_categories()
-        linestyles = new_linestyles(cats)
+        lines = [ax.plot([], [], lw=3)[0] for _ in range(0, cat_size)]
 
-        for cat in cats:
-            color, linestyle = linestyles[cat]
+        step_label = ax.text(0.02, 0.95, '', transform=ax.transAxes)
 
-            plt.plot(self.inmem["DOMAIN"], cat.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]),
-                     color=color,
-                     linestyle=linestyle,
-                     label="%d" % (cat.id))
+        def init():
+            step_label.set_text('step 0')
 
-        plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-        plt.tight_layout(pad=0)
-        new_path = self.categories_path.joinpath('categories{}_{}.png'.format(agent_index, step))
-        plt.savefig(str(new_path))
-        plt.close()
+            for line in lines:
+                line.set_data([], [])
 
+            return lines
 
+        def animate(i):
+            step_label.set_text('step {}'.format(i))
+
+            cats = agent[i].get_categories()
+
+            for cat, line in zip(cats, lines):
+                line.set_data(self.inmem["DOMAIN"], cat.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]))
+
+            return lines
+
+        anim = FuncAnimation(fig, animate, init_func=init, frames=len(agent), interval=10, blit=True)
+
+        anim.save('agent-{}-categories.html'.format(agent[0].id), writer='imagemagick')
 def new_linestyles(seq):
     linestyles = [(color, style) for style in ['solid', 'dotted', 'dashed', 'dashdot'] for color in sns.color_palette()]
     return dict(zip(seq, linestyles))
@@ -226,20 +234,37 @@ class CommandExecutor:
             task.join()
 
     def execute_commands(self, data_paths, data_path, last_step):
-        def execute_commands_per_agent(self, agent_index, agent_tuple, step):
+        # def execute_commands_per_agent(self, agent_index, agent_tuple, step):
+        #     for command_exec in self.commands:
+        #         if agent_tuple[0].language.lxc.size():
+        #             command_exec(agent_index, agent_tuple, step)
+        def execute_commands_per_agent(agent_index, agent_tuple):
             for command_exec in self.commands:
-                if agent_tuple[0].language.lxc.size():
-                    command_exec(agent_index, agent_tuple, step)
+                # if agent_tuple[0].language.lxc.size():
+                command_exec(agent_index, agent_tuple)
 
+        agents_in_steps = dict()
         for path in data_paths:
-            logging.log(logging.DEBUG, last_step)
             _, last_population = pickle.load(PathProvider(data_path).get_simulation_step_path(last_step).open('rb'))
             step, population = pickle.load(path.open('rb'))
-            for agent_index, agent_tuple in enumerate(zip(population, last_population)):
-                # assert that zip between agent at current and last step is valid
-                assert agent_tuple[0].id == agent_tuple[1].id
-                execute_commands_per_agent(self, agent_index, agent_tuple, step)
+            for agent in population.agents:
+                if not agents_in_steps.get(agent.id):
+                    agents_in_steps[agent.id] = [None] * (last_step + 1)
+                agents_in_steps[agent.id][step] = agent
 
+        # for agent in agents_in_steps.values():
+
+        execute_commands_per_agent(0, agents_in_steps[0])
+        # for path in data_paths:
+        #     logging.log(logging.DEBUG, last_step)
+        #     _, last_population = pickle.load(PathProvider(data_path).get_simulation_step_path(last_step).open('rb'))
+        #     step, population = pickle.load(path.open('rb'))
+        #     for agent in population.agents:
+        #         print(agent)
+        #     for agent_index, agent_tuple in enumerate(zip(population, last_population)):
+        #         assert that zip between agent at current and last step is valid
+                # assert agent_tuple[0].id == agent_tuple[1].id
+                # execute_commands_per_agent(self, agent_index, agent_tuple, step)
 
 class Task(Process):
     def __init__(self, execute_commands, chunk, data_path, last_step):
@@ -707,13 +732,13 @@ class PlotNumberOfDSCommand:
 
 
 if __name__ == '__main__':
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
     parser = argparse.ArgumentParser(prog='plotting data')
 
     parser.add_argument('--data_root', '-d', help='root path to {data, cats, langs, matrices, ...}', type=str,
                         default="test")
-    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=False)
+    parser.add_argument('--plot_cats', '-c', help='plot categories', type=bool, default=True)
     parser.add_argument('--plot_langs', '-l', help='plot languages', type=bool, default=False)
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
@@ -791,7 +816,7 @@ if __name__ == '__main__':
         start_time = time.time()
         # PlotMonotonicity(parsed_params['data_root'])()
         data_paths = path_provider.get_data_paths()
-        if parsed_params['parallelism'] == 1:
+        if True or parsed_params['parallelism'] == 1:
             command_executor.execute_commands(data_paths, data_path, last_step)
         else:
             command_executor.execute_commands_in_parallel(data_paths, data_path, last_step, parsed_params['parallelism'])
