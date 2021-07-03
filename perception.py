@@ -6,13 +6,15 @@ from guessing_game_exceptions import NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY, NO_D
 from collections import deque
 from inmemory_calculus import inmem
 import numpy as np
-from random import choice
+
+np.random.seed(0)
 
 class Category:
     def __init__(self, id):
         self.id = id
         self.__weights = []
         self.__reactive_indicies = []
+
 
     def response(self, stimulus, REACTIVE_X_REACTIVE=None):
         if REACTIVE_X_REACTIVE is None:
@@ -28,7 +30,7 @@ class Category:
         responses = [self.response(s) for s in stimuli]
         max_response = max(responses)
         which = [i for i, j in enumerate(responses) if j == max_response]
-        return which[0] if len(which) == 1 else choice([0,1])
+        return which[0] if len(which) == 1 else np.random.choice([0,1])
         # TODO example: responses == [0.0, 0.0]
 
     def reinforce(self, stimulus, beta, REACTIVE_X_REACTIVE=None):

@@ -5,7 +5,7 @@ import numpy.random as random
 
 class RandomWordGen:
 
-    def __init__(self, seed=None):
+    def __init__(self, seed=0):
         if seed is not None:
             random.seed(seed)
 

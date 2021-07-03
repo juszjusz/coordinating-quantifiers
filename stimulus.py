@@ -1,8 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 
 from fractions import Fraction
-from random import randint, choice
-
+from numpy import random
 
 class AbstractStimulus:
     def is_noticeably_different_from(self, other):
@@ -36,7 +35,7 @@ class NumericBasedStimulusFactory(AbstractStimulusFactory):
         self.filtered_stimulus_list = [NumericBasedStimulus(n) for n in self.stimulus_list if n <= self.__max]
 
     def __call__(self):
-        nbs = choice(self.filtered_stimulus_list)
+        nbs = random.seed(0).choice(self.filtered_stimulus_list)
         return nbs
 
     def get_all_stimuli(self):
@@ -49,13 +48,14 @@ class QuotientBasedStimulusFactory(AbstractStimulusFactory):
         self.stimulus_list = [list(self.stimulus_list_arr[i]) for i in range(0, len(self.stimulus_list_arr))]
         self.max = max
         self.filtered_stimulus_list = [QuotientBasedStimulus(self.stimulus_list.index(s), Fraction(s[0], s[1])) for s in self.stimulus_list if s[1] <= self.max]
+        self.random = random.seed(0)
 
     def get_stimuli(self):
         return self.filtered_stimulus_list
 
     def __call__(self):
-        k = randint(1, self.max)
-        n = randint(1, k)
+        k = random.randint(2, self.max)
+        n = random.randint(1, k)
         f = Fraction(n,k)
         pair = [f.numerator, f.denominator]
         index = self.stimulus_list.index(pair)

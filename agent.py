@@ -5,11 +5,11 @@ from picklable_itertools import izip
 
 from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
-from random import sample
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
-from numpy import ndarray, asarray
+from numpy import ndarray, asarray, random
 
+random.seed(0)
 
 class Population:
 
@@ -22,7 +22,7 @@ class Population:
         self.cs12 = []
 
     def select_pairs_per_round(self, games_per_round):
-        agents_per_game = sample(self.agents, games_per_round * 2)
+        agents_per_game = random.choice(self.agents, games_per_round * 2, replace=False)
         return [(Speaker(a1), Hearer(a2)) for a1, a2 in zip(agents_per_game[::2], agents_per_game[1::2])]
 
     def __iter__(self):
@@ -199,6 +199,14 @@ class Agent:
     def update_on_failure(self, word, category):
         self.language.decrement_word2category_connection(word, category)
 
+    def __str__(self):
+        return str(self.id)
+
+    def dump(self) -> str:
+        # lexicon = [str(w) for w in self.language.get_active_lexicon()]
+        lexicon = ['{} [{}]'.format(str(w), 'ACTIVE' if w.is_active else 'INACTIVE') for w in self.language.get_full_lexicon()]
+        lxc = self.language.lxc
+        return 'active lexicon:\n {},\n lxc:\n {}'.format(str(lexicon), str(lxc))
 
 class Speaker(Agent):
 
@@ -224,6 +232,9 @@ class Speaker(Agent):
     def add_new_word(self):
         return self.language.add_new_word()
 
+    def __str__(self):
+        return '{} as speaker'.format(super(Speaker, self).__str__())
+
 
 class Hearer(Agent):
     def __init__(self, agent):
@@ -239,6 +250,10 @@ class Hearer(Agent):
         #if topic is None:
         #    raise NO_DIFFERENCE_FOR_CATEGORY
         return topic
+
+    def __str__(self):
+        return '{} as hearer'.format(super(Hearer, self).__str__())
+
 
     # HEARER: The hearer computes the cardinalities ... of word forms ... defined as ... (STAGE 7)
     def select_word(self, category):

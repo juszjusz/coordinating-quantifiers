@@ -214,9 +214,9 @@ class ExceptionHandler:
 
     # to be move to Hearer subclass
     def on_NO_SUCH_WORD(self, hearer, context, topic, speaker_word):
-        logging.debug("Hearer(%d) adds word \"%s\"" % (hearer.id, speaker_word))
+        logging.debug('on no such word event Hearer(%d) adds word "{}"'.format(hearer, speaker_word))
         hearer.add_word(speaker_word)
-        logging.debug("Hearer(%d) plays the discrimination game" % hearer.id)
+        logging.debug("{} plays the discrimination game".format(hearer))
         # TODO discrimination_game czy discriminate?
         category = None
         try:
