@@ -169,7 +169,7 @@ class Agent:
         return self.language.get_most_connected_category(word)
 
     def get_categories(self):
-        return self.language.categories
+        return self.language.get_active_cats()
 
     def get_best_matching_category(self, stimulus):
         return self.language.get_best_matching_category(stimulus)
@@ -178,7 +178,7 @@ class Agent:
         return self.language.get_categories_by_word(word)
 
     def get_lexicon(self):
-        return self.language.lexicon
+        return self.language.get_full_lexicon()
 
     def get_words_by_category(self, category):
         return self.language.get_words_by_category(category)
@@ -245,7 +245,7 @@ class Hearer(Agent):
         if category is None:
             raise ERROR
 
-        category = self.language.categories[category]
+        category = self.language.get_active_cats()[category]
         topic = category.select(context)
         #if topic is None:
         #    raise NO_DIFFERENCE_FOR_CATEGORY

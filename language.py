@@ -1,4 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
+
+import copy
 import logging
 
 from picklable_itertools import izip
@@ -6,18 +8,34 @@ from picklable_itertools import izip
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
-from numpy import empty, array, minimum
+from numpy import empty, array, minimum, append
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
-from numpy import delete
 from numpy import divide
+
+class Word():
+    def __init__(self, w: str):
+        self.w = w
+        self.is_active = True
+
+    def deactivate(self):
+        self.is_active = False
+
+    def __hash__(self):
+        return hash(self.w)
+
+    def __eq__(self, other):
+        return type(other) is type(self) and self.w == other.w and self.is_active == other.is_active
+
+    def __str__(self):
+        return self.w
 
 class Language(Perception):
 
     def __init__(self, params, word_gen):
         Perception.__init__(self)
-        self.lexicon = []
+        self.__lexicon: [Word] = []
         self.word_gen = word_gen
         self.lxc = AssociativeMatrix()
         self.stm = params['stimulus']
@@ -29,33 +47,40 @@ class Language(Perception):
         self.beta = params['beta']  # learning rate
         self.super_alpha = params['super_alpha']
 
-    def add_new_word(self):
-        new_word = self.word_gen()
-        self.add_word(new_word)
-        return new_word
+    def get_active_lexicon(self) -> [Word]:
+        return array([w for w in self.__lexicon if w.is_active])
 
-    def add_word(self, word):
-        self.lexicon.append(word)
+    def get_full_lexicon(self) -> [Word]:
+        return self.__lexicon
+
+    def add_new_word(self) -> Word:
+        w = Word(self.word_gen())
+        self.add_word(w)
+        return w
+
+    def add_word(self, word: Word):
+        self.__lexicon.append(copy.copy(word))
         self.lxc.add_row()
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
         c = Category(id=self.get_cat_id())
         c.add_reactive_unit(stimulus, weight)
-        self.categories.append(c)
+        self.append_category(c)
         # TODO this should work
         self.lxc.add_col()
         return self.lxc.col_count() - 1  # this is the index of the added category
 
     def update_category(self, i, stimulus):
         logging.debug("updating category by adding reactive unit centered on %s" % stimulus)
-        self.categories[i].add_reactive_unit(stimulus)
+        self.get_active_cats()[i].add_reactive_unit(stimulus)
 
     def get_most_connected_word(self, category):
         if category is None:
             raise ERROR
 
-        if not self.lexicon or all(v == 0.0 for v in self.lxc.get_row_by_col(category)):
+        active_lexicon = self.get_active_lexicon()
+        if not len(active_lexicon) or all(v == 0.0 for v in self.lxc.get_row_by_col(category)):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
@@ -63,15 +88,15 @@ class Language(Perception):
 
     def get_words_sorted_by_val(self, category, threshold=-1):
         # https://stackoverflow.com/questions/1286167/is-the-order-of-results-coming-from-a-list-comprehension-guaranteed/1286180
-        return [self.lexicon[index] for index, weight in self.lxc.get_index2row_sorted_by_value(category) if
+        return [self.__lexicon[index] for index, weight in self.lxc.get_index2row_sorted_by_value(category) if
                 weight > threshold]
 
     def get_categories_sorted_by_val(self, word):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         return self.lxc.get_index2col_sorted_by_value(word_index)
 
     def get_categories_by_word(self, word):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         return self.lxc.get_col_by_row(word_index)
 
     def get_words_by_category(self, category):
@@ -81,7 +106,7 @@ class Language(Perception):
         if word is None:
             raise ERROR
 
-        if word not in self.lexicon:
+        if word not in self.get_active_lexicon():
             raise NO_SUCH_WORD
 
         category_index, max_propensity = self.get_categories_sorted_by_val(word)[0]
@@ -94,16 +119,16 @@ class Language(Perception):
         return category_index
 
     def initialize_word2category_connection(self, word, category_index):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         self.lxc.set_value(word_index, category_index, .5)
 
     def increment_word2category_connection(self, word, category_index):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
         self.lxc.set_value(word_index, category_index, value + self.delta_inc * value)
 
     def inhibit_word2category_connection(self, word, category_index):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
         self.lxc.set_value(word_index, category_index, value - self.delta_inh * value)
 
@@ -118,24 +143,24 @@ class Language(Perception):
                 self.inhibit_word2category_connection(word=v, category_index=category_index)
 
     def decrement_word2category_connection(self, word, category_index):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         value = self.lxc.get_value(word_index, category_index)
         self.lxc.set_value(word_index, category_index, value - self.delta_dec * value)
 
     def forget_categories(self, category_in_use):
-        category_index = self.categories.index(category_in_use)
-        for c in self.categories:
+        category_index = self.get_active_cats().index(category_in_use)
+        for c in self.get_active_cats():
             c.decrement_weights(self.alpha)
-        to_forget = [j for j in range(len(self.categories))
-                     if self.categories[j].max_weigth() < self.super_alpha and j != category_index]
+        to_forget = [j for j in range(len(self.get_active_cats()))
+                     if self.get_active_cats()[j].max_weigth() < self.super_alpha and j != category_index]
 
         if len(to_forget):
-            self.lxc.__matrix__ = delete(self.lxc.__matrix__, to_forget, axis=1)
-            self.categories = list(delete(self.categories, to_forget))
+            self.lxc.deactivate_in_col(to_forget)
+            self.deactivate_categories(to_forget)
 
     def forget_words(self):
         to_forget = self.lxc.forget(0.01)
-        self.lexicon = list(delete(self.lexicon, to_forget))
+        [self.__lexicon[i].deactivate() for i in to_forget]
 
     def discrimination_game(self, context, topic):
         self.store_ds_result(False)
@@ -143,14 +168,14 @@ class Language(Perception):
         winning_category.reinforce(context[topic], self.beta)
         self.forget_categories(winning_category)
         self.switch_ds_result()
-        return self.categories.index(winning_category)
+        return self.get_active_cats().index(winning_category)
 
     def increment_word2category_connections_by_csimilarity(self, word, csimilarities):
-        row = self.lexicon.index(word)
+        row = self.__lexicon.index(word)
         increments = [sim * self.delta_inc * (sim > 0.25) for sim in csimilarities]
         #logging.debug("Increments: %s" % str(increments))
 
-        old_weights = self.lxc.get_col_by_row(self.lexicon.index(word))
+        old_weights = self.lxc.get_col_by_row(self.__lexicon.index(word))
         #logging.debug("Old weights: %s" % str(old_weights))
 
         incremented_weights = [weight + inc for weight, inc in zip(old_weights, increments)]
@@ -167,11 +192,11 @@ class Language(Perception):
         return sum(coverage) / sum(area)
 
     def word_meaning(self, word):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         return sum([category.union() * word2category_weigth for category, word2category_weigth in zip(self.categories, self.lxc.__matrix__[word_index])])
 
     def semantic_meaning(self, word, stimuli):
-        word_index = self.lexicon.index(word)
+        word_index = self.__lexicon.index(word)
         activations = [sum([float(c.response(s) > 0.0) * float(self.lxc.get_value(word_index, self.categories.index(c)) > 0.0) for c in self.categories]) for s in stimuli]
         flat_bool_activations = list(map(lambda x: int(x > 0.0), activations))
         mean_bool_activations = []
@@ -203,7 +228,14 @@ class AssociativeMatrix:
         self.__max_shape__ = (self.__max_shape__[0], max(self.__matrix__.shape[1], self.__max_shape__[1]))
 
     def get_row_by_col(self, column):
-        return self.__matrix__[0::, column]
+        row = self.__matrix__[0::, column]
+        return row[row > -1]
+
+    def deactivate_in_col(self, indicies: [int]):
+        self.__matrix__[:, indicies] = -1
+
+    def deactivate_in_row(self, indicies: [int]):
+        self.__matrix__[indicies, :] = -1
 
     # returns row vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
     def get_index2row_sorted_by_value(self, column):
@@ -244,13 +276,11 @@ class AssociativeMatrix:
             if max(self.__matrix__[:, index].flat) > 1.0:
                 self.__matrix__[:, index] = divide(self.__matrix__[:, index], max(self.__matrix__[:, index].flat))
 
-    def forget(self, super_alpha):
-        #self.__matrix__ = self.__matrix__ - self.__matrix__ * forgetting_factor
-
+    def forget(self, super_alpha) -> [int]:
         to_forget = [j for j in range(self.__matrix__.shape[0]) if max(self.__matrix__[j]) < super_alpha]
 
         if len(to_forget):
-            self.__matrix__ = delete(self.__matrix__, to_forget, axis=0)
+            self.deactivate_in_row(to_forget)
 
         return to_forget
 
@@ -260,14 +290,11 @@ class AssociativeMatrix:
     def max_shape(self):
         return self.__max_shape__
 
-    def delete_col(self, col):
-        self.__matrix__ = delete(self.__matrix__, col, axis=1)
-
-    def delete_row(self, row):
-        self.__matrix__ = delete(self.__matrix__, row, axis=0)
-
     def to_array(self):
         return array(self.__matrix__)
 
     def to_matrix(self):
         return self.__matrix__
+
+    def __str__(self):
+        return str(self.__matrix__)

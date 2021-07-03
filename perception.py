@@ -14,6 +14,7 @@ class Category:
         self.id = id
         self.__weights = []
         self.__reactive_indicies = []
+        self.is_active = True
 
 
     def response(self, stimulus, REACTIVE_X_REACTIVE=None):
@@ -25,7 +26,7 @@ class Category:
         self.__weights.append(weight)
         self.__reactive_indicies.append(stimulus.index)
 
-    def select(self, stimuli):
+    def select(self, stimuli) -> int:
         # TODO what if the same stimuli?
         responses = [self.response(s) for s in stimuli]
         max_response = max(responses)
@@ -64,6 +65,9 @@ class Category:
         plt.legend(['data', 'cubic'], loc='best')
         plt.show()
 
+    def deactivate(self):
+        self.is_active = False
+
 
 class Perception:
     class Result:
@@ -71,7 +75,7 @@ class Perception:
         FAILURE = 0
 
     def __init__(self):
-        self.categories = []
+        self.__categories = []
         self.ds_scores = deque([0])
         self._id_ = 0
         self.discriminative_success = 0.0
@@ -79,6 +83,9 @@ class Perception:
     def get_cat_id(self):
         self._id_ = self._id_ + 1
         return self._id_ - 1
+
+    def get_active_cats(self) -> [Category]:
+        return [c for c in self.__categories if c.is_active]
 
     def store_ds_result(self, result):
         if len(self.ds_scores) == 50:
@@ -93,7 +100,7 @@ class Perception:
         self.discriminative_success = sum(self.ds_scores) / len(self.ds_scores)
 
     def get_best_matching_category(self, stimulus):
-        responses = [c.response(stimulus) for c in self.categories]
+        responses = [c.response(stimulus) for c in self.get_active_cats()]
         try:
             max_resp = max(responses)
         except ValueError:
@@ -102,7 +109,7 @@ class Perception:
         return max_args[0]
 
     def discriminate(self, context, topic):
-        if not self.categories:
+        if not self.get_active_cats():
             # self.store_ds_result(Perception.Result.FAILURE)
             raise NO_CATEGORY
 
@@ -135,4 +142,10 @@ class Perception:
 
         # discrimination successful
         # self.store_ds_result(Perception.Result.SUCCESS)
-        return self.categories[i] if topic == 0 else self.categories[j]
+        return self.get_active_cats()[i] if topic == 0 else self.get_active_cats()[j]
+
+    def append_category(self, c: Category):
+        self.__categories.append(c)
+
+    def deactivate_categories(self, indicies: [int]):
+        [c.deactivate() for c in self.__categories[indicies]]
