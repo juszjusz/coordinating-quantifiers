@@ -17,11 +17,11 @@ import os
 import shutil
 
 from stimulus import QuotientBasedStimulusFactory, ContextFactory, NumericBasedStimulusFactory
-from random_word_gen import RandomWordGen
 
 matplotlib.use('Agg')
 from agent import Population
 from guessing_game import GuessingGame
+from numpy.random import randint
 
 class Simulation(Process):
 
@@ -35,11 +35,10 @@ class Simulation(Process):
         self.context_constructor = context_constructor
 
     def run(self):
-
         start_time = time.time()
         for step in range(self.params["steps"]):
             step_with_offset = step + self.step_offset
-            logging.critical("\n------------\nSTEP %d" % step_with_offset)
+            logging.info("\n------------\nSTEP {}".format(step_with_offset))
             selected_pairs = self.population.select_pairs_per_round(self.population.population_size // 2)
 
             for speaker, hearer in selected_pairs:
@@ -50,7 +49,6 @@ class Simulation(Process):
                 logging.debug("Number of categories of Agent(%d): %d" % (hearer.id, len(hearer.get_categories())))
 
             self.population.update_metrics()
-            #logging.critical(self.population.get_meanings(self.context_constructor.new_stimulus.get_all_stimuli()))
 
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
@@ -61,12 +59,11 @@ class Simulation(Process):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=4)
-    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient')
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient', choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int, default=100)
     parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)
     parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.2)
@@ -76,16 +73,19 @@ if __name__ == "__main__":
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=50)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=100)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
-    parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on', type=bool,
-                        default=False)
+    parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on', action='store_true')
     parser.add_argument('--load_simulation', '-l', help='load and rerun simulation from pickled simulation step',
                         type=str)
     parser.add_argument('--parallel', '-pl', help='run parallel runs', type=bool, default=True)
     parser.add_argument('--in_mem_calculus_path', '-path', help='path to precomputed integrals', type=str, default='inmemory_calculus')
-
+    parser.add_argument('--log_level', help='log level [debug,info]', default='info', choices=['debug', 'info'])
+    parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=randint(2_147_483_647))
     parsed_params = vars(parser.parse_args())
+
+    log_levels = {'debug': logging.DEBUG, 'info': logging.INFO}
+    logging.basicConfig(stream=sys.stderr, level=log_levels[parsed_params['log_level']])
     load_inmemory_calculus(parsed_params['in_mem_calculus_path'], parsed_params['stimulus'])
 
     stimulus_factory = None
@@ -94,8 +94,6 @@ if __name__ == "__main__":
     if parsed_params['stimulus'] == 'numeric':
         stimulus_factory = NumericBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
     context_constructor = ContextFactory(stimulus_factory)
-
-    word_gen = RandomWordGen(seed=0)
 
     simulation_tasks = []
     if parsed_params['load_simulation']:
@@ -119,7 +117,8 @@ if __name__ == "__main__":
         os.makedirs(simulation_path + '/stats')
 
         for run in range(parsed_params['runs']):
-            population = Population(parsed_params, word_gen)
+            population = Population(parsed_params, parsed_params['seed'])
+
             root_path = Path(simulation_path).joinpath('run' + str(run))
             path_provider = PathProvider.new_path_provider(root_path)
             path_provider.create_directory_structure()

@@ -8,11 +8,12 @@ from picklable_itertools import izip
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, NO_ASSOCIATED_CATEGORIES
 from perception import Perception
 from perception import Category
-from numpy import empty, array, minimum, append
+from numpy import empty, array, minimum
 from numpy import column_stack
 from numpy import zeros
 from numpy import row_stack
 from numpy import divide
+from numpy.random import RandomState
 
 class Word():
     def __init__(self, w: str):
@@ -22,18 +23,22 @@ class Word():
     def deactivate(self):
         self.is_active = False
 
+    def activate(self):
+        self.is_active = True
+
     def __hash__(self):
         return hash(self.w)
 
     def __eq__(self, other):
-        return type(other) is type(self) and self.w == other.w and self.is_active == other.is_active
+        # compare only embedded word (do not check whether it is in active or inactive state).
+        return type(other) is type(self) and self.w == other.w
 
     def __str__(self):
         return self.w
 
 class Language(Perception):
 
-    def __init__(self, params, word_gen):
+    def __init__(self, params, word_gen, seed):
         Perception.__init__(self)
         self.__lexicon: [Word] = []
         self.word_gen = word_gen
@@ -46,6 +51,7 @@ class Language(Perception):
         self.alpha = params['alpha']  # forgetting
         self.beta = params['beta']  # learning rate
         self.super_alpha = params['super_alpha']
+        self.__random_state = RandomState(seed)
 
     def get_active_lexicon(self) -> [Word]:
         return array([w for w in self.__lexicon if w.is_active])
@@ -59,12 +65,18 @@ class Language(Perception):
         return w
 
     def add_word(self, word: Word):
-        self.__lexicon.append(copy.copy(word))
-        self.lxc.add_row()
+        # if word is on the list, just activate it
+        if word in self.__lexicon:
+            word_index = self.__lexicon.index(word)
+            self.__lexicon[word_index].activate()
+        # otherwise add a copy of the word
+        else:
+            self.__lexicon.append(copy.copy(word))
+            self.lxc.add_row()
 
     def add_category(self, stimulus, weight=0.5):
         # print("adding discriminative category centered on %5.2f" % (stimulus.a/stimulus.b))
-        c = Category(id=self.get_cat_id())
+        c = Category(id=self.get_cat_id(), seed=self.__random_state.randint(2_147_483_647))
         c.add_reactive_unit(stimulus, weight)
         self.append_category(c)
         # TODO this should work

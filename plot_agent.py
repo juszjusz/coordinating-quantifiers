@@ -28,18 +28,14 @@ class PlotLanguageCommand:
 
     def __call__(self, agent, target_path):
         fig = plt.figure()
-        #
-        # categories_in_steps = [a.get_categories() for a in agent]
-        # max_peek = max(c.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]).max() for categories in
-        #            categories_in_steps for c in categories)
-        #
-        ax = plt.axes(xlim=(self.domain.min(), self.domain.max()), ylim=(0, 1000))
+
+        categories_in_steps = [a.get_categories() for a in agent]
+        max_peek = max(c.discretized_distribution(self.inmem["REACTIVE_UNIT_DIST"]).max() for categories in
+                       categories_in_steps for c in categories)
+        cat_size = max(len(c) for c in categories_in_steps)
+
+        ax = plt.axes(xlim=(self.domain.min(), self.domain.max()), ylim=(0, max_peek + 1000))
         plt.yscale('symlog', linthresh=100)
-        cat_size = 0
-
-        for step in agent:
-            cat_size = max(cat_size, len(step.get_categories()))
-
         lines = [ax.plot([], [], lw=3)[0] for _ in range(0, cat_size)]
 
         step_label = ax.text(0.02, 0.95, '', transform=ax.transAxes)
@@ -61,6 +57,7 @@ class PlotLanguageCommand:
             for category_index, category in enumerate(categories):
                 word_sorted_by_val = agent_at_step.language.get_words_sorted_by_val(category_index, threshold=0)
                 if word_sorted_by_val:
+                    # pick a word with a highest connectivity with a given category
                     word = word_sorted_by_val[0]
 
                     x = self.inmem["DOMAIN"]
@@ -75,7 +72,6 @@ class PlotLanguageCommand:
         anim = animation.FuncAnimation(fig, animate, init_func=init, frames=len(agent), interval=200, blit=True)
 
         path = target_path.joinpath('agent-{}-language.{}'.format(agent[0].id, self.ext))
-
         anim.save(path, writer=writers[self.ext])
 
 
@@ -88,11 +84,10 @@ class PlotLanguage2Command:
     def __call__(self, agent, target_path):
         fig = plt.figure()
         ax = plt.axes(xlim=(self.domain.min(), self.domain.max()), ylim=(0, 2000))
+        max_lexicon = max(len(step.get_lexicon()) for step in agent)
+        lines = [ax.plot([], [], lw=3)[0] for _ in range(0, max_lexicon)]
+
         plt.yscale('symlog', linthresh=100)
-
-        lines = [ax.plot([], [], lw=3)[0] for _ in range(0, len(agent[-1].get_lexicon()))]
-
-        plt.yscale('symlog', linthresh=10)
 
         step_label = ax.text(0.02, 0.95, '', transform=ax.transAxes)
 
@@ -120,7 +115,7 @@ class PlotLanguage2Command:
 
             return lines
 
-        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=len(agent), interval=10, blit=True)
+        anim = animation.FuncAnimation(fig, animate, init_func=init, frames=len(agent), interval=1, blit=True)
 
         path = target_path.joinpath('agent-{}-language2.{}'.format(agent[0].id, self.ext))
         anim.save(path, writer=writers[self.ext])
@@ -178,13 +173,15 @@ class PlotCategoryCommand:
 class PlotMatrixCommand:
 
     def __init__(self, ext=_default_ext):
-        self.log_th = 1
+        self.log_th = 4
         self.ext = ext
 
     def __call__(self, agent, target_path):
-        size_of_last = agent[-1].language.lxc.to_array().shape
+        lxcs = [step.language.lxc.to_array() for step in agent]
 
-        lexicon = agent[-1].language.lexicon
+        max_rows, max_cols = lxcs[-1].shape
+
+        lexicon = agent[-1].language.get_full_lexicon()
 
         max_lxc_connection = max(a.language.lxc.to_array().max(initial=0) for a in agent)
 
@@ -195,11 +192,13 @@ class PlotMatrixCommand:
         fig, (ax, cbar_ax) = plt.subplots(1, 2, gridspec_kw=grid_kws, figsize=(12, 8))
 
         def animate(step):
-            lxc = agent[step].language.lxc.to_array()
+            lxc = lxcs[step]
 
-            heat_map0 = np.zeros(size_of_last)
+            rows, cols = lxc.shape
 
-            heat_map0[:lxc.shape[0], :lxc.shape[1]] = lxc
+            heat_map0 = np.zeros((max_rows, max_cols))
+
+            heat_map0[:rows, :cols] = lxc
 
             map_ = heat_map0 > self.log_th
 
@@ -245,7 +244,8 @@ class CommandExecutor:
         with ProcessPoolExecutor(parallelism) as executor:
             for agent, command in itertools.product(agents_in_steps.values(), self.commands):
                 logging.info('submitting {} command with agent {}'.format(agent[0].id, command))
-                if parallelism == 1:
-                    command(agent, target_path)
+                if True or parallelism == 1:
+                    if agent[0].id == 1:
+                        command(agent, target_path)
                 else:
                     executor.submit(command, agent, target_path)

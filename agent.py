@@ -7,22 +7,27 @@ from guessing_game_exceptions import NO_DIFFERENCE_FOR_CATEGORY, ERROR
 from language import Language
 from collections import deque
 from guessing_game_exceptions import NO_WORD_FOR_CATEGORY
-from numpy import ndarray, asarray, random
+from numpy import ndarray, asarray
+from numpy.random import RandomState
 
-random.seed(0)
+from random_word_gen import RandomWordGen
+
 
 class Population:
 
-    def __init__(self, params, word_gen):
+    def __init__(self, params, seed):
         self.population_size = params['population_size']
-        self.agents = [Agent(agent_id, Language(params, word_gen), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
+        self.__random = RandomState(seed)
+        word_gen = RandomWordGen(seed=self.__random.randint(2_147_483_647))
+
+        self.agents = [Agent(agent_id, Language(params, word_gen, self.__random.randint(2_147_483_647)), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
         self.ds = []
         self.cs1 = []
         self.cs2 = []
         self.cs12 = []
 
     def select_pairs_per_round(self, games_per_round):
-        agents_per_game = random.choice(self.agents, games_per_round * 2, replace=False)
+        agents_per_game = self.__random.choice(self.agents, games_per_round * 2, replace=False)
         return [(Speaker(a1), Hearer(a2)) for a1, a2 in zip(agents_per_game[::2], agents_per_game[1::2])]
 
     def __iter__(self):

@@ -2,7 +2,6 @@ from __future__ import division  # force python 3 division in python 2
 import logging
 from agent import Agent, Hearer, Speaker
 from guessing_game_exceptions import *
-from random import choice
 
 
 class GuessingGame:
