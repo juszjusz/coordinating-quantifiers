@@ -1,5 +1,6 @@
 from __future__ import division  # force python 3 division in python 2
 import logging
+from copy import copy
 
 from picklable_itertools import izip
 
@@ -18,13 +19,17 @@ class Population:
     def __init__(self, params, seed):
         self.population_size = params['population_size']
         self.__random = RandomState(seed)
-        word_gen = RandomWordGen(seed=self.__random.randint(2_147_483_647))
-
-        self.agents = [Agent(agent_id, Language(params, word_gen, self.__random.randint(2_147_483_647)), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
+        self.agents = [Agent(agent_id, Language(params, self.__random.randint(2_147_483_647)), deque([0]), deque([0]), deque([0])) for agent_id in range(self.population_size)]
         self.ds = []
         self.cs1 = []
         self.cs2 = []
         self.cs12 = []
+
+    def create_lite_copy(self):
+        lite_clone = copy(self)
+        lite_clone.__random = None
+        lite_clone.agents = [a.create_lite_copy() for a in self.agents]
+        return lite_clone
 
     def select_pairs_per_round(self, games_per_round):
         agents_per_game = self.__random.choice(self.agents, games_per_round * 2, replace=False)
@@ -71,6 +76,11 @@ class Agent:
         self.cs1_scores = cs1_scores
         self.cs2_scores = cs2_scores
         self.cs12_scores = cs12_scores
+
+    def create_lite_copy(self):
+        clone = copy(self)
+        clone.language = self.language.create_lite_copy()
+        return clone
 
     def store_cs1_result(self, result):
         self.__store_result__(result, self.cs1_scores)

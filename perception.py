@@ -1,5 +1,7 @@
 from __future__ import division  # force python 3 division in python 2
 
+from copy import copy
+
 import matplotlib.pyplot as plt
 
 from guessing_game_exceptions import NO_NOTICEABLE_DIFFERENCE, NO_CATEGORY, NO_DISCRIMINATION
@@ -19,6 +21,10 @@ class Category:
         self.__reactive_indicies = []
         self.__random = RandomState(seed)
 
+    def create_lite_copy(self):
+        clone = copy(self)
+        clone.__random = None
+        return clone
 
     def response(self, stimulus, REACTIVE_X_REACTIVE=None):
         if REACTIVE_X_REACTIVE is None:
@@ -82,6 +88,11 @@ class Perception:
         self.ds_scores = deque([0])
         self._id_ = 0
         self.discriminative_success = 0.0
+
+    def create_lite_copy(self):
+        clone = copy(self)
+        clone.__categories = [c.create_lite_copy() for c in self.__categories]
+        return clone
 
     def get_cat_id(self):
         self._id_ = self._id_ + 1

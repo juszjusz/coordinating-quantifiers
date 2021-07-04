@@ -52,7 +52,7 @@ class Simulation(Process):
 
             serialized_step_path = str(self.path_provider.get_simulation_step_path(step_with_offset))
             with open(serialized_step_path, "wb") as write_handle:
-                dill.dump((step_with_offset, self.population), write_handle)
+                dill.dump((step_with_offset, self.population.create_lite_copy()), write_handle)
 
         exec_time = time.time() - start_time
         logging.debug("simulation {} took {}sec (with params {})".format(self.num, exec_time, self.params))
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=4)
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient', choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int, default=100)
     parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)

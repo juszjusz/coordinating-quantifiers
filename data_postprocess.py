@@ -559,5 +559,4 @@ if __name__ == '__main__':
 
         command_executor.execute_commands(data_paths, data_path, sim_params['steps'] - 1, parsed_params['parallelism'])
 
-        logging.log(logging.INFO,
-                    'execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))
+        logging.info('execution time {}sec, with params {}'.format(time.time() - start_time, parsed_params))

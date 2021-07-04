@@ -15,6 +15,9 @@ from numpy import row_stack
 from numpy import divide
 from numpy.random import RandomState
 
+from random_word_gen import RandomWordGen
+
+
 class Word():
     def __init__(self, w: str):
         self.w = w
@@ -38,10 +41,9 @@ class Word():
 
 class Language(Perception):
 
-    def __init__(self, params, word_gen, seed):
+    def __init__(self, params, seed):
         Perception.__init__(self)
         self.__lexicon: [Word] = []
-        self.word_gen = word_gen
         self.lxc = AssociativeMatrix()
         self.stm = params['stimulus']
         self.delta_inc = params['delta_inc']
@@ -52,6 +54,13 @@ class Language(Perception):
         self.beta = params['beta']  # learning rate
         self.super_alpha = params['super_alpha']
         self.__random_state = RandomState(seed)
+        self.__word_gen = RandomWordGen(seed=self.__random_state.randint(2_147_483_647))
+
+    def create_lite_copy(self):
+        clone = super(Language, self).create_lite_copy()
+        clone.__word_gen = None
+        clone.__random_state = None
+        return clone
 
     def get_active_lexicon(self) -> [Word]:
         return array([w for w in self.__lexicon if w.is_active])
@@ -60,7 +69,7 @@ class Language(Perception):
         return self.__lexicon
 
     def add_new_word(self) -> Word:
-        w = Word(self.word_gen())
+        w = Word(self.__word_gen())
         self.add_word(w)
         return w
 

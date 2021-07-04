@@ -236,7 +236,6 @@ class CommandExecutor:
             for agent in population.agents:
                 if not agents_in_steps.get(agent.id):
                     agents_in_steps[agent.id] = [None] * (last_step + 1)
-                agent.language.word_gen = None
                 agents_in_steps[agent.id][step] = agent
 
         target_path = pathlib.Path(data_path).absolute()
@@ -244,8 +243,7 @@ class CommandExecutor:
         with ProcessPoolExecutor(parallelism) as executor:
             for agent, command in itertools.product(agents_in_steps.values(), self.commands):
                 logging.info('submitting {} command with agent {}'.format(agent[0].id, command))
-                if True or parallelism == 1:
-                    if agent[0].id == 1:
-                        command(agent, target_path)
+                if parallelism == 1:
+                    command(agent, target_path)
                 else:
                     executor.submit(command, agent, target_path)
