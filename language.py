@@ -2,6 +2,7 @@ from __future__ import division  # force python 3 division in python 2
 
 import copy
 import logging
+from typing import Optional
 
 from picklable_itertools import izip
 
@@ -9,7 +10,7 @@ from guessing_game_exceptions import NO_WORD_FOR_CATEGORY, NO_SUCH_WORD, ERROR, 
 from perception import Perception
 from perception import Category
 from numpy import empty, array, minimum
-from numpy import column_stack
+from numpy import column_stack, nan_to_num
 from numpy import zeros
 from numpy import row_stack
 from numpy import divide
@@ -78,6 +79,7 @@ class Language(Perception):
         if word in self.__lexicon:
             word_index = self.__lexicon.index(word)
             self.__lexicon[word_index].activate()
+            self.lxc.set_row_to_zero(word_index)
         # otherwise add a copy of the word
         else:
             self.__lexicon.append(copy.copy(word))
@@ -101,7 +103,7 @@ class Language(Perception):
             raise ERROR
 
         active_lexicon = self.get_active_lexicon()
-        if not len(active_lexicon) or all(v == 0.0 for v in self.lxc.get_row_by_col(category)):
+        if not len(active_lexicon) or all(v is None or v == 0.0 for v in self.lxc.get_row_by_col(category)):
             raise NO_WORD_FOR_CATEGORY
             # print("not words or all weights are zero")
 
@@ -176,12 +178,13 @@ class Language(Perception):
                      if self.get_active_cats()[j].max_weigth() < self.super_alpha and j != category_index]
 
         if len(to_forget):
-            self.lxc.deactivate_in_col(to_forget)
+            self.lxc.set_col_to_None(*to_forget)
             self.deactivate_categories(to_forget)
 
     def forget_words(self):
         to_forget = self.lxc.forget(0.01)
         [self.__lexicon[i].deactivate() for i in to_forget]
+        self.lxc.set_row_to_None(*to_forget)
 
     def discrimination_game(self, context, topic):
         self.store_ds_result(False)
@@ -239,24 +242,35 @@ class AssociativeMatrix:
     def __init__(self, initial_size=(0, 0)):
         self.__matrix__ = empty(shape=initial_size)
         self.__max_shape__ = initial_size
+        self.__rows_with_None = []
+        self.__cols_with_None = []
 
     def add_row(self):
-        self.__matrix__ = row_stack((self.__matrix__, zeros(self.col_count())))
+        new_row = zeros(self.col_count())
+        new_row[self.__cols_with_None] = None
+        self.__matrix__ = row_stack((self.__matrix__, new_row))
         self.__max_shape__ = (max(self.__matrix__.shape[0], self.__max_shape__[0]), self.__max_shape__[1])
 
     def add_col(self):
-        self.__matrix__ = column_stack((self.__matrix__, zeros(self.row_count())))
+        new_col = zeros(self.row_count())
+        new_col[self.__rows_with_None] = None
+        self.__matrix__ = column_stack((self.__matrix__, new_col))
         self.__max_shape__ = (self.__max_shape__[0], max(self.__matrix__.shape[1], self.__max_shape__[1]))
 
     def get_row_by_col(self, column):
-        row = self.__matrix__[0::, column]
-        return row[row > -1]
+        return self.__matrix__[0::, column]
 
-    def deactivate_in_col(self, indicies: [int]):
-        self.__matrix__[:, indicies] = -1
+    def set_col_to_None(self, *indicies: int):
+        self.__matrix__[:, indicies] = None
+        [self.__cols_with_None.append(i) for i in indicies if i not in self.__cols_with_None]
 
-    def deactivate_in_row(self, indicies: [int]):
-        self.__matrix__[indicies, :] = -1
+    def set_row_to_zero(self, *indicies: int):
+        [self.__rows_with_None.remove(i) for i in indicies]
+        self.__matrix__[indicies, :] = 0
+
+    def set_row_to_None(self, *indicies: int):
+        self.__matrix__[indicies, :] = None
+        [self.__rows_with_None.append(i) for i in indicies if i not in self.__rows_with_None]
 
     # returns row vector with indices sorted by values in reverse order, i.e. [(index5, 1000), (index100, 999), (index500,10), ...]
     def get_index2row_sorted_by_value(self, column):
@@ -301,7 +315,7 @@ class AssociativeMatrix:
         to_forget = [j for j in range(self.__matrix__.shape[0]) if max(self.__matrix__[j]) < super_alpha]
 
         if len(to_forget):
-            self.deactivate_in_row(to_forget)
+            self.set_row_to_None(*to_forget)
 
         return to_forget
 
@@ -312,7 +326,7 @@ class AssociativeMatrix:
         return self.__max_shape__
 
     def to_array(self):
-        return array(self.__matrix__)
+        return nan_to_num(array(self.__matrix__), nan=0)
 
     def to_matrix(self):
         return self.__matrix__
