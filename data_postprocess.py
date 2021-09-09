@@ -21,6 +21,7 @@ from matplotlib.ticker import ScalarFormatter
 import seaborn as sns
 from numpy import linspace, column_stack, arange, log, amax, zeros, ndarray, asarray
 import h5py
+import dill
 
 class PlotCategoryCommand:
     def __init__(self, categories_path, inmem):
@@ -278,19 +279,15 @@ class MakeHdf5:
 
 class PlotConvexityCommand:
 
-    def __init__(self, root_paths, stimuluses, params):
-        self.root_path2 = None
-        self.root_path1 = Path(root_paths[0])
-        if len(root_paths) > 1:
-            self.root_path2 = Path(root_paths[1])
-
+    def __init__(self, root_path, stimuluses, params):
+        self.root_path = Path(root_path)
         self.stimuluses = stimuluses
         self.params = params
 
-        self.steps = [max(step*10-1, 0) for step in range(1 + self.params['steps']/10)]
+        self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
         logging.critical(self.steps)
         #self.steps = range(0, self.params['steps'])
-        self.conv_plot_path = self.root_path1.joinpath('stats/convexity.pdf')
+        self.conv_plot_path = self.root_path.joinpath('convexity.pdf')
         #self.array1 = zeros((self.params['runs'], self.steps))
         self.conv_samples1 = []
         #self.array2 = zeros((self.params['runs'], self.steps))
@@ -302,12 +299,21 @@ class PlotConvexityCommand:
         self.conv_cis2_l = []
         self.conv_cis2_u = []
 
+    def save_data(self):
+        self.get_data()
+        with open(str(self.root_path.joinpath("conv_samples.p")), "wb") as write_handle:
+            dill.dump(self.conv_samples1, write_handle)
+
+    def import_data(self):
+        self.conv_samples1 = pickle.load(self.root_path.joinpath('conv_samples1.p').open('rb'))
+        self.conv_samples2 = pickle.load(self.root_path.joinpath('conv_samples2.p').open('rb'))
+
     def get_data(self):
         #logging.debug("Root path %s" % self.root_path1)
         for step in self.steps:
             logging.debug("Processing step %d" % step)
             sample = []
-            for run_num, run_path in enumerate(self.root_path1.glob('run[0-9]*')):
+            for run_num, run_path in enumerate(self.root_path.glob('run[0-9]*')):
                 #logging.debug("Processing %s, %s" % (run_num, run_path))
                 #logging.debug("Processing %s" % "step" + str(step) + ".p")
                 step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
@@ -317,84 +323,62 @@ class PlotConvexityCommand:
         #for step in range(self.params['steps']):
         #    self.mon_samples1.append(list(self.array1[:, max(step*100-1, 0)]))
 
-        if self.root_path2 is not None:
-            logging.debug("Root path %s" % self.root_path2)
-            for step in self.steps:
-                logging.debug("Processing step %d" % step)
-                sample = []
-                for run_num, run_path in enumerate(self.root_path2.glob('run[0-9]')):
-                    logging.debug("Processing %s, %s" % (run_num, run_path))
-                    #for step_path in PathProvider(run_path).get_data_paths():
-                    #logging.debug("Processing %s" % step_path)
-                    step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
-                    #self.array2[run_num, step] = population.get_mon()
-                    #logging.debug("mon val %f" % self.array2[run_num, step])
-                    sample.append(population.get_convexity(self.stimuluses))
-                self.conv_samples2.append(sample)
-                #for step in range(self.params['steps']):
-                #self.mon_samples2.append(list(self.array2[:, step]))
-
     def compute_stats(self):
         logging.debug('in compute_stats')
         self.conv_means1 = means(self.conv_samples1)
-        #logging.debug(len(self.mon_means1))
-
         self.conv_cis1_l, self.conv_cis1_u = confidence_intervals(self.conv_samples1)
-
-        if self.root_path2 is not None:
-            self.mon_means2 = means(self.conv_samples2)
-            self.mon_cis2_l, self.mon_cis2_u = confidence_intervals(self.conv_samples2)
+        self.conv_means2 = means(self.conv_samples2)
+        self.conv_cis2_l, self.conv_cis2_u = confidence_intervals(self.conv_samples2)
 
     def plot(self):
         #x = range(1, self.params['steps'] + 1)
         x = self.steps
-        plt.ylim(bottom=50)
-        plt.ylim(top=105)
+        plt.ylim(bottom=0)
+        plt.ylim(top=102)
         plt.xlabel("step")
         plt.ylabel("convexity")
 
         #for r in range(self.runs):
         #    plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
 
-        plt.plot(x, self.conv_means1, 'k-', linewidth=0.3)
-
+        plt.plot(x, self.conv_means1, 'c', linewidth=1.0)
+        #plt.fill_between(x, self.conv_cis1_l, self.conv_cis1_u,
+        #                 color='c', alpha=.3)
         for i in range(0, self.params['runs']):
             logging.critical("run %d" % i)
-            plt.plot(x, [self.conv_samples1[s][i] for s in range(0, len(self.steps))], 'k-', linewidth=0.2, alpha=.3)
+            plt.plot(x, [self.conv_samples1[s][i] for s in range(0, len(self.steps))], 'c-', linewidth=0.5, alpha=.3)
 
-        if self.root_path2 is not None:
-            plt.plot(x, self.conv_means2, 'b--', linewidth=0.3)
-            plt.fill_between(x, self.conv_cis2_l, self.conv_cis2_u,
-                             color='b', alpha=.2)
-            plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
-        else:
+        plt.plot(x, self.conv_means2, 'm', linewidth=1.0)
+        for i in range(0, self.params['runs']):
+            logging.critical("run %d" % i)
+            plt.plot(x, [self.conv_samples2[s][i] for s in range(0, len(self.steps))], 'm-', linewidth=0.5, alpha=.3)
+        #plt.fill_between(x, self.conv_cis2_l, self.conv_cis2_u, color='m', alpha=.3)
+            #plt.legend([str(self.root_path1), str(self.root_path2)], loc='best')
+        #else:
             #plt.legend([str(self.root_path1)], loc='lower right')
-            plt.legend(['convexity'], loc='lower right')
+            #plt.legend(['convexity'], loc='lower right')
         plt.savefig(str(self.conv_plot_path))
         plt.close()
 
     def __call__(self):
-        self.get_data()
+        self.import_data()
         self.compute_stats()
         self.plot()
 
 
 class PlotMonotonicityCommand:
 
-    def __init__(self, root_paths, stimuluses, params):
-        self.root_path2 = None
-        self.root_path1 = Path(root_paths[0])
-        if len(root_paths) > 1:
-            self.root_path2 = Path(root_paths[1])
-
+    def __init__(self, root_path, stimuluses, params):
+        self.root_path = Path(root_path)
         self.stimuluses = stimuluses
         self.params = params
         self.steps = [max(step*100-1, 0) for step in range(1 + self.params['steps']/100)]
-        self.mon_plot_path = Path('.').joinpath('monotonicity.pdf')
+        self.mon_plot_path = Path('.').joinpath('monotonicity3.pdf')
         #self.array1 = zeros((self.params['runs'], self.steps))
         self.mon_samples1 = []
         #self.array2 = zeros((self.params['runs'], self.steps))
         self.mon_samples2 = []
+        self.mon_samples3 = []
         self.mon_means1 = []
         self.mon_cis1_l = []
         self.mon_cis1_u = []
@@ -402,12 +386,22 @@ class PlotMonotonicityCommand:
         self.mon_cis2_l = []
         self.mon_cis2_u = []
 
+        self.mon_means3 = []
+        self.mon_cis3_l = []
+        self.mon_cis3_u = []
+
+    def import_data(self):
+        self.mon_samples1 = pickle.load(self.root_path.joinpath('mon_samples1.p').open('rb'))
+        self.mon_samples2 = pickle.load(self.root_path.joinpath('mon_samples2.p').open('rb'))
+        self.mon_samples3 = pickle.load(self.root_path.joinpath('mon_samples3.p').open('rb'))
+
+    #this is used to pickle monotonicity data for further use in plotting
     def get_data(self):
-        #logging.debug("Root path %s" % self.root_path1)
+        logging.debug("Root path %s" % self.root_path)
         for step in self.steps:
-            #logging.debug("Processing step %d" % step)
+            logging.debug("Processing step %d" % step)
             sample = []
-            for run_num, run_path in enumerate(self.root_path1.glob('run[0-9]*')):
+            for run_num, run_path in enumerate(self.root_path.glob('run[0-9]*')):
                 #logging.debug("Processing %s, %s" % (run_num, run_path))
                 #logging.debug("Processing %s" % "step" + str(step) + ".p")
                 step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
@@ -417,33 +411,20 @@ class PlotMonotonicityCommand:
         #for step in range(self.params['steps']):
         #    self.mon_samples1.append(list(self.array1[:, max(step*100-1, 0)]))
 
-        if self.root_path2 is not None:
-            logging.debug("Root path %s" % self.root_path2)
-            for step in self.steps:
-                logging.debug("Processing step %d" % step)
-                sample = []
-                for run_num, run_path in enumerate(self.root_path2.glob('run[0-9]')):
-                    logging.debug("Processing %s, %s" % (run_num, run_path))
-                    #for step_path in PathProvider(run_path).get_data_paths():
-                    #logging.debug("Processing %s" % step_path)
-                    step, population = pickle.load(run_path.joinpath("data/step" + str(step) + ".p").open('rb'))
-                    #self.array2[run_num, step] = population.get_mon()
-                    #logging.debug("mon val %f" % self.array2[run_num, step])
-                    sample.append(population.get_mon(self.stimuluses))
-                self.mon_samples2.append(sample)
-                #for step in range(self.params['steps']):
-                #self.mon_samples2.append(list(self.array2[:, step]))
+    def save_data(self):
+        self.get_data()
+        with open(str(self.root_path.joinpath("mon_samples.p")), "wb") as write_handle:
+            dill.dump(self.mon_samples1, write_handle)
 
     def compute_stats(self):
         logging.debug('in compute_stats')
         self.mon_means1 = means(self.mon_samples1)
-        #logging.debug(len(self.mon_means1))
-
         self.mon_cis1_l, self.mon_cis1_u = confidence_intervals(self.mon_samples1)
+        self.mon_means2 = means(self.mon_samples2)
+        self.mon_cis2_l, self.mon_cis2_u = confidence_intervals(self.mon_samples2)
+	self.mon_means3 = means(self.mon_samples3)
+        self.mon_cis3_l, self.mon_cis3_u = confidence_intervals(self.mon_samples3)
 
-        if self.root_path2 is not None:
-            self.mon_means2 = means(self.mon_samples2)
-            self.mon_cis2_l, self.mon_cis2_u = confidence_intervals(self.mon_samples2)
 
     def plot(self):
         #x = range(1, self.params['steps'] + 1)
@@ -456,23 +437,34 @@ class PlotMonotonicityCommand:
         #for r in range(self.runs):
         #    plt.plot(x, [y * 100.0 for y in self.array[r]], '-')
 
-        plt.plot(x, self.mon_means1, 'r--', linewidth=0.3)
-        plt.fill_between(x, self.mon_cis1_l, self.mon_cis1_u,
-                         color='r', alpha=.2)
+        plt.plot(x, self.mon_means1, 'c', linewidth=0.3)
+        #plt.fill_between(x, self.mon_cis1_l, self.mon_cis1_u,
+        #                 color='c', alpha=.2)
+        for i in range(0, self.params['runs']):
+           logging.critical("run %d" % i)
+           plt.plot(x, [self.mon_samples1[s][i] for s in range(0, len(self.steps))], 'c-', linewidth=0.2, alpha=.3, legend="Weber")
 
-        if self.root_path2 is not None:
-            plt.plot(x, self.mon_means2, 'b--', linewidth=0.3)
-            plt.fill_between(x, self.mon_cis2_l, self.mon_cis2_u,
-                             color='b', alpha=.2)
-            plt.legend(['mon. no ANS', 'mon. ANS'], loc='best')
-        else:
-            plt.legend([str(self.root_path1)], loc='best')
+        plt.plot(x, self.mon_means2, 'm', linewidth=0.3)
+        #plt.fill_between(x, self.mon_cis1_l, self.mon_cis1_u,
+        #                 color='c', alpha=.2)
+        for i in range(0, self.params['runs']):
+           logging.critical("run %d" % i)
+           plt.plot(x, [self.mon_samples2[s][i] for s in range(0, len(self.steps))], 'm-', linewidth=0.2, alpha=.3, legend="precise")
 
+        plt.plot(x, self.mon_means3, 'k', linewidth=0.3)
+        #plt.fill_between(x, self.mon_cis1_l, self.mon_cis1_u,
+        #                 color='c', alpha=.2)
+        for i in range(0, self.params['runs']):
+           logging.critical("run %d" % i)
+           plt.plot(x, [self.mon_samples3[s][i] for s in range(0, len(self.steps))], 'k-', linewidth=0.2, alpha=.3, legend="vague")
+
+
+	ax.legend()
         plt.savefig(str(self.mon_plot_path))
         plt.close()
 
     def __call__(self):
-        self.get_data()
+        self.import_data()
         self.compute_stats()
         self.plot()
 
@@ -715,12 +707,13 @@ if __name__ == '__main__':
     parser.add_argument('--plot_langs2', '-l2', help='plot languages 2', type=bool, default=False)
     parser.add_argument('--plot_matrices', '-m', help='plot matrices', type=bool, default=False)
     parser.add_argument('--plot_success', '-s', help='plot success', type=bool, default=False)
+    parser.add_argument('--save_mon', '-smon', help='save monotonicity', type=bool, default=False)
     parser.add_argument('--plot_mon', '-mon', help='plot monotonicity', type=bool, default=False)
-    parser.add_argument('--plot_mons', '-mons', help='plot monotonicity', type=str, nargs='+', default='')
-    parser.add_argument('--plot_conv', '-conv', help='plot convexity', type=str, nargs='+', default='')
+    parser.add_argument('--plot_conv', '-conv', help='plot convexity', type=bool, default=False)
+    parser.add_argument('--save_conv', '-sconv', help='save convexity', type=bool, default=False)
     parser.add_argument('--plot_num_DS', '-nds', help='plot success', type=bool, default=False)
     parser.add_argument('--hdf_franek', '-hdf', help='hdf franek', type=bool, default=False)
-    parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=8)
+    parser.add_argument('--parallelism', '-p', help='number of processes (unbounded if 0)', type=int, default=1)
 
     parsed_params = vars(parser.parse_args())
 
@@ -737,24 +730,25 @@ if __name__ == '__main__':
         hdf_command = MakeHdf5(parsed_params['data_root'], unpickled_stimuluses, sim_params)
         hdf_command()
 
-    if len(parsed_params['plot_mons']) == 2:
+    if parsed_params['plot_mon']:
         logging.critical("PLOTTING MONOTONICITY")
-        data_root_path1 = Path(parsed_params['plot_mons'][0])
-        unpickled_stimuluses1 = pickle.load(PathProvider.new_path_provider(data_root_path1).get_stimuluses_path().open('rb'))
-        simulation1_params = pickle.load(PathProvider.new_path_provider(data_root_path1).get_simulation_params_path().open('rb'))
-        pmc = PlotMonotonicityCommand(parsed_params['plot_mons'], unpickled_stimuluses1, simulation1_params)
+        pmc = PlotMonotonicityCommand(parsed_params['data_root'], unpickled_stimuluses, sim_params)
         pmc()
 
     if not data_root_path.exists():
         logging.debug("Path %s does not exist" % data_root_path.absolute())
         exit()
 
-    if parsed_params['plot_mon']:
-        plot_mon_command = PlotMonotonicityCommand([parsed_params['data_root']], unpickled_stimuluses, sim_params)
-        plot_mon_command()
+    if parsed_params['save_mon']:
+        plot_mon_command = PlotMonotonicityCommand(parsed_params['data_root'], unpickled_stimuluses, sim_params)
+        plot_mon_command.save_data()
+
+    if parsed_params['save_conv']:
+        plot_mon_command = PlotConvexityCommand(parsed_params['data_root'], unpickled_stimuluses, sim_params)
+        plot_mon_command.save_data()
 
     if parsed_params['plot_conv']:
-        plot_conv_command = PlotConvexityCommand([parsed_params['data_root']], unpickled_stimuluses, sim_params)
+        plot_conv_command = PlotConvexityCommand(parsed_params['data_root'], unpickled_stimuluses, sim_params)
         plot_conv_command()
 
     if parsed_params['plot_num_DS']:
