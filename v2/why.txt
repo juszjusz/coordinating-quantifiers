@@ -1,0 +1,11 @@
+1. refactor
+2. uproszczenie całego modelu danych:
+
+Agent
+M: Macierz LxC
+Leksykon: Lista słów
+Kategorie: Lista kategorii
+
+- pełna enkapsulacja dla zmian stanów agenta:
+
+Implementacja GuessingGame jako grafu z przejściami (czytelniej),

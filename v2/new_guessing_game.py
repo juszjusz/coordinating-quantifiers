@@ -1,38 +1,68 @@
-from __future__ import division  # force python 3 division in python 2
+from collections import deque
+from fractions import Fraction
+from threading import Lock
+
 import graphviz
 import argparse
 import dataclasses
 import logging
-from dataclasses import dataclass
-from typing import Dict, Tuple, Any, Union, List, Callable
+from typing import Dict, Tuple, Union, List, Callable, Any
 
+from numpy import ndarray
 from numpy.random import RandomState
 
 import numpy as np
 
-from inmemory_calculus import inmem, load_inmemory_calculus
-from stimulus import QuotientBasedStimulusFactory, NumericBasedStimulusFactory, ContextFactory, AbstractStimulus
+from v2.calculator import NumericCalculator, QuotientCalculator, Calculator, NewAbstractStimulus
 from v2.category import NewCategory
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+logger.setLevel(level=logging.DEBUG)
+
+
+def flip_a_coin_random_function(seed=0) -> Callable[[], int]:
+    r = np.random.RandomState(seed=seed)
+
+    def flip_a_coin() -> int:
+        return r.binomial(1, .5)
+
+    return flip_a_coin
+
+
+def shuffle_list_random_function(seed=0) -> Callable[[List], None]:
+    r = np.random.RandomState(seed=seed)
+
+    def shuffle_list(l: List) -> None:
+        r.shuffle(l)
+
+    return shuffle_list
+
+
+def pick_element_random_function(seed=0) -> Callable[[List], Any]:
+    r = np.random.RandomState(seed=seed)
+
+    def pick_random_value(l: List) -> Any:
+        i = r.randint(len(l))
+        return l[i]
+
+    return pick_random_value
 
 
 @dataclasses.dataclass
 class GameParams:
     population_size: int
     steps: int
-    stimulus: AbstractStimulus
+    stimulus: str
     max_num: int
     runs: int
     guessing_game_2: bool
     in_mem_calculus_path: str
     seed: int
     discriminative_threshold: float
+    discriminative_history_length: int
     delta_inc: float  # params['delta_inc']
     delta_dec: float  # params['delta_dec']
     delta_inh: float  # params['delta_inh']
-    discriminative_threshold: float  # params['discriminative_threshold']
     alpha: float  # params['alpha']  # forgetting
     beta: float  # params['beta']  # learning rate
     super_alpha: float  # params['super_alpha']
@@ -41,102 +71,161 @@ class GameParams:
 @dataclasses.dataclass
 class NewWord:
     word_id: int
+    active = True
 
     def __hash__(self):
         return self.word_id
 
+    def deactivate(self):
+        self.active = False
 
-class NewWordFactory:
 
-    def __init__(self, r: RandomState) -> None:
-        super().__init__()
-        self.random = r
+class AggregatedGameResultStats:
+    def __init__(self) -> None:
+        self._agent2discrimination_success = {}
+        self._agent2communication_success1 = {}
+        self._agent2communication_success2 = {}
+        self._agent2communication_success12 = {}
+
+    def add_discrimination_success(self, agent):
+        self._add_discrimination_result(self._agent2discrimination_success, agent, True)
+
+    def add_discrimination_failure(self, agent):
+        self._add_discrimination_result(self._agent2discrimination_success, agent, False)
+
+    def add_communication1_success(self, agent):
+        self._add_discrimination_result(self._agent2communication_success1, agent, True)
+
+    def add_communication1_failure(self, agent):
+        self._add_discrimination_result(self._agent2communication_success1, agent, False)
+
+    def add_communication2_success(self, agent):
+        self._add_discrimination_result(self._agent2communication_success2, agent, True)
+
+    def add_communication12_failure(self, agent):
+        self._add_discrimination_result(self._agent2communication_success12, agent, False)
+
+    def add_communication12_success(self, agent):
+        self._add_discrimination_result(self._agent2communication_success12, agent, True)
+
+    def add_communication2_failure(self, agent):
+        self._add_discrimination_result(self._agent2communication_success2, agent, False)
+
+    def _add_discrimination_result(self, agent2dict: Dict[int, deque], agent, result: bool):
+        if agent.agent_id not in agent2dict.keys():
+            agent2dict[agent.agent_id] = deque(maxlen=game_params.discriminative_history_length)
+
+        agent2dict[agent.agent_id].append(result)
+
+
+class ThreadSafeWordFactory:
+
+    def __init__(self) -> None:
+        self._counter = 0
+        self._lock = Lock()
 
     def __call__(self) -> NewWord:
-        word_new_id = self.random.randint(999_999_999_999)
-        return NewWord(word_new_id)
-
-
-new_word = NewWordFactory(RandomState(0))
+        with self._lock:
+            w = NewWord(self._counter)
+            self._counter += 1
+            return w
 
 
 class ConnectionMatrixLxC:
     def __init__(self, size: int):
-        self.square_matrix = np.zeros((size, size))
+        self._square_matrix = np.zeros((size, size))
 
-    def to_ndarray(self):
-        return self.square_matrix
+    def to_ndarray(self) -> ndarray:
+        return self._square_matrix
 
     def __call__(self, row, col) -> float:
-        return self.square_matrix[row, col]
+        return self._square_matrix[row, col]
 
     def rows(self):
-        return self.square_matrix.shape[0]
+        return self._square_matrix.shape[0]
 
     def cols(self):
-        return self.square_matrix.shape[1]
+        return self._square_matrix.shape[1]
+
+    def get_rows_all_smaller_than_threshold(self, threshold: float) -> ndarray:
+        result, = np.where(np.all(self._square_matrix < threshold, axis=1))
+        return result
 
     def get_row_argmax(self, row_index) -> int:
-        return np.argmax(self.square_matrix, axis=0)[row_index]
+        return np.argmax(self._square_matrix, axis=1)[row_index]
 
     def get_col_argmax(self, col_index) -> int:
-        return np.argmax(self.square_matrix, axis=1)[col_index]
+        return np.argmax(self._square_matrix, axis=0)[col_index]
 
     def update_cell(self, row: int, column: int, update: Callable[[float], float]):
-        recomputed_value = update(self.square_matrix[row, column])
-        self.square_matrix[row, column] = recomputed_value
+        recomputed_value = update(self._square_matrix[row, column])
+        self._square_matrix[row, column] = recomputed_value
 
-    def update_matrix_on_indices(self, row_indices: List[int], column_indices: List[int], scalar: float):
-        updated_cells = self.square_matrix[row_indices, column_indices]
-        self.square_matrix[row_indices, column_indices] += scalar * updated_cells
+    def update_matrix_on_given_row(self, row_index: int, column_indices: (List[int] or ndarray),
+                                   scalar: float):
+        updated_cells = self._square_matrix[row_index, column_indices]
+        self._square_matrix[row_index, column_indices] += scalar * updated_cells
+
+    def reset_matrix_on_row_indices(self, row_indices: (List[int] or ndarray)):
+        self._square_matrix[row_indices, :] = 0
+
+    def reset_matrix_on_col_indices(self, col_indices: (List[int] or ndarray)):
+        self._square_matrix[:, col_indices] = 0
+
+    def reduce(self, height: int, width: int):
+        return self._square_matrix[:height, :width]
+
+    def get_row_vector(self, word_index) -> ndarray:
+        return self._square_matrix[word_index, :]
 
 
 class NewAgent:
     def __init__(self, agent_id: int, lxc_max_size: int):
         self.agent_id = agent_id
 
-        self.__lxc = ConnectionMatrixLxC(lxc_max_size)
-
-        self.__lexicon: List[NewWord] = []
-        self.__categories: List[NewCategory] = []
-        self.__cat2index = {}
-        self.__lex2index = {}
+        self._lxc = ConnectionMatrixLxC(lxc_max_size)
+        self._lexicon: List[NewWord] = []
+        self._categories: List[NewCategory] = []
+        self._lex2index = {}
+        self._discriminative_success = deque(maxlen=game_params.discriminative_history_length)
+        self._discriminative_success_mean = 0.
 
     def __repr__(self):
-        return str(self.__lxc)
+        actual_lexicon = len(self._lexicon)
+        actual_categories = len(self._categories)
+        return str(self._lxc.reduce(actual_lexicon, actual_categories))
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
-        category_index = self.__cat2index[category]
-        category_argmax = self.__lxc.get_col_argmax(category_index)
-        value = self.__lxc(category_argmax, category_index)
-        if value >= activation_threshold:
-            return self.__lexicon[category_argmax]
+        category_index = category.category_id
+        category_argmax = self._lxc.get_col_argmax(category_index)
+        value = self._lxc(category_argmax, category_index)
+        if value > activation_threshold and category_argmax < len(self._lexicon):
+            return self._lexicon[category_argmax]
         else:
             return None
 
     def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Union[NewCategory, None]:
-        word_index = self.__lex2index[word]
-        word_argmax = self.__lxc.get_row_argmax(word_index)
-        value = self.__lxc(word_index, word_argmax)
-        if value >= activation_threshold:
-            return self.__categories[word_argmax]
+        word_index = self._lex2index[word]
+        word_argmax = self._lxc.get_row_argmax(word_index)
+        value = self._lxc(word_index, word_argmax)
+        if value > activation_threshold:
+            return self._categories[word_argmax]
         else:
             return None
 
     def has_categories(self) -> bool:
-        return len(self.__categories) > 0
+        return len(self._categories) > 0
 
-    def get_best_matching_category(self, stimulus: AbstractStimulus) -> NewCategory:
-        responses = [c.response(stimulus) for c in self.__categories if c.is_active]
+    def get_best_matching_category(self, stimulus, calculator: Calculator) -> NewCategory:
+        responses = [c.response(stimulus, calculator) for c in self._categories if c.is_active]
         response_argmax = np.argmax(responses)
-        return self.__categories[response_argmax]
+        return self._categories[response_argmax]
 
     def knows_word(self, w: NewWord):
-        return w in self.__lex2index.keys()
+        return w in self._lex2index.keys()
 
     def forget_categories(self, category_in_use: NewCategory):
-        # category_index = self.get_active_cats().index(category_in_use)
-        active_categories = [c for c in self.__categories if c.is_active]
+        active_categories = [c for c in self._categories if c.is_active]
 
         for c in active_categories:
             c.decrement_weights(game_params.alpha)
@@ -144,21 +233,27 @@ class NewAgent:
         to_forget = [i for i, activate_category in enumerate(active_categories) if
                      activate_category.max_weigth() < game_params.super_alpha and category_in_use != i]
 
-        self.__lxc.update_matrix_on_indices([], to_forget, -1)
-        [c.deactivate() for c in to_forget]
+        self._lxc.reset_matrix_on_col_indices(to_forget)
+        [self._categories[c].deactivate() for c in to_forget]
+
+    def forget_words(self, super_alpha=.01):
+        to_forget = self._lxc.get_rows_all_smaller_than_threshold(super_alpha)
+        to_forget = [i for i in to_forget if i < len(self._lexicon)]
+        self._lxc.reset_matrix_on_row_indices(to_forget)
+        [self._lexicon[i].deactivate() for i in to_forget]
 
     def add_new_word(self, w: NewWord):
-        self.__lex2index[w] = len(self.__lexicon)
-        self.__lexicon.append(w)
+        self._lex2index[w] = len(self._lexicon)
+        self._lexicon.append(w)
 
-        assert (len(self.__lexicon) <= self.__lxc.rows()), \
+        assert (len(self._lexicon) <= self._lxc.rows()), \
             'lexicon size must be at most the size of the lxc matrix height'
 
     def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
-        word_index = self.__lex2index[word]
-        except_category_index = self.__cat2index[except_category]
-        indices = [i for i in self.__cat2index.values() if i != except_category_index]
-        self.__lxc.update_matrix_on_indices([word_index], indices, -game_params.delta_inh)
+        word_index = self._lex2index[word]
+        # except_category_index = self._cat2index[except_category]
+        indices = [i for i in range(len(self._categories)) if i != except_category.category_id]
+        self._lxc.update_matrix_on_given_row(word_index, indices, -game_params.delta_inh)
 
     def learn_word_category(self, word: NewWord, category: NewCategory, connection=.5):
         self.__update_connection(word, category, lambda v: connection)
@@ -166,50 +261,101 @@ class NewAgent:
     def update_on_success(self, word: NewWord, category: NewCategory):
         self.__update_connection(word, category, lambda v: v + game_params.delta_inc * v)
 
-    def learn_stimulus(self, stimulus):
-        discriminative_success = 0  # todo
-        if discriminative_success >= game_params.discriminative_threshold:
-            logging.debug("updating category by adding reactive unit centered on %s" % stimulus)
-            category = self.get_best_matching_category(stimulus)
-            logging.debug("updating category")
+    def update_on_failure(self, word: NewWord, category: NewCategory):
+        self.__update_connection(word, category, lambda v: v - game_params.delta_dec * v)
+
+    def learn_stimulus(self, stimulus: NewAbstractStimulus, calculator: Calculator):
+        if self._discriminative_success_mean >= game_params.discriminative_threshold:
+            logger.debug("updating category by adding reactive unit centered on %s" % stimulus)
+            category = self.get_best_matching_category(stimulus, calculator)
+            logger.debug("updating category")
             category.add_reactive_unit(stimulus)
         else:
-            logging.debug("adding new category centered on %s" % stimulus)
+            logger.debug(f'adding new category centered on {stimulus}')
             self.add_new_category(stimulus)
 
-    def add_new_category(self, stimulus, weight=0.5):
-        category_id = len(self.__categories)
-        new_category = NewCategory(category_id=category_id, seed=(2_147_483_647))
+    def add_new_category(self, stimulus: NewAbstractStimulus, weight=0.5):
+        category_id = len(self._categories)
+        new_category = NewCategory(category_id=category_id)
         new_category.add_reactive_unit(stimulus, weight)
-        self.__categories.append(new_category)
-        assert (len(self.__categories) <= self.__lxc.cols()), \
+        self._categories.append(new_category)
+        assert (len(self._categories) <= self._lxc.cols()), \
             'categories size must be at most the size of the lxc matrix height'
 
+    def reinforce_category(self, category: NewCategory, stimulus, calculator: Calculator):
+        category.reinforce(stimulus, game_params.beta, calculator)
+
     def __update_connection(self, word: NewWord, category: NewCategory, update: Callable[[float], float]):
-        word_index = self.__lex2index[word]
-        category_index = self.__cat2index[category]
-        self.__lxc.update_cell(word_index, category_index, update)
+        word_index = self._lex2index[word]
+        self._lxc.update_cell(word_index, category.category_id, update)
+
+    def add_discrimination_success(self):
+        self._discriminative_success.append(True)
+        self._discriminative_success_mean = np.mean(self._discriminative_success)
+
+    def add_discrimination_failure(self):
+        self._discriminative_success.append(False)
+        self._discriminative_success_mean = np.mean(self._discriminative_success)
+
+    # based on how much the word meaning covers the category
+    def csimilarity(self, word: NewWord, category: NewCategory, calculator: Calculator):
+        area = category.union(calculator)
+        # omit multiplication by x_delta because all we need is ratio: coverage/area:
+        word_meaning = self.word_meaning(word, calculator)
+        coverage = np.minimum(word_meaning, area)
+
+        return sum(coverage) / sum(area)
+
+    def word_meaning(self, word: NewWord, calculator: Calculator) -> float:
+        word_index = self._lex2index[word]
+        word2categories_vector = self._lxc.get_row_vector(word_index)[:len(self._lexicon)]
+        return np.dot([c.union(calculator) for c in self._categories], word2categories_vector)
+        # return sum([category.union() * word2category_weight for category, word2category_weight in
+        #             zip(self._categories, self._lxc.get_row_vector(word_index))])
+
+    def semantic_meaning(self, word: NewWord, stimuli: NewAbstractStimulus):
+        word_index = self._lex2index[word]
+
+        activations = [
+            sum([float(c.response(s) > 0.0) * float(self._lxc(word_index, c.category_id) > 0.0)
+                 for c in self._categories]) for s in stimuli]
+
+        flat_bool_activations = list(map(lambda x: int(x > 0.0), activations))
+        mean_bool_activations = []
+        for i in range(0, len(flat_bool_activations)):
+            window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
+            mean_bool_activations.append(int(sum(window) / len(window) > 0.5))
+
+        return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
+
+    def is_monotone(self, word: NewWord, stimuli):
+        bool_activations = self.semantic_meaning(word, stimuli)
+        alt = len([a for a, aa in zip(bool_activations, bool_activations[1:]) if a != aa])
+        return alt == 1
 
 
 class NewPopulation:
 
-    def __init__(self, population_size: int, steps: int, seed: int):
+    def __init__(self, population_size: int, steps: int, shuffle_list: Callable[[List], Any]):
         assert population_size % 2 == 0, 'each agent must be paired'
-        self.__random = RandomState(seed)
-        self.__agents = [NewAgent(agent_id, steps) for agent_id in range(population_size)]
+        self._shuffle_list = shuffle_list
+        self._agents = [NewAgent(agent_id, steps) for agent_id in range(population_size)]
 
     def select_pairs(self) -> List[Tuple[NewAgent, NewAgent]]:
-        np.random.shuffle(self.__agents)
-        return [(self.__agents[i], self.__agents[i + 1]) for i in range(0, len(self.__agents), 2)]
+        self._shuffle_list(self._agents)
+        return [(self._agents[i], self._agents[i + 1]) for i in range(0, len(self._agents), 2)]
+
+    def __iter__(self):
+        return iter(self._agents)
+
+    def __len__(self):
+        return len(self._agents)
 
 
 class GuessingGameAction:
-    def __call__(self, agent: NewAgent, context: Tuple[AbstractStimulus, AbstractStimulus],
-                 topic: int, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context: Tuple[NewAbstractStimulus, NewAbstractStimulus], data_envelope: Dict,
+                 **kwargs) -> str:
         pass
-
-    def is_complete(self):
-        return False
 
 
 def select_speaker(speaker: NewAgent, _: NewAgent) -> NewAgent:
@@ -222,83 +368,94 @@ def select_hearer(_: NewAgent, hearer: NewAgent) -> NewAgent:
 
 class DiscriminationGameAction(GuessingGameAction):
 
-    def __init__(self,
-                 on_no_category: str,
+    def __init__(self, on_no_category: str,
                  on_no_noticeable_difference: str,
                  on_no_discrimination: str,
-                 on_success: str):
+                 on_success: str,
+                 selected_category_path: str,
+                 calculator: Calculator,
+                 stats: AggregatedGameResultStats):
         self.on_no_category = on_no_category
         self.on_no_noticeable_difference = on_no_noticeable_difference
         self.on_no_discrimination = on_no_discrimination
         self.on_success = on_success
 
-    def __call__(self, agent, context, topic, data_envelope) -> str:
-        # agent: NewAgent = self.select_agent(speaker, hearer)
-        # agent.store_ds_result(False) #TODO
+        self.selected_category_path = selected_category_path
 
+        self.calculator = calculator
+        self.stats = stats
+
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
         if not agent.has_categories():
-            # raise NO_CATEGORY
+            logging.debug('no category {}({})'.format(agent, agent.agent_id))
+            agent.learn_stimulus(context[topic], self.calculator)
+            agent.add_discrimination_failure()
+            self.stats.add_discrimination_failure(agent)
             return self.on_no_category
 
         s1, s2 = context
 
         if not s1.is_noticeably_different_from(s2):
-            # raise NO_NOTICEABLE_DIFFERENCE
             return self.on_no_noticeable_difference
 
-        category1 = agent.get_best_matching_category(s1)
-        category2 = agent.get_best_matching_category(s2)
+        category1 = agent.get_best_matching_category(s1, self.calculator)
+        category2 = agent.get_best_matching_category(s2, self.calculator)
 
         if category1 == category2:
-            # raise NO_DISCRIMINATION
+            logging.debug('no category {}({})'.format(agent, agent.agent_id))
+            agent.learn_stimulus(context[topic], self.calculator)
+            agent.add_discrimination_failure()
+            self.stats.add_discrimination_failure(agent)
             return self.on_no_discrimination
 
-        winning_category = category1 if topic == 0 else category2
+        winning_category = [category1, category2][topic]
 
-        winning_category.reinforce(context[topic], game_params.beta)
+        # todo można to wbić do jednej metody, dwie metody występują tylko tutaj
+        agent.reinforce_category(winning_category, context[topic], calculator=calculator)
         agent.forget_categories(winning_category)
-        # agent.switch_ds_result()
 
-        # winning_category_index = agent.categories.index(winning_category)
-        data_envelope['category'] = winning_category
+        data_envelope[self.selected_category_path] = winning_category
 
-        return self.on_success  # (winning_category=winning_category_index)
+        agent.add_discrimination_success()
+        self.stats.add_discrimination_success(agent)
+        return self.on_success
 
 
-class SpeakerPickMostConnectedWord(GuessingGameAction):
-    """3. The speaker searches for words f in DS which are associated with cS , i.e.
-        such that LS (f, cS ) > 0.
-        If no associated words are found (i.e., LS (f, cS ) = 0 for all f ∈ DS ) or
-        LS is empty, the speaker creates a new word f (i.e., DS := DS ∪ {f }), sets
-        LS (f, cS ) = 0.5 and utters f .
-        Now suppose that some associated words are found. Let f1,..., fn be all
-        words associated with cS . The speaker chooses f from f1,..., fn such that
-        LS (f, cS ) ≥ LS (fi, cS ), for i = 1, 2,..., n, and conveys f to the hearer. The
-        choice of such a word is consistent with the concept of pragmatic meaning,
-        defined later in this section."""
+class PickMostConnectedWord(GuessingGameAction):
+    """ 3. The speaker searches for words f in DS which are associated with cS , i.e.
+    such that LS (f, cS ) > 0.
+    If no associated words are found (i.e., LS (f, cS ) = 0 for all f ∈ DS ) or
+    LS is empty, the speaker creates a new word f (i.e., DS := DS ∪ {f }), sets
+    LS (f, cS ) = 0.5 and utters f .
+    Now suppose that some associated words are found. Let f1,..., fn be all
+    words associated with cS . The speaker chooses f from f1,..., fn such that
+    LS (f, cS ) ≥ LS (fi, cS ), for i = 1, 2,..., n, and conveys f to the hearer. The
+    choice of such a word is consistent with the concept of pragmatic meaning,
+    defined later in this section."""
 
-    def __init__(self, select_word_for_category: str):
-        self.select_word_for_category = select_word_for_category
+    def __init__(self, on_success: str,
+                 selected_word_path: str,
+                 new_word: Callable[[], NewWord]):
+        self.select_word_for_category = on_success
+        self.selected_word_path = selected_word_path
+        self.new_word = new_word
 
-    def __call__(self, speaker: NewAgent, context, topic, data_envelope) -> str:
-        assert data_envelope['category'], 'category must be defined on this stage'
-        category = data_envelope['category']
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
+        word = agent.get_most_connected_word(category)
 
-        word = speaker.get_most_connected_word(category)
-        # if not speaker.lexicon or all(v == 0.0 for v in speaker.lxc.get_row_by_col(category)):
         if word is None:
-            logging.debug("%s(%d) introduces new word \"%s\"" % (speaker, speaker.agent_id, new_word))
-            logging.debug("%s(%d) associates \"%s\" with his category" % (speaker, speaker.agent_id, new_word))
-            word = new_word()
-            speaker.add_new_word(word)
-            speaker.learn_word_category(word, category)
+            logger.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.agent_id, word))
+            logger.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.agent_id, word))
+            word = self.new_word()
+            agent.add_new_word(word)
+            agent.learn_word_category(word, category)
 
-        logging.debug("Speaker(%d) says: %s" % (speaker.agent_id, word))
-        data_envelope['speaker_selected_word'] = word
+        logger.debug("Agent(%d) says: %s" % (agent.agent_id, word))
+        data_envelope[self.selected_word_path] = word
         return self.select_word_for_category
 
 
-class HearerGetMostConnectedHearerCategory(GuessingGameAction):
+class PickMostConnectedCategoryAction(GuessingGameAction):
     """ 4. The hearer looks up f in her lexicon DH.
     If f /∈ DH, the game fails and the topic is revealed to the hearer. The
     repair mechanism is as follows. First, the hearer adds f to her lexicon (i.e.,
@@ -312,173 +469,234 @@ class HearerGetMostConnectedHearerCategory(GuessingGameAction):
     i = 1, 2, ... , k. The hearer points to the stimulus, denoted by qH , that
     generates the highest response for cH (i.e., qH = argmax q∈{q1,q2}〈cH |Rq〉)."""
 
-    def __init__(self, on_unknown_word: str, on_known_word: str):
-        self.on_uknown_word = on_unknown_word
+    def __init__(self, on_unknown_word_or_no_associated_category: str, on_known_word: str, selected_category_path: str):
+        self.on_unknown_word_or_no_associated_category = on_unknown_word_or_no_associated_category
         self.on_known_word = on_known_word
+        self.selected_category_path = selected_category_path
 
-    def __call__(self, hearer, context, topic, data_envelope):
-        word = data_envelope['word']
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
+        if not agent.knows_word(word):
+            agent.add_new_word(word)
+            return self.on_unknown_word_or_no_associated_category
 
-        if not hearer.knows_word(word):
-            return self.on_uknown_word
+        category = agent.get_most_connected_category(word)
 
-        category = hearer.get_most_connected_category(word)
+        if category is None:
+            return self.on_unknown_word_or_no_associated_category
 
-        # if category is None:
-        # todo
-        # return self.on_uknown_word
-
-        data_envelope['category'] = category
+        data_envelope[self.selected_category_path] = category
 
         return self.on_known_word
 
 
-class HearerGetTopicAction(GuessingGameAction):
+class SelectAndCompareTopic(GuessingGameAction):
     """ 5. The topic is revealed to the hearer. If qS = qH , i.e., the topic is the same as
         the guess of the hearer, the game is successful. Otherwise, the game fails """
 
-    def __init__(self, on_success: str, on_failure: str):
+    def __init__(self, on_success: str, on_failure: str, flip_a_coin: Callable[[], int],
+                 calculator: Calculator, stats: AggregatedGameResultStats):
         self.on_success = on_success
         self.on_failure = on_failure
 
-    def __call__(self, hearer: NewAgent, context, topic, data_envelope) -> str:
-        assert 'category' in data_envelope.keys()
-        category = data_envelope['category']
+        self.flip_a_coin = flip_a_coin
+        self._calculator = calculator
+        self.stats = stats
 
-        selected = category.select(context)
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory, topic: int) -> str:
+        selected = category.select(context, self._calculator)
 
-        data_envelope['topic'] = topic
+        if selected is None:
+            selected = self.flip_a_coin()
 
         if selected == topic:
+            self.stats.add_communication1_success(agent)
             return self.on_success
         else:
+            self.stats.add_communication1_failure(agent)
             return self.on_failure
 
 
-class OnComplete(GuessingGameAction):
+class CompareWordsAction(GuessingGameAction):
+    def __init__(self, on_equal_words: str, on_different_words: str, stats: AggregatedGameResultStats):
+        self.on_equal_words = on_equal_words
+        self.on_different_words = on_different_words
+        self.stats = stats
 
-    def __call__(self, speaker, hearer, context, topic, **kwargs) -> str:
-        hearer_selected_topic = kwargs['topic']
-        if hearer_selected_topic == topic:
-            speaker_word = kwargs['word']
-            speaker_category = kwargs['category']
-            hearer_category = kwargs['hearer_category']
-            # if self.completed and success1:
-            speaker.update_on_success(speaker_word, speaker_category)
-            hearer.update_on_success(speaker_word, hearer_category)
-            # elif self.completed:
-            #     hearer.update_on_failure(speaker_word, hearer_category)
-            #     speaker.update_on_failure(speaker_word, speaker_category)
-            return #GuessingGameStage.SUCCESS()
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
+                 hearer_word: NewWord) -> str:
+        if speaker_word == hearer_word:
+            self.stats.add_communication2_success(agent)
+            return self.on_equal_words
         else:
-            return #GuessingGameStage.FAILURE()
+            self.stats.add_communication2_failure(agent)
+            return self.on_different_words
 
 
 class SuccessAction(GuessingGameAction):
+    def __init__(self, on_success: str):
+        self.on_success = on_success
 
-    def __call__(self, speaker, hearer, context, topic, **kwargs) -> str:
-        logging.debug("guessing game 1 success!")
-        success1 = True
-        # todo !!!
-        # speaker.store_cs1_result(success1)
-        # hearer.store_cs1_result(success1)
-        # todo !!!
-        hearer.update_on_success(speaker_word, hearer_category)
-        speaker.update_on_success(speaker_word, speaker_category)
-        return None
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord, category: NewCategory) -> str:
+        agent.update_on_success(word, category)
+        return self.on_success
 
 
 class FailureAction(GuessingGameAction):
-    def __call__(self, speaker, hearer, context, topic, **kwargs) -> str:
-        success1 = False
-        logging.debug("guessing game 1 failed!")
-        # todo
-        # speaker.store_cs1_result(success1)
-        # hearer.store_cs1_result(success1)
-        # todo !!!
-        # hearer.update_on_failure(speaker_word, hearer_category)
-        # speaker.update_on_failure(speaker_word, speaker_category)
-        return None
+    def __init__(self, on_success: str):
+        self.on_success = on_success
+
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord, category: NewCategory) -> str:
+        agent.update_on_failure(word, category)
+        return self.on_success
 
 
-# class on_NO_CATEGORY_HEARER(GuessingGameAction):
-#     def __call__(self, speaker, hearer, context, topic, **kwargs) -> GuessingGameStage:
-#         # def on_NO_CATEGORY(self, agent, context, topic):
-#         return on_NO_DISCRIMINATION_HEARER()(speaker, hearer, context, topic)
-#
-#
-# class on_NO_CATEGORY_SPEAKER(GuessingGameAction):
-#     def __call__(self, speaker, hearer, context, topic, **kwargs) -> GuessingGameStage:
-#         # def on_NO_CATEGORY(self, agent, context, topic):
-#         return on_NO_DISCRIMINATION_SPEAKER()(speaker, hearer, context, topic)
+class LearnWordCategoryAction(GuessingGameAction):
+    def __init__(self, on_success: str):
+        self.on_success = on_success
+
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord, category: NewCategory) -> str:
+        agent.learn_word_category(word, category)
+        return self.on_success
 
 
-class on_NO_NOTICEABLE_DIFFERENCE(GuessingGameAction):
-    def __call__(self, speaker, hearer, context, topic, **kwargs) -> str:
-        logging.debug("no noticeable difference")
-        return None
+class CompleteAction:
+    def __init__(self, on_success: str):
+        self.on_success = on_success
+
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
+        agent.forget_words()
+        return self.on_success
 
 
-class on_NO_DISCRIMINATION_ACTION(GuessingGameAction):
-    def __init__(self, select_agent):
-        self.select_agent = select_agent
+def game_graph_with_stage_7(calculator: Calculator):
+    stats = AggregatedGameResultStats()
+    new_word = ThreadSafeWordFactory()
 
-    def __call__(self, speaker, hearer, context, topic, data_envelope) -> str:
-        agent = self.select_agent(speaker, hearer)
-        logging.debug("no discrimination")
-        logging.debug("%s(%d)" % (agent, agent.agent_id))
-        agent.learn_stimulus(context[topic])
-        return None
+    return {'2_SPEAKER_DISCRIMINATION_GAME':
+        {'action': DiscriminationGameAction(
+            on_no_category='SPEAKER_COMPLETE',
+            on_no_noticeable_difference='SPEAKER_COMPLETE',
+            on_no_discrimination='SPEAKER_COMPLETE',
+            on_success='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
+            selected_category_path='SPEAKER.category',
+            calculator=calculator,
+            stats=stats
+        ), 'agent': 'SPEAKER', 'args': ['topic']},
+
+        '3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY':
+            {'action': PickMostConnectedWord(
+                on_success='4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',
+                selected_word_path='SPEAKER.word',
+                new_word=new_word
+            ), 'agent': 'SPEAKER', 'args': ['SPEAKER.category']},
+
+        '4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER':
+            {'action': PickMostConnectedCategoryAction(
+                on_unknown_word_or_no_associated_category='4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD',
+                on_known_word='5_CHECK_TOPIC',
+                selected_category_path='HEARER.category'
+            ), 'agent': 'HEARER', 'args': ['SPEAKER.word']},
+
+        '4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD':
+            {'action': DiscriminationGameAction(
+                on_no_category='SPEAKER_COMPLETE',
+                on_no_noticeable_difference='SPEAKER_COMPLETE',
+                on_no_discrimination='SPEAKER_COMPLETE',
+                on_success='4_2_HEARER_LEARNS_WORD_CATEGORY',
+                selected_category_path='HEARER.category',
+                calculator=calculator,
+                stats=stats
+            ), 'agent': 'HEARER', 'args': ['topic']},
+
+        '4_2_HEARER_LEARNS_WORD_CATEGORY':
+            {'action': LearnWordCategoryAction(
+                on_success='SPEAKER_COMPLETE'
+            ), 'agent': 'HEARER', 'args': ['SPEAKER.word', 'HEARER.category']},
+
+        '6_HEARER_PICKUPS_WORD_FOR_CATEGORY':
+            {'action': PickMostConnectedWord(
+                on_success='7_HEARER_COMPARES_WORD',
+                selected_word_path='HEARER.word',
+                new_word=new_word
+            ), 'agent': 'HEARER', 'args': ['HEARER.category']},
+
+        '7_HEARER_COMPARES_WORD':
+            {'action': CompareWordsAction(on_equal_words='SPEAKER_SUCCESS', on_different_words='SPEAKER_FAILURE',
+                                          stats=stats),
+             'agent': 'HEARER', 'args': ['SPEAKER.word', 'HEARER.word']},
+
+        '5_CHECK_TOPIC':
+            {'action': SelectAndCompareTopic(on_success='SPEAKER_SUCCESS', on_failure='SPEAKER_FAILURE', stats=stats,
+                                             flip_a_coin=flip_a_coin, calculator=calculator),
+             'agent': 'HEARER', 'args': ['HEARER.category', 'topic']},
+
+        'SPEAKER_SUCCESS':
+            {'action': SuccessAction(on_success='HEARER_SUCCESS'),
+             'agent': 'SPEAKER', 'args': ['SPEAKER.word', 'SPEAKER.category']},
+
+        'HEARER_SUCCESS':
+            {'action': SuccessAction(on_success='SPEAKER_COMPLETE'),
+             'agent': 'HEARER', 'args': ['SPEAKER.word', 'HEARER.category']},
+
+        'SPEAKER_FAILURE':
+            {'action': FailureAction(on_success='HEARER_FAILURE'),
+             'agent': 'SPEAKER', 'args': ['SPEAKER.word', 'SPEAKER.category']},
+
+        'HEARER_FAILURE':
+            {'action': FailureAction(on_success='SPEAKER_COMPLETE'),
+             'agent': 'HEARER', 'args': ['SPEAKER.word', 'HEARER.category']},
+
+        'SPEAKER_SUCCESS_7':
+            {'action': SuccessAction(on_success='HEARER_SUCCESS'),
+             'agent': 'SPEAKER', 'args': []},
+
+        'HEARER_SUCCESS_7':
+            {'action': SuccessAction(on_success='SPEAKER_COMPLETE'),
+             'agent': 'HEARER', 'args': []},
+
+        'SPEAKER_COMPLETE': {'action': CompleteAction(on_success='HEARER_COMPLETE'), 'agent': 'SPEAKER', 'args': []},
+
+        'HEARER_COMPLETE': {'action': CompleteAction(on_success='NEXT_STEP'), 'agent': 'HEARER', 'args': []},
+
+        'NEXT_STEP': {'action': None, 'agent': None, 'args': []}
+    }
 
 
-# class on_NO_DISCRIMINATION_HEARER(GuessingGameAction):
-#     def __call__(self, speaker, hearer, context, topic, **kwargs) -> GuessingGameStage:
-#         return on_NO_DISCRIMINATION_ACTION()(hearer, context, topic)
-#
-#
-# class on_NO_DISCRIMINATION_SPEAKER(GuessingGameAction):
-#     def __call__(self, speaker, hearer, context, topic, **kwargs) -> GuessingGameStage:
-#         return on_NO_DISCRIMINATION_ACTION()(speaker, context, topic)
+def run_simulation(steps: int, population_size: int, context_constructor, game_graph):
+    population = NewPopulation(population_size, steps, shuffle_list)
 
-# to be move to Speaker subclass
+    for step in range(steps):
+        paired_agents = population.select_pairs()
 
+        for speaker, hearer in paired_agents:
+            logger.debug(f'step {step}')
+            context = context_constructor()
 
-class on_NO_WORD_FOR_CATEGORY_SPEAKER(GuessingGameAction):
-    def __call__(self, speaker, hearer, context, topic, data_envelope) -> str:
-        agent_category = data_envelope["agent_category"]
-        logging.debug("%s(%d) has no word for his category" % (speaker, speaker.agent_id))
+            data_envelope = {'topic': 0}
 
-        new_word = new_word()
+            state_name = '2_SPEAKER_DISCRIMINATION_GAME'
+            state = game_graph[state_name]
+            action = state['action']
+            agent_name = state['agent']
+            arg_names = state['args']
+            args = [data_envelope[a] for a in arg_names]
 
-        speaker.add_new_word(new_word)
-        # TODO speaker_word instead new_word_index?
-        logging.debug("%s(%d) introduces new word \"%s\"" % (speaker, speaker.agent_id, new_word))
+            while state_name != 'NEXT_STEP':
+                logger.debug(f'{state_name}, agent: {agent_name}, args: {args}')
 
-        speaker.learn_word_category(new_word, agent_category)
-        logging.debug("%s(%d) associates \"%s\" with his category" % (speaker, speaker.agent_id, new_word))
-        return None
+                agent_selector = {'SPEAKER': select_speaker, 'HEARER': select_hearer}[agent_name]
+                agent = agent_selector(speaker, hearer)
 
+                state_name = action(agent, context, data_envelope, *args)
+                state = game_graph[state_name]
+                action = state['action']
+                agent_name = state['agent']
+                arg_names = state['args']
+                args = [data_envelope[a] for a in arg_names]
 
-# class on_NO_SUCH_WORD_HEARER_OR_NO_ASSOCIATED_CATEGORIES(GuessingGameAction):
-#     def __init__(self, discriminate_game: DiscriminationGameAction):
-#         self.discriminate_game = discriminate_game
-#
-#     def __call__(self, speaker, hearer, context, topic, data_envelope) -> GuessingGameStage:
-#         speaker_word: NewWord = data_envelope["speaker_word"]
-#
-#         logging.debug('on no such word event Hearer(%d) adds word "{}"'.format(hearer, speaker_word))
-#         hearer.add_new_word(speaker_word)
-#         logging.debug("{} plays the discrimination game".format(hearer))
-#         # try:
-#         # category = hearer.discrimination_game(context, topic)
-#         next = self.discriminate_game(speaker, hearer, context, topic)
-#         # logging.debug("Hearer(%d) category %d" % (hearer.id,
-#         #                                           -1 if next is None else hearer.get_categories()[next].id))
-#         # logging.debug("Hearer(%d) associates \"%s\" with his category %d" % (
-#         #     hearer.agent_id, speaker_word, hearer.get_categories()[next].id))
-#         hearer.learn_word_category(speaker_word, next)
-#
-#         return next
+                logger.debug(data_envelope)
+
+    return population
 
 
 if __name__ == '__main__':
@@ -491,6 +709,9 @@ if __name__ == '__main__':
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int,
                         default=100)
     parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)
+    parser.add_argument('--discriminative_history_length',
+                        help='max length of discriminative successes sequence per agent',
+                        type=int, default=50)
     parser.add_argument('--delta_inc', '-dinc', help='delta increment', type=float, default=.2)
     parser.add_argument('--delta_dec', '-ddec', help='delta decrement', type=float, default=.2)
     parser.add_argument('--delta_inh', '-dinh', help='delta inhibition', type=float, default=.2)
@@ -510,47 +731,28 @@ if __name__ == '__main__':
 
     log_levels = {'debug': logging.DEBUG, 'info': logging.INFO}
     # logging.basicConfig(stream=sys.stderr, level=log_levels[parsed_params['log_level']])
-    load_inmemory_calculus(parsed_params['in_mem_calculus_path'], parsed_params['stimulus'])
+    # load_inmemory_calculus(parsed_params['in_mem_calculus_path'], parsed_params['stimulus'])
+    calculator = {'numeric': NumericCalculator.load_from_file(),
+                  'quotient': QuotientCalculator.load_from_file()}[parsed_params['stimulus']]
 
-    stimulus_factory = None
-    if parsed_params['stimulus'] == 'quotient':
-        stimulus_factory = QuotientBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
-    if parsed_params['stimulus'] == 'numeric':
-        stimulus_factory = NumericBasedStimulusFactory(inmem['STIMULUS_LIST'], parsed_params['max_num'])
-    context_constructor = ContextFactory(stimulus_factory)
+    seed = 0  # parsed_params['seed']
+
+    shuffle_list = shuffle_list_random_function(seed=seed)
+    flip_a_coin = flip_a_coin_random_function(seed=seed)
+    pick_element = pick_element_random_function(seed=seed)
+
+    context_constructor = calculator.context_factory(pick_element=pick_element)
 
     population_size = 2  # parsed_params['population_size']
-    steps = 10  # parsed_params['steps']
-    seed = 0  # parsed_params['seed']
+    steps = 1000  # parsed_params['steps']
 
     game_params = GameParams(**parsed_params)
 
-    population = NewPopulation(population_size, steps, seed)
+    # population = NewPopulation(population_size, steps, shuffle_list)
     # game_graph = graphviz.Digraph()
 
-    game_graph = {'2_SPEAKER_DISCRIMINATION_GAME':
-        {'action': DiscriminationGameAction(
-            on_no_category='SPEAKER_NO_CATEGORY_AFTER_DISCRIMINATION_GAME',
-            on_no_noticeable_difference='SPEAKER_NO_CATEGORY_AFTER_DISCRIMINATION_GAME',
-            on_no_discrimination='SPEAKER_NO_CATEGORY_AFTER_DISCRIMINATION_GAME',
-            on_success='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
-        ), 'agent': 'SPEAKER'},
-        '3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY':
-            {'action': SpeakerPickMostConnectedWord(
-                select_word_for_category='4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER'
-            ), 'agent': 'SPEAKER'},
-        '4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER':
-            {'action': HearerGetMostConnectedHearerCategory(
-                on_unknown_word='4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD',
-                on_known_word='5_CHECK_TOPIC'),
-                'agent': 'HEARER'},
-        '4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD':
-            {'action': DiscriminationGameAction(None, None, None, None),
-             'agent': 'HEARER'},
-        '5_CHECK_TOPIC':
-            {'action': HearerGetTopicAction(on_success='SUCCESS', on_failure='FAILURE'),
-             'agent': 'HEARER'}
-    }
+    population = run_simulation(steps, population_size, context_constructor, game_graph_with_stage_7(calculator))
+    [print(a) for a in population]
 
     # game_graph.node('SPEAKER_DISCRIMINATION_GAME', label='root node', attrs='speaker')
     # game_graph.node('SPEAKER_NO_CATEGORY_AFTER_DISCRIMINATION_GAME', attrs='speaker')
@@ -562,24 +764,3 @@ if __name__ == '__main__':
     # game_graph.edge('SPEAKER_DISCRIMINATION_GAME', 'SPEAKER_DISCRIMINATION_GAME_SUCCESS')
     #
     # print(game_graph.source)
-
-    for step in range(steps):
-        paired_agents = population.select_pairs()
-        for speaker, hearer in paired_agents:
-            context = context_constructor()
-            topic = 0
-            logging.debug("Stimulus 1: %s" % context[0])
-            logging.debug("Stimulus 2: %s" % context[1])
-            logging.debug("topic = %d" % (topic + 1))
-
-            state = game_graph['2_SPEAKER_DISCRIMINATION_GAME']
-            action = state['action']
-            select_agent = state['agent']
-            data_envelope = {}
-            while 'COMPLETE' not in state.keys():
-                agent_selector = {'SPEAKER': select_speaker, 'HEARER': select_hearer}[select_agent]
-                agent = agent_selector(speaker, hearer)
-                next_state = action(agent, context, topic, data_envelope)
-                state = game_graph[next_state]
-                action = state['action']
-                select_agent = state['agent']
