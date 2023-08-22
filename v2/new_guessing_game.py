@@ -195,6 +195,24 @@ class NewAgent:
         actual_categories = len(self._categories)
         return str(self._lxc.reduce(actual_lexicon, actual_categories))
 
+    @staticmethod
+    def to_dict(agent) -> Dict:
+        words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': w.active}
+                 for w in agent._lexicon]
+
+        categories = [{'category_id': category.category_id, 'is_active': category.is_active, 'reactive_units': category.reactive_units(),
+             'weights': category.weights()} for category in agent._categories]
+
+        discriminative_success = list(agent._discriminative_success)
+
+        lxc = agent._lxc.reduce(len(words), len(categories)).tolist()
+
+        return {'agent_id': agent.agent_id,
+                'categories': categories,
+                'words': words,
+                'discriminative_success': discriminative_success,
+                'lxc': lxc}
+
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         category_index = category.category_id
         category_argmax = self._lxc.get_col_argmax(category_index)
@@ -662,7 +680,7 @@ def game_graph_with_stage_7(calculator: Calculator):
     }
 
 
-def run_simulation(steps: int, population_size: int, context_constructor, game_graph):
+def run_simulation(steps: int, population_size: int, context_constructor: Callable[[], Tuple[NewAbstractStimulus, NewAbstractStimulus]], game_graph):
     population = NewPopulation(population_size, steps, shuffle_list)
 
     for step in range(steps):
@@ -752,7 +770,7 @@ if __name__ == '__main__':
     # game_graph = graphviz.Digraph()
 
     population = run_simulation(steps, population_size, context_constructor, game_graph_with_stage_7(calculator))
-    [print(a) for a in population]
+    [print(NewAgent.to_dict(a)) for a in population]
 
     # game_graph.node('SPEAKER_DISCRIMINATION_GAME', label='root node', attrs='speaker')
     # game_graph.node('SPEAKER_NO_CATEGORY_AFTER_DISCRIMINATION_GAME', attrs='speaker')

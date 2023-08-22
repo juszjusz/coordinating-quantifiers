@@ -17,11 +17,20 @@ class NewCategory:
     def __hash__(self):
         return self.category_id
 
+    def __repr__(self):
+        return f'[{self._weights}x{self._reactive_units}]'
+
     def __eq__(self, o) -> bool:
         if not isinstance(o, NewCategory):
             return False
 
         return self.category_id == o.category_id
+
+    def reactive_units(self):
+        return self._reactive_units
+
+    def weights(self):
+        return self._weights
 
     def response(self, stimulus: NewAbstractStimulus, calculator: Calculator):
         return sum([weight * calculator.dot_product(ru_value, stimulus.value()) for weight, ru_value in

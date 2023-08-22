@@ -59,7 +59,6 @@ class NewQuotientStimulus(NewAbstractStimulus):
 class NewContextFactory:
     def __init__(self, stimulus_factory: Callable[[], NewAbstractStimulus]):
         self._new_stimulus = stimulus_factory
-        # self._is_noticeably_different_from = different
 
     def __call__(self):
         s1 = self._new_stimulus()
