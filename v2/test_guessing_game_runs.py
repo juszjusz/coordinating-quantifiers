@@ -234,23 +234,14 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
                        'discriminative_history_length': 50, 'delta_inc': 0.2, 'delta_dec': 0.2, 'delta_inh': 0.2,
                        'alpha': 0.01,
                        'super_alpha': 0.001, 'beta': 0.2, 'steps': 1000, 'runs': 1, 'guessing_game_2': False,
-                       'in_mem_calculus_path': '', 'seed': 0}
+                       'seed': 0}
         game_params = GameParams(**game_params)
-        steps = game_params.steps
-        population_size = game_params.population_size
-        seed = game_params.seed
 
-        shuffle_list = shuffle_list_random_function(seed=seed)
-        flip_a_coin = flip_a_coin_random_function(seed=seed)
-        pick_element = pick_element_random_function(seed=seed)
-
-        calculator = NumericCalculator.load_from_file()
-        context_constructor = calculator.context_factory(pick_element=pick_element)
-        actual_population = run_simulation(steps, population_size, shuffle_list, game_params, context_constructor,
-                                           game_graph_with_stage_7(calculator, game_params, flip_a_coin))
-
+        actual_population = run_simulation(game_params)
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
+
         self.assertEqual(actual_population, self.expected_population)
+
 
 class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
     def setUp(self) -> None:
@@ -472,20 +463,10 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
                        'discriminative_history_length': 50, 'delta_inc': 0.2, 'delta_dec': 0.2, 'delta_inh': 0.2,
                        'alpha': 0.01,
                        'super_alpha': 0.001, 'beta': 0.2, 'steps': 1000, 'runs': 1, 'guessing_game_2': False,
-                       'in_mem_calculus_path': '', 'seed': 0}
+                       'seed': 0}
         game_params = GameParams(**game_params)
-        steps = game_params.steps
-        population_size = game_params.population_size
-        seed = game_params.seed
 
-        shuffle_list = shuffle_list_random_function(seed=seed)
-        flip_a_coin = flip_a_coin_random_function(seed=seed)
-        pick_element = pick_element_random_function(seed=seed)
-
-        calculator = QuotientCalculator.load_from_file()
-        context_constructor = calculator.context_factory(pick_element=pick_element)
-        actual_population = run_simulation(steps, population_size, shuffle_list, game_params, context_constructor,
-                                           game_graph_with_stage_7(calculator, game_params, flip_a_coin))
+        actual_population = run_simulation(game_params)
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
         self.assertEqual(actual_population, [self.agent0, self.agent1])

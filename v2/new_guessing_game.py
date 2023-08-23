@@ -56,7 +56,6 @@ class GameParams:
     max_num: int
     runs: int
     guessing_game_2: bool
-    in_mem_calculus_path: str
     seed: int
     discriminative_threshold: float
     discriminative_history_length: int
@@ -138,6 +137,13 @@ class ConnectionMatrixLxC:
         self._row = 0
         self._col = 0
 
+    @staticmethod
+    def new_matrix(steps: int):
+        row = int(steps / 5)
+        col = int(np.sqrt(steps))
+
+        return ConnectionMatrixLxC(row, col)
+
     def __call__(self, row, col) -> float:
         return self._square_matrix[row, col]
 
@@ -205,12 +211,10 @@ class ConnectionMatrixLxC:
 
 
 class NewAgent:
-    def __init__(self, agent_id: int, lxc_max_size: int, game_params: GameParams):
+    def __init__(self, agent_id: int, game_params: GameParams):
         self.agent_id = agent_id
         self._game_params = game_params
-        row = int(lxc_max_size / 5)
-        col = int(np.sqrt(lxc_max_size))
-        self._lxc = ConnectionMatrixLxC(row, col)
+        self._lxc = ConnectionMatrixLxC.new_matrix(game_params.steps)
         self._lexicon: List[NewWord] = []
         self._categories: List[NewCategory] = []
         self._lex2index = {}
@@ -381,10 +385,11 @@ class NewAgent:
 
 class NewPopulation:
 
-    def __init__(self, population_size: int, steps: int, game_params: GameParams, shuffle_list: Callable[[List], Any]):
+    def __init__(self, game_params: GameParams, shuffle_list: Callable[[List], Any]):
+        population_size = game_params.population_size
         assert population_size % 2 == 0, 'each agent must be paired'
         self._shuffle_list = shuffle_list
-        self._agents = [NewAgent(agent_id, steps, game_params) for agent_id in range(population_size)]
+        self._agents = [NewAgent(agent_id, game_params) for agent_id in range(population_size)]
 
     def select_pairs(self) -> List[Tuple[NewAgent, NewAgent]]:
         self._shuffle_list(self._agents)
@@ -707,14 +712,21 @@ def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, fli
     }
 
 
-def run_simulation(steps: int, population_size: int,
-                   shuffle_list: Callable[[List], None],
-                   game_params: GameParams,
-                   context_constructor: Callable[[], Tuple[NewAbstractStimulus, NewAbstractStimulus]],
-                   game_graph):
-    population = NewPopulation(population_size, steps, game_params, shuffle_list)
+def run_simulation(game_params: GameParams):
+    calculator = {'numeric': NumericCalculator.load_from_file(),
+                  'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-    for step in range(steps):
+    seed = game_params.seed
+    shuffle_list = shuffle_list_random_function(seed=seed)
+    flip_a_coin = flip_a_coin_random_function(seed=seed)
+    pick_element = pick_element_random_function(seed=seed)
+
+    context_constructor = calculator.context_factory(pick_element=pick_element)
+    game_graph = game_graph_with_stage_7(calculator, game_params, flip_a_coin)
+
+    population = NewPopulation(game_params, shuffle_list)
+
+    for step in range(game_params.steps):
         paired_agents = population.select_pairs()
 
         for speaker, hearer in paired_agents:
@@ -768,40 +780,22 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=100)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
-    parser.add_argument('--in_mem_calculus_path', '-path', help='path to precomputed integrals', type=str,
-                        default='../inmemory_calculus')
+    # parser.add_argument('--in_mem_calculus_path', '-path', help='path to precomputed integrals', type=str,
+    #                     default='../inmemory_calculus')
     parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=1)
 
     parsed_params = vars(parser.parse_args())
-
-    log_levels = {'debug': logging.DEBUG, 'info': logging.INFO}
-    # logging.basicConfig(stream=sys.stderr, level=log_levels[parsed_params['log_level']])
-    # load_inmemory_calculus(parsed_params['in_mem_calculus_path'], parsed_params['stimulus'])
-    calculator = {'numeric': NumericCalculator.load_from_file(),
-                  'quotient': QuotientCalculator.load_from_file()}[parsed_params['stimulus']]
-
-    seed = 0  # parsed_params['seed']
-
-    shuffle_list = shuffle_list_random_function(seed=seed)
-    flip_a_coin = flip_a_coin_random_function(seed=seed)
-    pick_element = pick_element_random_function(seed=seed)
-
-    context_constructor = calculator.context_factory(pick_element=pick_element)
-
-    population_size = 20  # parsed_params['population_size']
-    steps = 3000  # parsed_params['steps']
 
     game_params = GameParams(**parsed_params)
 
     # population = NewPopulation(population_size, steps, shuffle_list)
     # game_graph = graphviz.Digraph()
 
-    population = run_simulation(steps, population_size, shuffle_list, game_params,
-                                context_constructor, game_graph_with_stage_7(calculator, game_params, flip_a_coin))
+    population = run_simulation(game_params)
     print([len(NewAgent.to_dict(a)['categories']) for a in population])
     print([len(NewAgent.to_dict(a)['words']) for a in population])
     # categories cnt after 1000x
