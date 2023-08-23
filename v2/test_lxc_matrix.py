@@ -1,8 +1,6 @@
 import unittest
 
-from v2.calculator import QuotientCalculator
-from v2.new_guessing_game import NewAgent, NewWord, ConnectionMatrixLxC, run_simulation, shuffle_list_random_function, \
-    flip_a_coin_random_function, pick_element_random_function, game_graph_with_stage_7, GameParams
+from v2.new_guessing_game import ConnectionMatrixLxC
 
 
 class ConnectionMatrixLxC_test(unittest.TestCase):

@@ -1,3 +1,4 @@
+import json
 from collections import deque
 from fractions import Fraction
 from threading import Lock
@@ -20,32 +21,34 @@ logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
 
 
-def flip_a_coin_random_function(seed=0) -> Callable[[], int]:
+class RandomFunction:
+    def __init__(self, seed: int):
+        self._r = np.random.RandomState(seed=seed)
+
+    def flip_a_coin_random_function(self) -> Callable[[], int]:
+        def flip_a_coin() -> int:
+            return self._r.binomial(1, .5)
+
+        return flip_a_coin
+
+    def shuffle_list_random_function(self) -> Callable[[List], None]:
+        def shuffle_list(l: List) -> None:
+            return self._r.shuffle(l)
+
+        return shuffle_list
+
+    def pick_element_random_function(self) -> Callable[[List], Any]:
+        def pick_random_value(l: List) -> Any:
+            i = self._r.randint(len(l))
+            return l[i]
+
+        return pick_random_value
+
+
+def new_random_f(seed: int) -> RandomFunction:
     r = np.random.RandomState(seed=seed)
-
-    def flip_a_coin() -> int:
-        return r.binomial(1, .5)
-
-    return flip_a_coin
-
-
-def shuffle_list_random_function(seed=0) -> Callable[[List], None]:
-    r = np.random.RandomState(seed=seed)
-
-    def shuffle_list(l: List) -> None:
-        r.shuffle(l)
-
-    return shuffle_list
-
-
-def pick_element_random_function(seed=0) -> Callable[[List], Any]:
-    r = np.random.RandomState(seed=seed)
-
-    def pick_random_value(l: List) -> Any:
-        i = r.randint(len(l))
-        return l[i]
-
-    return pick_random_value
+    while True:
+        yield RandomFunction(r.randint(2 ** 31))
 
 
 @dataclasses.dataclass
@@ -231,8 +234,9 @@ class NewAgent:
         words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': w.active}
                  for w in agent._lexicon]
 
-        categories = [{'category_id': category.category_id, 'is_active': category.is_active,
-                       'reactive_units': category.reactive_units(),
+        categories = [{'category_id': category.category_id,
+                       'is_active': category.is_active,
+                       'reactive_units': [r if isinstance(r, int) else [*r] for r in category.reactive_units()],
                        'weights': category.weights()} for category in agent._categories]
 
         discriminative_success = list(agent._discriminative_success)
@@ -403,7 +407,12 @@ class NewPopulation:
 
 
 class GuessingGameAction:
-    def __call__(self, agent: NewAgent, context: Tuple[NewAbstractStimulus, NewAbstractStimulus], data_envelope: Dict,
+    def __call__(self,
+                 stats: AggregatedGameResultStats,
+                 calculator: Calculator,
+                 agent: NewAgent,
+                 context: Tuple[NewAbstractStimulus, NewAbstractStimulus],
+                 data_envelope: Dict,
                  **kwargs) -> str:
         pass
 
@@ -422,9 +431,7 @@ class DiscriminationGameAction(GuessingGameAction):
                  on_no_noticeable_difference: str,
                  on_no_discrimination: str,
                  on_success: str,
-                 selected_category_path: str,
-                 calculator: Calculator,
-                 stats: AggregatedGameResultStats):
+                 selected_category_path: str):
         self.on_no_category = on_no_category
         self.on_no_noticeable_difference = on_no_noticeable_difference
         self.on_no_discrimination = on_no_discrimination
@@ -432,15 +439,12 @@ class DiscriminationGameAction(GuessingGameAction):
 
         self.selected_category_path = selected_category_path
 
-        self.calculator = calculator
-        self.stats = stats
-
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
         if not agent.has_categories():
             logging.debug('no category {}({})'.format(agent, agent.agent_id))
-            agent.learn_stimulus(context[topic], self.calculator)
+            agent.learn_stimulus(context[topic], calculator)
             agent.add_discrimination_failure()
-            self.stats.add_discrimination_failure(agent)
+            stats.add_discrimination_failure(agent)
             return self.on_no_category
 
         s1, s2 = context
@@ -448,26 +452,26 @@ class DiscriminationGameAction(GuessingGameAction):
         if not s1.is_noticeably_different_from(s2):
             return self.on_no_noticeable_difference
 
-        category1 = agent.get_best_matching_category(s1, self.calculator)
-        category2 = agent.get_best_matching_category(s2, self.calculator)
+        category1 = agent.get_best_matching_category(s1, calculator)
+        category2 = agent.get_best_matching_category(s2, calculator)
 
         if category1 == category2:
             logging.debug('no category {}({})'.format(agent, agent.agent_id))
-            agent.learn_stimulus(context[topic], self.calculator)
+            agent.learn_stimulus(context[topic], calculator)
             agent.add_discrimination_failure()
-            self.stats.add_discrimination_failure(agent)
+            stats.add_discrimination_failure(agent)
             return self.on_no_discrimination
 
         winning_category = [category1, category2][topic]
 
         # todo można to wbić do jednej metody, dwie metody występują tylko tutaj
-        agent.reinforce_category(winning_category, context[topic], calculator=self.calculator)
+        agent.reinforce_category(winning_category, context[topic], calculator)
         agent.forget_categories(winning_category)
 
         data_envelope[self.selected_category_path] = winning_category
 
         agent.add_discrimination_success()
-        self.stats.add_discrimination_success(agent)
+        stats.add_discrimination_success(agent)
         return self.on_success
 
 
@@ -490,7 +494,7 @@ class PickMostConnectedWord(GuessingGameAction):
         self.selected_word_path = selected_word_path
         self.new_word = new_word
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
 
         if word is None:
@@ -524,7 +528,7 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
         self.on_known_word = on_known_word
         self.selected_category_path = selected_category_path
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
         if not agent.knows_word(word):
             agent.add_new_word(word)
             return self.on_unknown_word_or_no_associated_category
@@ -543,42 +547,39 @@ class SelectAndCompareTopic(GuessingGameAction):
     """ 5. The topic is revealed to the hearer. If qS = qH , i.e., the topic is the same as
         the guess of the hearer, the game is successful. Otherwise, the game fails """
 
-    def __init__(self, on_success: str, on_failure: str, flip_a_coin: Callable[[], int],
-                 calculator: Calculator, stats: AggregatedGameResultStats):
+    def __init__(self, on_success: str, on_failure: str, flip_a_coin: Callable[[], int]):
         self.on_success = on_success
         self.on_failure = on_failure
 
         self.flip_a_coin = flip_a_coin
-        self._calculator = calculator
-        self.stats = stats
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory, topic: int) -> str:
-        selected = category.select(context, self._calculator)
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory,
+                 topic: int) -> str:
+        selected = category.select(context, calculator)
 
         if selected is None:
             selected = self.flip_a_coin()
 
         if selected == topic:
-            self.stats.add_communication1_success(agent)
+            stats.add_communication1_success(agent)
             return self.on_success
         else:
-            self.stats.add_communication1_failure(agent)
+            stats.add_communication1_failure(agent)
             return self.on_failure
 
 
 class CompareWordsAction(GuessingGameAction):
-    def __init__(self, on_equal_words: str, on_different_words: str, stats: AggregatedGameResultStats):
+    def __init__(self, on_equal_words: str, on_different_words: str):
         self.on_equal_words = on_equal_words
         self.on_different_words = on_different_words
-        self.stats = stats
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
                  hearer_word: NewWord) -> str:
         if speaker_word == hearer_word:
-            self.stats.add_communication2_success(agent)
+            stats.add_communication2_success(agent)
             return self.on_equal_words
         else:
-            self.stats.add_communication2_failure(agent)
+            stats.add_communication2_failure(agent)
             return self.on_different_words
 
 
@@ -586,7 +587,8 @@ class SuccessAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self.on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord, category: NewCategory) -> str:
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+                 category: NewCategory) -> str:
         agent.update_on_success(word, category)
         return self.on_success
 
@@ -595,7 +597,8 @@ class FailureAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self.on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord, category: NewCategory) -> str:
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+                 category: NewCategory) -> str:
         agent.update_on_failure(word, category)
         return self.on_success
 
@@ -604,7 +607,8 @@ class LearnWordCategoryAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self.on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord, category: NewCategory) -> str:
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+                 category: NewCategory) -> str:
         agent.learn_word_category(word, category)
         return self.on_success
 
@@ -613,13 +617,12 @@ class CompleteAction:
     def __init__(self, on_success: str):
         self.on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.forget_words()
         return self.on_success
 
 
-def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, flip_a_coin: Callable[[], int]):
-    stats = AggregatedGameResultStats(game_params=game_params)
+def game_graph_with_stage_7(flip_a_coin: Callable[[], int]):
     new_word = ThreadSafeWordFactory()
 
     return {'2_SPEAKER_DISCRIMINATION_GAME':
@@ -628,9 +631,7 @@ def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, fli
             on_no_noticeable_difference='SPEAKER_COMPLETE',
             on_no_discrimination='SPEAKER_COMPLETE',
             on_success='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
-            selected_category_path='SPEAKER.category',
-            calculator=calculator,
-            stats=stats
+            selected_category_path='SPEAKER.category'
         ), 'agent': 'SPEAKER', 'args': ['topic']},
 
         '3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY':
@@ -653,9 +654,7 @@ def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, fli
                 on_no_noticeable_difference='SPEAKER_COMPLETE',
                 on_no_discrimination='SPEAKER_COMPLETE',
                 on_success='4_2_HEARER_LEARNS_WORD_CATEGORY',
-                selected_category_path='HEARER.category',
-                calculator=calculator,
-                stats=stats
+                selected_category_path='HEARER.category'
             ), 'agent': 'HEARER', 'args': ['topic']},
 
         '4_2_HEARER_LEARNS_WORD_CATEGORY':
@@ -671,13 +670,12 @@ def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, fli
             ), 'agent': 'HEARER', 'args': ['HEARER.category']},
 
         '7_HEARER_COMPARES_WORD':
-            {'action': CompareWordsAction(on_equal_words='SPEAKER_SUCCESS', on_different_words='SPEAKER_FAILURE',
-                                          stats=stats),
+            {'action': CompareWordsAction(on_equal_words='SPEAKER_SUCCESS', on_different_words='SPEAKER_FAILURE'),
              'agent': 'HEARER', 'args': ['SPEAKER.word', 'HEARER.word']},
 
         '5_CHECK_TOPIC':
-            {'action': SelectAndCompareTopic(on_success='SPEAKER_SUCCESS', on_failure='SPEAKER_FAILURE', stats=stats,
-                                             flip_a_coin=flip_a_coin, calculator=calculator),
+            {'action': SelectAndCompareTopic(on_success='SPEAKER_SUCCESS', on_failure='SPEAKER_FAILURE',
+                                             flip_a_coin=flip_a_coin),
              'agent': 'HEARER', 'args': ['HEARER.category', 'topic']},
 
         'SPEAKER_SUCCESS':
@@ -712,20 +710,16 @@ def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, fli
     }
 
 
-def run_simulation(game_params: GameParams):
+def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> NewPopulation:
     calculator = {'numeric': NumericCalculator.load_from_file(),
                   'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-    seed = game_params.seed
-    shuffle_list = shuffle_list_random_function(seed=seed)
-    flip_a_coin = flip_a_coin_random_function(seed=seed)
-    pick_element = pick_element_random_function(seed=seed)
-
     context_constructor = calculator.context_factory(pick_element=pick_element)
-    game_graph = game_graph_with_stage_7(calculator, game_params, flip_a_coin)
+    game_graph = game_graph_with_stage_7(flip_a_coin)
 
     population = NewPopulation(game_params, shuffle_list)
 
+    stats = AggregatedGameResultStats(game_params)
     for step in range(game_params.steps):
         paired_agents = population.select_pairs()
 
@@ -748,7 +742,7 @@ def run_simulation(game_params: GameParams):
                 agent_selector = {'SPEAKER': select_speaker, 'HEARER': select_hearer}[agent_name]
                 agent = agent_selector(speaker, hearer)
 
-                state_name = action(agent, context, data_envelope, *args)
+                state_name = action(stats, calculator, agent, context, data_envelope, *args)
                 state = game_graph[state_name]
                 action = state['action']
                 agent_name = state['agent']
@@ -760,16 +754,39 @@ def run_simulation(game_params: GameParams):
     return population
 
 
+def run_dummy_simulation(stimulus):
+    game_params = {'population_size': 2, 'stimulus': stimulus, 'max_num': 100, 'discriminative_threshold': 0.95,
+                   'discriminative_history_length': 50, 'delta_inc': 0.2, 'delta_dec': 0.2, 'delta_inh': 0.2,
+                   'alpha': 0.01,
+                   'super_alpha': 0.001, 'beta': 0.2, 'steps': 1000, 'runs': 1, 'guessing_game_2': False,
+                   'seed': 0}
+    p = GameParams(**game_params)
+
+    rf: RandomFunction = next(new_random_f(p.seed))
+    actual_population = run_simulation(p,
+                                       rf.shuffle_list_random_function(),
+                                       rf.flip_a_coin_random_function(),
+                                       rf.pick_element_random_function()
+                                       )
+    game_state = {'params': game_params, 'population': [NewAgent.to_dict(agent) for agent in actual_population]}
+
+    with open(f'serialized_state_{p.stimulus}.json', 'w', encoding='utf-8') as f:
+        json.dump(game_state, f)
+
+
 if __name__ == '__main__':
+    run_dummy_simulation(stimulus='numeric')
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=2)
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
                         choices=['quotient', 'numeric'])
-    parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int,
+    parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
+                        type=int,
                         default=100)
-    parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float, default=.95)
+    parser.add_argument('--discriminative_threshold', '-dt', help='discriminative threshold', type=float,
+                        default=.95)
     parser.add_argument('--discriminative_history_length',
                         help='max length of discriminative successes sequence per agent',
                         type=int, default=50)
@@ -780,7 +797,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -795,9 +812,16 @@ if __name__ == '__main__':
     # population = NewPopulation(population_size, steps, shuffle_list)
     # game_graph = graphviz.Digraph()
 
-    population = run_simulation(game_params)
-    print([len(NewAgent.to_dict(a)['categories']) for a in population])
-    print([len(NewAgent.to_dict(a)['words']) for a in population])
+    rf = new_random_f(seed=0)
+    for _, r in zip(range(1), rf):
+        population = run_simulation(game_params,
+                                    r.shuffle_list_random_function(),
+                                    r.flip_a_coin_random_function(),
+                                    r.pick_element_random_function()
+                                    )
+        print([NewAgent.to_dict(a) for a in population])
+    # print([len(NewAgent.to_dict(a)['categories']) for a in population])
+    # print([len(NewAgent.to_dict(a)['words']) for a in population])
     # categories cnt after 1000x
     # [16, 13, 13, 21, 12, 29, 17, 14, 23, 11, 12, 34, 19, 24, 12, 28, 9, 31, 24, 24]
     # words cnt after 1000x

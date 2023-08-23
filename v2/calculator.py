@@ -209,7 +209,7 @@ class QuotientCalculator(Calculator):
 
         # reduced fractions n/k where n < k and k <= 100
         stimulus_list = read_h5_data(root_path.joinpath('nklist.h5'))
-        stimulus_list = [tuple(x) for x in stimulus_list]
+        stimulus_list = [(int(nom), int(denom)) for nom, denom in stimulus_list]
 
         # VALIDATE loaded data shapes:
         if not len(stimulus_list) == reactive_unit_distribution.shape[0] == reactive_x_reactive.shape[0] == \
