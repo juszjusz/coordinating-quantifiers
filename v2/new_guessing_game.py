@@ -17,7 +17,7 @@ from v2.calculator import NumericCalculator, QuotientCalculator, Calculator, New
 from v2.category import NewCategory
 
 logger = logging.getLogger(__name__)
-logger.setLevel(level=logging.DEBUG)
+logger.setLevel(level=logging.INFO)
 
 
 def flip_a_coin_random_function(seed=0) -> Callable[[], int]:
@@ -81,11 +81,12 @@ class NewWord:
 
 
 class AggregatedGameResultStats:
-    def __init__(self) -> None:
+    def __init__(self, game_params: GameParams) -> None:
         self._agent2discrimination_success = {}
         self._agent2communication_success1 = {}
         self._agent2communication_success2 = {}
         self._agent2communication_success12 = {}
+        self._game_params = game_params
 
     def add_discrimination_success(self, agent):
         self._add_discrimination_result(self._agent2discrimination_success, agent, True)
@@ -113,7 +114,7 @@ class AggregatedGameResultStats:
 
     def _add_discrimination_result(self, agent2dict: Dict[int, deque], agent, result: bool):
         if agent.agent_id not in agent2dict.keys():
-            agent2dict[agent.agent_id] = deque(maxlen=game_params.discriminative_history_length)
+            agent2dict[agent.agent_id] = deque(maxlen=self._game_params.discriminative_history_length)
 
         agent2dict[agent.agent_id].append(result)
 
@@ -180,14 +181,14 @@ class ConnectionMatrixLxC:
 
 
 class NewAgent:
-    def __init__(self, agent_id: int, lxc_max_size: int):
+    def __init__(self, agent_id: int, lxc_max_size: int, game_params: GameParams):
         self.agent_id = agent_id
-
+        self._game_params = game_params
         self._lxc = ConnectionMatrixLxC(lxc_max_size)
         self._lexicon: List[NewWord] = []
         self._categories: List[NewCategory] = []
         self._lex2index = {}
-        self._discriminative_success = deque(maxlen=game_params.discriminative_history_length)
+        self._discriminative_success = deque(maxlen=self._game_params.discriminative_history_length)
         self._discriminative_success_mean = 0.
 
     def __repr__(self):
@@ -200,8 +201,9 @@ class NewAgent:
         words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': w.active}
                  for w in agent._lexicon]
 
-        categories = [{'category_id': category.category_id, 'is_active': category.is_active, 'reactive_units': category.reactive_units(),
-             'weights': category.weights()} for category in agent._categories]
+        categories = [{'category_id': category.category_id, 'is_active': category.is_active,
+                       'reactive_units': category.reactive_units(),
+                       'weights': category.weights()} for category in agent._categories]
 
         discriminative_success = list(agent._discriminative_success)
 
@@ -246,10 +248,10 @@ class NewAgent:
         active_categories = [c for c in self._categories if c.is_active]
 
         for c in active_categories:
-            c.decrement_weights(game_params.alpha)
+            c.decrement_weights(self._game_params.alpha)
 
         to_forget = [i for i, activate_category in enumerate(active_categories) if
-                     activate_category.max_weigth() < game_params.super_alpha and category_in_use != i]
+                     activate_category.max_weigth() < self._game_params.super_alpha and category_in_use != i]
 
         self._lxc.reset_matrix_on_col_indices(to_forget)
         [self._categories[c].deactivate() for c in to_forget]
@@ -271,19 +273,19 @@ class NewAgent:
         word_index = self._lex2index[word]
         # except_category_index = self._cat2index[except_category]
         indices = [i for i in range(len(self._categories)) if i != except_category.category_id]
-        self._lxc.update_matrix_on_given_row(word_index, indices, -game_params.delta_inh)
+        self._lxc.update_matrix_on_given_row(word_index, indices, -self._game_params.delta_inh)
 
     def learn_word_category(self, word: NewWord, category: NewCategory, connection=.5):
         self.__update_connection(word, category, lambda v: connection)
 
     def update_on_success(self, word: NewWord, category: NewCategory):
-        self.__update_connection(word, category, lambda v: v + game_params.delta_inc * v)
+        self.__update_connection(word, category, lambda v: v + self._game_params.delta_inc * v)
 
     def update_on_failure(self, word: NewWord, category: NewCategory):
-        self.__update_connection(word, category, lambda v: v - game_params.delta_dec * v)
+        self.__update_connection(word, category, lambda v: v - self._game_params.delta_dec * v)
 
     def learn_stimulus(self, stimulus: NewAbstractStimulus, calculator: Calculator):
-        if self._discriminative_success_mean >= game_params.discriminative_threshold:
+        if self._discriminative_success_mean >= self._game_params.discriminative_threshold:
             logger.debug("updating category by adding reactive unit centered on %s" % stimulus)
             category = self.get_best_matching_category(stimulus, calculator)
             logger.debug("updating category")
@@ -301,7 +303,7 @@ class NewAgent:
             'categories size must be at most the size of the lxc matrix height'
 
     def reinforce_category(self, category: NewCategory, stimulus, calculator: Calculator):
-        category.reinforce(stimulus, game_params.beta, calculator)
+        category.reinforce(stimulus, self._game_params.beta, calculator)
 
     def __update_connection(self, word: NewWord, category: NewCategory, update: Callable[[float], float]):
         word_index = self._lex2index[word]
@@ -354,10 +356,10 @@ class NewAgent:
 
 class NewPopulation:
 
-    def __init__(self, population_size: int, steps: int, shuffle_list: Callable[[List], Any]):
+    def __init__(self, population_size: int, steps: int, game_params: GameParams, shuffle_list: Callable[[List], Any]):
         assert population_size % 2 == 0, 'each agent must be paired'
         self._shuffle_list = shuffle_list
-        self._agents = [NewAgent(agent_id, steps) for agent_id in range(population_size)]
+        self._agents = [NewAgent(agent_id, steps, game_params) for agent_id in range(population_size)]
 
     def select_pairs(self) -> List[Tuple[NewAgent, NewAgent]]:
         self._shuffle_list(self._agents)
@@ -429,7 +431,7 @@ class DiscriminationGameAction(GuessingGameAction):
         winning_category = [category1, category2][topic]
 
         # todo można to wbić do jednej metody, dwie metody występują tylko tutaj
-        agent.reinforce_category(winning_category, context[topic], calculator=calculator)
+        agent.reinforce_category(winning_category, context[topic], calculator=self.calculator)
         agent.forget_categories(winning_category)
 
         data_envelope[self.selected_category_path] = winning_category
@@ -586,8 +588,8 @@ class CompleteAction:
         return self.on_success
 
 
-def game_graph_with_stage_7(calculator: Calculator):
-    stats = AggregatedGameResultStats()
+def game_graph_with_stage_7(calculator: Calculator, game_params: GameParams, flip_a_coin: Callable[[], int]):
+    stats = AggregatedGameResultStats(game_params=game_params)
     new_word = ThreadSafeWordFactory()
 
     return {'2_SPEAKER_DISCRIMINATION_GAME':
@@ -680,8 +682,12 @@ def game_graph_with_stage_7(calculator: Calculator):
     }
 
 
-def run_simulation(steps: int, population_size: int, context_constructor: Callable[[], Tuple[NewAbstractStimulus, NewAbstractStimulus]], game_graph):
-    population = NewPopulation(population_size, steps, shuffle_list)
+def run_simulation(steps: int, population_size: int,
+                   shuffle_list: Callable[[List], None],
+                   game_params: GameParams,
+                   context_constructor: Callable[[], Tuple[NewAbstractStimulus, NewAbstractStimulus]],
+                   game_graph):
+    population = NewPopulation(population_size, steps, game_params, shuffle_list)
 
     for step in range(steps):
         paired_agents = population.select_pairs()
@@ -722,7 +728,7 @@ if __name__ == '__main__':
 
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
-    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients', type=int,
                         default=100)
@@ -769,7 +775,8 @@ if __name__ == '__main__':
     # population = NewPopulation(population_size, steps, shuffle_list)
     # game_graph = graphviz.Digraph()
 
-    population = run_simulation(steps, population_size, context_constructor, game_graph_with_stage_7(calculator))
+    population = run_simulation(steps, population_size, shuffle_list, game_params,
+                                context_constructor, game_graph_with_stage_7(calculator, game_params, flip_a_coin))
     [print(NewAgent.to_dict(a)) for a in population]
 
     # game_graph.node('SPEAKER_DISCRIMINATION_GAME', label='root node', attrs='speaker')

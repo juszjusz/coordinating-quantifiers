@@ -1,6 +1,8 @@
 import unittest
 
-from v2.new_guessing_game import NewAgent, NewWord, ConnectionMatrixLxC
+from v2.calculator import QuotientCalculator
+from v2.new_guessing_game import NewAgent, NewWord, ConnectionMatrixLxC, run_simulation, shuffle_list_random_function, \
+    flip_a_coin_random_function, pick_element_random_function, game_graph_with_stage_7, GameParams
 
 
 class ConnectionMatrixLxC_test(unittest.TestCase):
@@ -76,6 +78,5 @@ class ConnectionMatrixLxC_test(unittest.TestCase):
         r = self.m.get_rows_all_smaller_than_threshold(threshold=5)
         self.assertEqual(r, [0])
         r = self.m.get_rows_all_smaller_than_threshold(threshold=101)
-        self.assertEqual(list(r), [0,1])
+        self.assertEqual(list(r), [0, 1])
 
-# class TestGuessingGame()
