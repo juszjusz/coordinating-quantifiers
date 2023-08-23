@@ -1,7 +1,7 @@
 from collections import deque
 from fractions import Fraction
 from threading import Lock
-
+from scipy.sparse import lil_matrix
 import graphviz
 import argparse
 import dataclasses
@@ -133,14 +133,16 @@ class ThreadSafeWordFactory:
 
 
 class ConnectionMatrixLxC:
-    def __init__(self, size: int):
-        self._square_matrix = np.zeros((size, size))
-
-    def to_ndarray(self) -> ndarray:
-        return self._square_matrix
+    def __init__(self, max_row: int, max_col: int):
+        self._square_matrix = np.zeros((max_row, max_col))
+        self._row = 0
+        self._col = 0
 
     def __call__(self, row, col) -> float:
         return self._square_matrix[row, col]
+
+    def to_ndarray(self) -> ndarray:
+        return self._square_matrix
 
     def rows(self):
         return self._square_matrix.shape[0]
@@ -179,12 +181,36 @@ class ConnectionMatrixLxC:
     def get_row_vector(self, word_index) -> ndarray:
         return self._square_matrix[word_index, :]
 
+    def add_new_row(self):
+        self._row += 1
+        if self._row == self._square_matrix.shape[0]:
+            self._double_height()
+
+    def add_new_col(self):
+        self._col += 1
+        if self._col == self._square_matrix.shape[1]:
+            self._double_width()
+
+    def _double_height(self):
+        height, width = self._square_matrix.shape
+        new_m = np.zeros((2 * height, width))
+        new_m[0:height, :] = self._square_matrix
+        self._square_matrix = new_m
+
+    def _double_width(self):
+        height, width = self._square_matrix.shape
+        new_m = np.zeros((height, width * 2))
+        new_m[:, 0:width] = self._square_matrix
+        self._square_matrix = new_m
+
 
 class NewAgent:
     def __init__(self, agent_id: int, lxc_max_size: int, game_params: GameParams):
         self.agent_id = agent_id
         self._game_params = game_params
-        self._lxc = ConnectionMatrixLxC(lxc_max_size)
+        row = int(lxc_max_size / 5)
+        col = int(np.sqrt(lxc_max_size))
+        self._lxc = ConnectionMatrixLxC(row, col)
         self._lexicon: List[NewWord] = []
         self._categories: List[NewCategory] = []
         self._lex2index = {}
@@ -265,9 +291,7 @@ class NewAgent:
     def add_new_word(self, w: NewWord):
         self._lex2index[w] = len(self._lexicon)
         self._lexicon.append(w)
-
-        assert (len(self._lexicon) <= self._lxc.rows()), \
-            'lexicon size must be at most the size of the lxc matrix height'
+        self._lxc.add_new_row()
 
     def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
         word_index = self._lex2index[word]
@@ -299,8 +323,9 @@ class NewAgent:
         new_category = NewCategory(category_id=category_id)
         new_category.add_reactive_unit(stimulus, weight)
         self._categories.append(new_category)
-        assert (len(self._categories) <= self._lxc.cols()), \
-            'categories size must be at most the size of the lxc matrix height'
+        self._lxc.add_new_col()
+        # assert (len(self._categories) <= self._lxc.cols()), \
+        #     'categories size must be at most the size of the lxc matrix height'
 
     def reinforce_category(self, category: NewCategory, stimulus, calculator: Calculator):
         category.reinforce(stimulus, self._game_params.beta, calculator)
@@ -767,8 +792,8 @@ if __name__ == '__main__':
 
     context_constructor = calculator.context_factory(pick_element=pick_element)
 
-    population_size = 2  # parsed_params['population_size']
-    steps = 1000  # parsed_params['steps']
+    population_size = 20  # parsed_params['population_size']
+    steps = 3000  # parsed_params['steps']
 
     game_params = GameParams(**parsed_params)
 
@@ -777,7 +802,12 @@ if __name__ == '__main__':
 
     population = run_simulation(steps, population_size, shuffle_list, game_params,
                                 context_constructor, game_graph_with_stage_7(calculator, game_params, flip_a_coin))
-    [print(NewAgent.to_dict(a)) for a in population]
+    print([len(NewAgent.to_dict(a)['categories']) for a in population])
+    print([len(NewAgent.to_dict(a)['words']) for a in population])
+    # categories cnt after 1000x
+    # [16, 13, 13, 21, 12, 29, 17, 14, 23, 11, 12, 34, 19, 24, 12, 28, 9, 31, 24, 24]
+    # words cnt after 1000x
+    # [91, 92, 98, 94, 89, 102, 95, 94, 105, 95, 97, 98, 92, 93, 95, 101, 96, 102, 102, 88]
 
     # game_graph.node('SPEAKER_DISCRIMINATION_GAME', label='root node', attrs='speaker')
     # game_graph.node('SPEAKER_NO_CATEGORY_AFTER_DISCRIMINATION_GAME', attrs='speaker')

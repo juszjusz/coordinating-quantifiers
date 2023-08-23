@@ -8,7 +8,7 @@ from v2.new_guessing_game import NewAgent, NewWord, ConnectionMatrixLxC, run_sim
 class ConnectionMatrixLxC_test(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.m = ConnectionMatrixLxC(4)
+        self.m = ConnectionMatrixLxC(4, 4)
 
         # testing matrix
         # 1   2   3    4
