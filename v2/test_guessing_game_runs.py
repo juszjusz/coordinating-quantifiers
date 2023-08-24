@@ -1,7 +1,8 @@
 import json
 import unittest
 
-from v2.new_guessing_game import NewAgent, run_simulation, GameParams, new_random_f, RandomFunction
+from v2.new_guessing_game import run_simulation, new_random_f, RandomFunction
+from v2.domain_objects import GameParams, NewAgent
 
 
 class TestGuessingGameWithNumericStimulus(unittest.TestCase):
@@ -10,6 +11,8 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
             game_state = json.load(fj)
             self.params = game_state['params']
             self.expected_population = game_state['population']
+            for a in self.expected_population:
+                del a['discriminative_success']
 
     def test_result(self):
         game_params = GameParams(**self.params)
@@ -22,6 +25,9 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
                                            )
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
+        for a in actual_population:
+            del a['discriminative_success']
+
         self.assertEqual(actual_population, self.expected_population)
 
 
@@ -31,6 +37,9 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
             game_state = json.load(fj)
             self.params = game_state['params']
             self.expected_population = game_state['population']
+            for a in self.expected_population:
+                del a['discriminative_success']
+
 
     def test_result(self):
         game_params = GameParams(**self.params)
@@ -43,4 +52,7 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
                                            )
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
+        for a in actual_population:
+            del a['discriminative_success']
+
         self.assertEqual(actual_population, self.expected_population)

@@ -207,8 +207,9 @@ class QuotientCalculator(Calculator):
         if not isinstance(domain, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(domain)))
 
-        # reduced fractions n/k where n < k and k <= 100
+        # reduced fractions n/k where n < k and k <= 100; reduced def: n, k are relatively prime integers
         stimulus_list = read_h5_data(root_path.joinpath('nklist.h5'))
+        # invoke int(.) for serialization reasons (int64 found here is not json serializable)
         stimulus_list = [(int(nom), int(denom)) for nom, denom in stimulus_list]
 
         # VALIDATE loaded data shapes:

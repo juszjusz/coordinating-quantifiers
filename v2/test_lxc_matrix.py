@@ -1,6 +1,6 @@
 import unittest
 
-from v2.new_guessing_game import ConnectionMatrixLxC
+from v2.domain_objects import ConnectionMatrixLxC
 
 
 class ConnectionMatrixLxC_test(unittest.TestCase):
