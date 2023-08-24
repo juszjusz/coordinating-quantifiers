@@ -12,7 +12,7 @@ from numpy import ndarray
 from v2.calculator import Calculator, NewAbstractStimulus
 
 logger = logging.getLogger(__name__)
-logger.setLevel(level=logging.INFO)
+# logger.setLevel(level=logging.INFO)
 
 class NewCategory:
     def __init__(self, category_id: int):
@@ -214,7 +214,7 @@ class NewAgent:
     def __repr__(self):
         actual_lexicon = len(self._lexicon)
         actual_categories = len(self._categories)
-        return str(self._lxc.reduce(actual_lexicon, actual_categories))
+        return f'{self.agent_id} {str(self._lxc.reduce(actual_lexicon, actual_categories))}'
 
     @staticmethod
     def to_dict(agent) -> Dict:
@@ -369,7 +369,7 @@ class NewAgent:
         self._discriminative_success.append(True)
         self._discriminative_success_mean = np.mean(self._discriminative_success[-history:])
 
-    def add_discrimination_failure(self, history=50):
+    def add_discriminative_failure(self, history=50):
         self._discriminative_success.append(False)
         self._discriminative_success_mean = np.mean(self._discriminative_success[-history:])
 

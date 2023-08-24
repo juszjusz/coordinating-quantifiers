@@ -12,7 +12,7 @@ from v2.domain_objects import GameParams, NewAgent, AggregatedGameResultStats
 from v2.game_graph import game_graph_with_stage_7, GameGraph
 
 logger = logging.getLogger(__name__)
-logger.setLevel(level=logging.INFO)
+logger.setLevel(level=logging.DEBUG)
 
 
 class RandomFunction:
@@ -65,14 +65,14 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
     game_graph: GameGraph = game_graph_with_stage_7(flip_a_coin)
     assert game_params.population_size % 2 == 0, 'each agent must be paired'
     population = [NewAgent(agent_id, game_params) for agent_id in range(game_params.population_size)]
-
     stats = AggregatedGameResultStats(game_params)
     for step in range(game_params.steps):
         shuffle_list(population)
         paired_agents = pair_partition(population)
 
         for speaker, hearer in paired_agents:
-            logger.debug(f'step {step}')
+            debug_msg = f'step {step}'
+            logger.debug(debug_msg)
             context = context_constructor()
 
             data_envelope = {'topic': 0}
@@ -82,7 +82,8 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
             args = [data_envelope[a] for a in arg_names]
 
             while state_name != 'NEXT_STEP':
-                logger.debug(f'{state_name}, agent: {agent_name}, args: {args}')
+                debug_msg = f'{state_name}, agent: {agent_name}, args: {args}'
+                logger.debug(debug_msg)
 
                 agent_selector = {'SPEAKER': select_speaker, 'HEARER': select_hearer}[agent_name]
                 agent = agent_selector(speaker, hearer)
@@ -117,7 +118,6 @@ def run_dummy_simulation(stimulus):
 
 
 if __name__ == '__main__':
-    run_dummy_simulation(stimulus='numeric')
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
@@ -151,9 +151,14 @@ if __name__ == '__main__':
 
     rf = new_random_f(seed=0)
 
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)  # Set the handler level to DEBUG
+    logger.addHandler(ch)
+
 
     def avg_series(elements: List, history=50):
-        return [np.mean(elements[max(0, i-history):i]) for i in range(1, len(elements))]
+        return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
     for _, r in zip(range(1), rf):
@@ -164,6 +169,7 @@ if __name__ == '__main__':
                                     )
 
         agg_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
+        print()
         # agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
     # print([len(NewAgent.to_dict(a)['categories']) for a in population])
     # print([len(NewAgent.to_dict(a)['words']) for a in population])
