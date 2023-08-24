@@ -9,7 +9,7 @@ import numpy as np
 
 from v2.calculator import NumericCalculator, QuotientCalculator
 from v2.domain_objects import GameParams, NewAgent, AggregatedGameResultStats
-from v2.game_graph import game_graph_with_stage_7, select_speaker, select_hearer
+from v2.game_graph import game_graph_with_stage_7, GameGraph
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -45,6 +45,14 @@ def new_random_f(seed: int) -> RandomFunction:
         yield RandomFunction(r.randint(2 ** 31))
 
 
+def select_speaker(speaker: NewAgent, _: NewAgent) -> NewAgent:
+    return speaker
+
+
+def select_hearer(_: NewAgent, hearer: NewAgent) -> NewAgent:
+    return hearer
+
+
 def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> List[NewAgent]:
     calculator = {'numeric': NumericCalculator.load_from_file(),
                   'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
@@ -54,7 +62,7 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
 
     context_constructor = calculator.context_factory(pick_element=pick_element)
 
-    game_graph = game_graph_with_stage_7(flip_a_coin)
+    game_graph: GameGraph = game_graph_with_stage_7(flip_a_coin)
     assert game_params.population_size % 2 == 0, 'each agent must be paired'
     population = [NewAgent(agent_id, game_params) for agent_id in range(game_params.population_size)]
 
@@ -69,11 +77,8 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
 
             data_envelope = {'topic': 0}
 
-            state_name = '2_SPEAKER_DISCRIMINATION_GAME'
-            state = game_graph[state_name]
-            action = state['action']
-            agent_name = state['agent']
-            arg_names = state['args']
+            state_name = None
+            action, agent_name, arg_names = game_graph.start()
             args = [data_envelope[a] for a in arg_names]
 
             while state_name != 'NEXT_STEP':
@@ -83,10 +88,7 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
                 agent = agent_selector(speaker, hearer)
 
                 state_name = action(stats, calculator, agent, context, data_envelope, *args)
-                state = game_graph[state_name]
-                action = state['action']
-                agent_name = state['agent']
-                arg_names = state['args']
+                action, agent_name, arg_names = game_graph(state_name)
                 args = [data_envelope[a] for a in arg_names]
 
                 logger.debug(data_envelope)
@@ -147,12 +149,11 @@ if __name__ == '__main__':
 
     game_params = GameParams(**parsed_params)
 
-
     rf = new_random_f(seed=0)
 
 
-    def avg_series(l: List, history=50):
-        return [np.mean(l[-i - history:]) for i in range(len(l))]
+    def avg_series(elements: List, history=50):
+        return [np.mean(elements[max(0, i-history):i]) for i in range(1, len(elements))]
 
 
     for _, r in zip(range(1), rf):
@@ -162,15 +163,11 @@ if __name__ == '__main__':
                                     r.pick_element_random_function()
                                     )
 
-        print([NewAgent.to_dict(a) for a in population])
-        a = population[0]
-
         agg_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
-        agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
+        # agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
     # print([len(NewAgent.to_dict(a)['categories']) for a in population])
     # print([len(NewAgent.to_dict(a)['words']) for a in population])
     # categories cnt after 1000x
     # [16, 13, 13, 21, 12, 29, 17, 14, 23, 11, 12, 34, 19, 24, 12, 28, 9, 31, 24, 24]
     # words cnt after 1000x
     # [91, 92, 98, 94, 89, 102, 95, 94, 105, 95, 97, 98, 92, 93, 95, 101, 96, 102, 102, 88]
-
