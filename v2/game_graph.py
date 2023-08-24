@@ -20,6 +20,9 @@ class GuessingGameAction:
                  **kwargs) -> str:
         pass
 
+    def output_nodes(self) -> List[str]:
+        return []
+
 
 class DiscriminationGameAction(GuessingGameAction):
 
@@ -34,6 +37,9 @@ class DiscriminationGameAction(GuessingGameAction):
         self.on_success = on_success
 
         self.selected_category_path = selected_category_path
+
+    def output_nodes(self) -> List[str]:
+        return [self.on_no_category, self.on_no_noticeable_difference, self.on_no_discrimination, self.on_success]
 
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
         if not agent.has_categories():
@@ -86,9 +92,9 @@ class PickMostConnectedWord(GuessingGameAction):
     def __init__(self, on_success: str,
                  selected_word_path: str,
                  new_word: Callable[[], NewWord]):
-        self.select_word_for_category = on_success
-        self.selected_word_path = selected_word_path
-        self.new_word = new_word
+        self._select_word_for_category = on_success
+        self._selected_word_path = selected_word_path
+        self._new_word = new_word
 
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
@@ -96,13 +102,16 @@ class PickMostConnectedWord(GuessingGameAction):
         if word is None:
             logger.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.agent_id, word))
             logger.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.agent_id, word))
-            word = self.new_word()
+            word = self._new_word()
             agent.add_new_word(word)
             agent.learn_word_category(word, category)
 
         logger.debug("Agent(%d) says: %s" % (agent.agent_id, word))
-        data_envelope[self.selected_word_path] = word
-        return self.select_word_for_category
+        data_envelope[self._selected_word_path] = word
+        return self._select_word_for_category
+
+    def output_nodes(self) -> List[str]:
+        return [self._select_word_for_category]
 
 
 class PickMostConnectedCategoryAction(GuessingGameAction):
@@ -138,14 +147,17 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
 
         return self._on_known_word
 
+    def output_nodes(self) -> List[str]:
+        return [self._on_unknown_word_or_no_associated_category, self._on_known_word]
+
 
 class SelectAndCompareTopic(GuessingGameAction):
     """ 5. The topic is revealed to the hearer. If qS = qH , i.e., the topic is the same as
         the guess of the hearer, the game is successful. Otherwise, the game fails """
 
     def __init__(self, on_success: str, on_failure: str, flip_a_coin: Callable[[], int]):
-        self.on_success = on_success
-        self.on_failure = on_failure
+        self._on_success = on_success
+        self._on_failure = on_failure
 
         self.flip_a_coin = flip_a_coin
 
@@ -157,9 +169,12 @@ class SelectAndCompareTopic(GuessingGameAction):
             selected = self.flip_a_coin()
 
         if selected == topic:
-            return self.on_success
+            return self._on_success
         else:
-            return self.on_failure
+            return self._on_failure
+
+    def output_nodes(self) -> List[str]:
+        return [self._on_success, self._on_failure]
 
 
 class CompareWordsAction(GuessingGameAction):
@@ -176,6 +191,9 @@ class CompareWordsAction(GuessingGameAction):
             agent.add_communicative2_failure()
             return self._on_different_words
 
+    def output_nodes(self) -> List[str]:
+        return [self._on_equal_words, self._on_different_words]
+
 
 class SuccessAction(GuessingGameAction):
     def __init__(self, on_success: str):
@@ -187,16 +205,22 @@ class SuccessAction(GuessingGameAction):
         agent.add_communicative1_success()
         return self._on_success
 
+    def output_nodes(self) -> List[str]:
+        return [self._on_success]
+
 
 class FailureAction(GuessingGameAction):
     def __init__(self, on_success: str):
-        self.on_success = on_success
+        self._next = on_success
 
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_failure(word, category)
         agent.add_communicative1_failure()
-        return self.on_success
+        return self._next
+
+    def output_nodes(self) -> List[str]:
+        return [self._next]
 
 
 class LearnWordCategoryAction(GuessingGameAction):
@@ -208,6 +232,9 @@ class LearnWordCategoryAction(GuessingGameAction):
         agent.learn_word_category(word, category)
         return self._on_success
 
+    def output_nodes(self) -> List[str]:
+        return [self._on_success]
+
 
 class CompleteAction(GuessingGameAction):
     def __init__(self, on_success: str):
@@ -216,6 +243,9 @@ class CompleteAction(GuessingGameAction):
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.forget_words()
         return self._on_success
+
+    def output_nodes(self) -> List[str]:
+        return [self._on_success]
 
 
 class GameGraph:
@@ -226,6 +256,11 @@ class GameGraph:
 
     def add_node(self, name: str, action: GuessingGameAction, agent: str, args: List[str], is_start_node=False):
         self._graph[name] = {'action': action, 'agent': agent, 'args': args}
+
+        if action:
+            for out in action.output_nodes():
+                self._viz.edge(name, out, label=agent)
+
         if is_start_node:
             self._start_node.append(name)
 
@@ -235,6 +270,9 @@ class GameGraph:
         action = node['action']
         args = node['args']
         return action, agent, args
+
+    def viz(self):
+        return self._viz
 
     def start(self):
         assert len(self._start_node) == 1, 'there must be a unique start node to start computation'
@@ -334,6 +372,7 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
 if __name__ == '__main__':
     # game_graph = graphviz.Digraph()
     g = game_graph_with_stage_7(None)
+    print(g.viz())
     # for node in g.keys():
     #     game_graph.node(node, label=)
     # game_graph.node('SPEAKER_DISCRIMINATION_GAME', label='root node', attrs='speaker')
