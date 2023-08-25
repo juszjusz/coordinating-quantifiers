@@ -1,7 +1,8 @@
 import json
 import argparse
 import logging
-from typing import List, Callable, Any
+from collections import Counter
+from typing import List, Callable, Any, Tuple
 
 from numpy.random import RandomState
 
@@ -10,7 +11,7 @@ from tqdm import tqdm
 
 from v2.calculator import NumericCalculator, QuotientCalculator
 from v2.domain_objects import GameParams, NewAgent, AggregatedGameResultStats
-from v2.game_graph import game_graph_with_stage_7, GameGraph
+from v2.game_graph import game_graph_with_stage_7, game_graph, GameGraph
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -54,7 +55,7 @@ def select_hearer(_: NewAgent, hearer: NewAgent) -> NewAgent:
     return hearer
 
 
-def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> List[NewAgent]:
+def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> Tuple[List[NewAgent], Any, Any]:
     calculator = {'numeric': NumericCalculator.load_from_file(),
                   'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
@@ -63,10 +64,18 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
 
     context_constructor = calculator.context_factory(pick_element=pick_element)
 
-    game_graph: GameGraph = game_graph_with_stage_7(flip_a_coin)
+    G: GameGraph = game_graph(flip_a_coin)
     assert game_params.population_size % 2 == 0, 'each agent must be paired'
     population = [NewAgent(agent_id, game_params) for agent_id in range(game_params.population_size)]
     stats = AggregatedGameResultStats(game_params)
+
+    # buckets with counters
+    bucket_size = 100
+    states_sequences_cnts = {(i, i + bucket_size): Counter() for i in range(0, game_params.steps, bucket_size)}
+    states_cnts = {(i, i + bucket_size): Counter() for i in range(0, game_params.steps, bucket_size)}
+    step2bucket = {i: (int(i / bucket_size) * bucket_size, (int(i / bucket_size) + 1) * bucket_size) for i in
+                   range(game_params.steps)}
+
     for step in tqdm(range(game_params.steps)):
         shuffle_list(population)
         paired_agents = pair_partition(population)
@@ -79,9 +88,10 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
             data_envelope = {'topic': 0}
 
             state_name = None
-            action, agent_name, arg_names = game_graph.start()
+            action, agent_name, arg_names = G.start()
             args = [data_envelope[a] for a in arg_names]
 
+            states_sequence = ['START']
             while state_name != 'NEXT_STEP':
                 debug_msg = f'{state_name}, agent: {agent_name}, args: {args}'
                 logger.debug(debug_msg)
@@ -90,12 +100,17 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
                 agent = agent_selector(speaker, hearer)
 
                 state_name = action(stats, calculator, agent, context, data_envelope, *args)
-                action, agent_name, arg_names = game_graph(state_name)
+                action, agent_name, arg_names = G(state_name)
                 args = [data_envelope[a] for a in arg_names]
-
+                states_sequence.append(state_name)
                 logger.debug(data_envelope)
 
-    return population
+                states_cnts[step2bucket[step]].update([states_sequence[-1]])
+
+            bucket = step2bucket[step]
+            states_sequences_cnts[bucket].update(['->'.join(states_sequence)])
+
+    return population, states_sequences_cnts, states_cnts
 
 
 def run_dummy_simulation(stimulus):
@@ -122,8 +137,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
-    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=4)
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
                         type=int,
@@ -140,7 +155,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=5000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -162,19 +177,19 @@ if __name__ == '__main__':
 
 
     for _, r in zip(range(1), rf):
-        population = run_simulation(game_params,
-                                    r.shuffle_list_random_function(),
-                                    r.flip_a_coin_random_function(),
-                                    r.pick_element_random_function()
-                                    )
+        population, states_sequences, states_cnts = run_simulation(game_params,
+                                                                   r.shuffle_list_random_function(),
+                                                                   r.flip_a_coin_random_function(),
+                                                                   r.pick_element_random_function()
+                                                                   )
 
         agg_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
         agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
+        discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
         # agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
 
-    print([len(NewAgent.to_dict(a)['categories']) for a in population])
-    print([len(NewAgent.to_dict(a)['words']) for a in population])
-    # categories cnt after 1000x
-    # [16, 13, 13, 21, 12, 29, 17, 14, 23, 11, 12, 34, 19, 24, 12, 28, 9, 31, 24, 24]
-    # words cnt after 1000x
-    # [91, 92, 98, 94, 89, 102, 95, 94, 105, 95, 97, 98, 92, 93, 95, 101, 96, 102, 102, 88]
+        print([len(NewAgent.to_dict(a)['categories']) for a in population])
+        print([len(NewAgent.to_dict(a)['words']) for a in population])
+        print(states_sequences)
+        print(states_cnts)
+        print(NewAgent.lxc_to_ndarray(population[1]))

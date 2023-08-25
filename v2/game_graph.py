@@ -30,19 +30,17 @@ class GuessingGameAction:
 class DiscriminationGameAction(GuessingGameAction):
 
     def __init__(self, on_no_category: str,
-                 on_no_noticeable_difference: str,
                  on_no_discrimination: str,
                  on_success: str,
                  selected_category_path: str):
         self.on_no_category = on_no_category
-        self.on_no_noticeable_difference = on_no_noticeable_difference
         self.on_no_discrimination = on_no_discrimination
         self.on_success = on_success
 
         self.selected_category_path = selected_category_path
 
     def output_nodes(self) -> List[str]:
-        return [self.on_no_category, self.on_no_noticeable_difference, self.on_no_discrimination, self.on_success]
+        return [self.on_no_category, self.on_no_discrimination, self.on_success]
 
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
         if not agent.has_categories():
@@ -53,14 +51,13 @@ class DiscriminationGameAction(GuessingGameAction):
 
         s1, s2 = context
 
-        if not s1.is_noticeably_different_from(s2):
-            return self.on_no_noticeable_difference
+        assert s1.is_noticeably_different_from(s2), 'stimuli must be noticeably different'
 
         category1 = agent.get_best_matching_category(s1, calculator)
         category2 = agent.get_best_matching_category(s2, calculator)
 
         if category1 == category2:
-            logger.debug('no category {}({})'.format(agent, agent.agent_id))
+            # logger.debug('no category {}({})'.format(agent, agent.agent_id))
             agent.learn_stimulus(context[topic], calculator)
             agent.add_discriminative_failure()
             return self.on_no_discrimination
@@ -93,9 +90,11 @@ class PickMostConnectedWord(GuessingGameAction):
     defined later in this section."""
 
     def __init__(self, on_success: str,
+                 on_no_word_for_category: str,
                  selected_word_path: str,
                  new_word: Callable[[], NewWord]):
         self._select_word_for_category = on_success
+        self._on_no_word_for_category = on_no_word_for_category
         self._selected_word_path = selected_word_path
         self._new_word = new_word
 
@@ -108,6 +107,7 @@ class PickMostConnectedWord(GuessingGameAction):
             word = self._new_word()
             agent.add_new_word(word)
             agent.learn_word_category(word, category)
+            return self._on_no_word_for_category
 
         logger.debug("Agent(%d) says: %s" % (agent.agent_id, word))
         data_envelope[self._selected_word_path] = word
@@ -134,9 +134,9 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
     i = 1, 2, ... , k. The hearer points to the stimulus, denoted by qH , that
     generates the highest response for cH (i.e., qH = argmax q∈{q1,q2}〈cH |Rq〉)."""
 
-    def __init__(self, on_unknown_word_or_no_associated_category: str, on_known_word: str, selected_category_path: str):
+    def __init__(self, on_unknown_word_or_no_associated_category: str, on_success: str, selected_category_path: str):
         self._on_unknown_word_or_no_associated_category = on_unknown_word_or_no_associated_category
-        self._on_known_word = on_known_word
+        self._on_known_word = on_success
         self._selected_category_path = selected_category_path
 
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
@@ -215,7 +215,6 @@ class IncrementWordCategoryAssociation(GuessingGameAction):
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_success(word, category)
-        # inhibit
         return self._on_success
 
     def output_nodes(self) -> List[str]:
@@ -342,6 +341,87 @@ class GameGraph:
         return self(self._start_node[0])
 
 
+def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
+    new_word = ThreadSafeWordFactory()
+
+    g = GameGraph()
+    g.add_node(name='2_SPEAKER_DISCRIMINATION_GAME',
+               action=DiscriminationGameAction(
+                   on_no_category='SPEAKER_COMPLETE_WITH_FAILURE',
+                   on_no_discrimination='SPEAKER_COMPLETE_WITH_FAILURE',
+                   on_success='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
+                   selected_category_path='SPEAKER.category'
+               ), agent='SPEAKER', args=['topic'], is_start_node=True)
+
+    g.add_node(name='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
+               action=PickMostConnectedWord(
+                   on_success='4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',
+                   on_no_word_for_category='SPEAKER_COMPLETE_WITH_FAILURE',
+                   selected_word_path='SPEAKER.word',
+                   new_word=new_word
+               ), agent='SPEAKER', args=['SPEAKER.category'])
+
+    g.add_node('4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',
+               PickMostConnectedCategoryAction(
+                   on_unknown_word_or_no_associated_category='4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD',
+                   on_success='5_HEARER_CHECKS_TOPIC',
+                   selected_category_path='HEARER.category'
+               ), agent='HEARER', args=['SPEAKER.word'])
+
+    g.add_node(name='4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD',
+               action=DiscriminationGameAction(
+                   on_no_category='SPEAKER_COMPLETE_WITH_FAILURE',
+                   on_no_discrimination='SPEAKER_COMPLETE_WITH_FAILURE',
+                   on_success='4_2_HEARER_LEARNS_WORD_CATEGORY',
+                   selected_category_path='HEARER.category'
+               ), agent='HEARER', args=['topic']),
+
+    g.add_node(name='4_2_HEARER_LEARNS_WORD_CATEGORY',
+               action=LearnWordCategoryAction(on_success='SPEAKER_COMPLETE_WITH_FAILURE'),
+               agent='HEARER', args=['SPEAKER.word', 'HEARER.category']),
+
+    g.add_node(name='5_HEARER_CHECKS_TOPIC',
+               action=SelectAndCompareTopic(on_success='SPEAKER_SUCCESS',
+                                            on_failure='SPEAKER_FAILURE',
+                                            flip_a_coin=flip_a_coin),
+               agent='HEARER', args=['HEARER.category', 'topic']),
+
+    g.add_node(name='SPEAKER_SUCCESS',
+               action=IncrementWordCategoryAssociation(on_success='HEARER_SUCCESS'),
+               agent='SPEAKER', args=['SPEAKER.word', 'SPEAKER.category']),
+
+    g.add_node(name='HEARER_SUCCESS',
+               action=IncrementWordCategoryAssociation(on_success='SPEAKER_COMPLETE_WITH_SUCCESS'),
+               agent='HEARER', args=['SPEAKER.word', 'HEARER.category']),
+
+    g.add_node(name='SPEAKER_FAILURE',
+               action=DecrementWordCategoryAssociation(on_success='HEARER_FAILURE'),
+               agent='SPEAKER', args=['SPEAKER.word', 'SPEAKER.category']),
+
+    g.add_node(name='HEARER_FAILURE',
+               action=DecrementWordCategoryAssociation(on_success='SPEAKER_COMPLETE_WITH_FAILURE'),
+               agent='HEARER', args=['SPEAKER.word', 'HEARER.category']),
+
+    g.add_node(name='SPEAKER_COMPLETE_WITH_SUCCESS',
+               action=SuccessAction(next='HEARER_COMPLETE_WITH_SUCCESS'), agent='SPEAKER', args=[]),
+
+    g.add_node(name='HEARER_COMPLETE_WITH_SUCCESS',
+               action=SuccessAction(next='SPEAKER_COMPLETE'), agent='HEARER', args=[]),
+
+    g.add_node(name='SPEAKER_COMPLETE_WITH_FAILURE',
+               action=FailureAction(next='HEARER_COMPLETE_WITH_FAILURE'), agent='SPEAKER', args=[]),
+
+    g.add_node(name='HEARER_COMPLETE_WITH_FAILURE',
+               action=FailureAction(next='SPEAKER_COMPLETE'), agent='HEARER', args=[]),
+
+    g.add_node(name='SPEAKER_COMPLETE', action=CompleteAction(on_success='HEARER_COMPLETE'), agent='SPEAKER', args=[]),
+    g.add_node(name='HEARER_COMPLETE', action=CompleteAction(on_success='NEXT_STEP'), agent='HEARER', args=[]),
+
+    g.add_node(name='NEXT_STEP', action=None, agent=None, args=[])
+
+    return g
+
+
 def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     new_word = ThreadSafeWordFactory()
 
@@ -349,7 +429,6 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     g.add_node(name='2_SPEAKER_DISCRIMINATION_GAME',
                action=DiscriminationGameAction(
                    on_no_category='SPEAKER_COMPLETE_WITH_FAILURE',
-                   on_no_noticeable_difference='SPEAKER_COMPLETE_WITH_FAILURE',
                    on_no_discrimination='SPEAKER_COMPLETE_WITH_FAILURE',
                    on_success='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
                    selected_category_path='SPEAKER.category'
@@ -365,7 +444,7 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     g.add_node('4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',
                PickMostConnectedCategoryAction(
                    on_unknown_word_or_no_associated_category='4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD',
-                   on_known_word='5_HEARER_CHECKS_TOPIC',
+                   on_success='5_HEARER_CHECKS_TOPIC',
                    selected_category_path='HEARER.category'
                ), agent='HEARER', args=['SPEAKER.word']
                )
@@ -373,7 +452,6 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     g.add_node(name='4_1_SPEAKER_CONVEYS_WORD_TO_THE_HEARER_ON_UNKNOWN_WORD',
                action=DiscriminationGameAction(
                    on_no_category='SPEAKER_COMPLETE_WITH_FAILURE',
-                   on_no_noticeable_difference='SPEAKER_COMPLETE_WITH_FAILURE',
                    on_no_discrimination='SPEAKER_COMPLETE_WITH_FAILURE',
                    on_success='4_2_HEARER_LEARNS_WORD_CATEGORY',
                    selected_category_path='HEARER.category'
@@ -382,18 +460,6 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     g.add_node(name='4_2_HEARER_LEARNS_WORD_CATEGORY',
                action=LearnWordCategoryAction(on_success='SPEAKER_COMPLETE_WITH_FAILURE'),
                agent='HEARER', args=['SPEAKER.word', 'HEARER.category']),
-
-    g.add_node(name='6_HEARER_PICKUPS_WORD_FOR_CATEGORY',
-               action=PickMostConnectedWord(
-                   on_success='7_HEARER_COMPARES_WORD',
-                   selected_word_path='HEARER.word',
-                   new_word=new_word
-               ), agent='HEARER', args=['HEARER.category']),
-
-    g.add_node(name='7_HEARER_COMPARES_WORD',
-               action=CompareWordsAction(on_equal_words='SPEAKER_SUCCESS_7',
-                                         on_different_words='SPEAKER_COMPLETE_WITH_FAILURE_7'),
-               agent='HEARER', args=['SPEAKER.word', 'HEARER.word']),
 
     g.add_node(name='5_HEARER_CHECKS_TOPIC',
                action=SelectAndCompareTopic(on_success='SPEAKER_SUCCESS',
@@ -404,7 +470,6 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     g.add_node(name='TOPIC_GUESS_FAILURE',
                action=DiscriminationGameAction(
                    on_no_category='SPEAKER_COMPLETE_WITH_FAILURE_7',
-                   on_no_noticeable_difference='SPEAKER_COMPLETE_WITH_FAILURE_7',
                    on_no_discrimination='SPEAKER_COMPLETE_WITH_FAILURE_7',
                    on_success='6_HEARER_PICKUPS_WORD_FOR_CATEGORY',
                    selected_category_path='HEARER.category'
@@ -469,7 +534,7 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
 if __name__ == '__main__':
     # to render graph you need to have dot installed
     # https://graphviz.org
-    g = game_graph_with_stage_7(None)
+    g = game_graph(None)
     dot = g.viz()
     print('''you can also just copy paste encoded graph printed below 
     in graphviz online gui (https://dreampuf.github.io/GraphvizOnline):''')

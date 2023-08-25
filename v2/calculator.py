@@ -94,7 +94,13 @@ class Calculator:
         stimuli = self.stimuli()
 
         def new_context():
-            return [pick_element(stimuli), pick_element(stimuli)]
+            s1 = pick_element(stimuli)
+            s2 = pick_element(stimuli)
+            while not s1.is_noticeably_different_from(s2):
+                s1 = pick_element(stimuli)
+                s2 = pick_element(stimuli)
+
+            return [s1, s2]
 
         return new_context
 

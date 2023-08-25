@@ -4,7 +4,7 @@ import dataclasses
 import logging
 from collections import deque
 from threading import Lock
-from typing import Tuple,  Callable, List, Dict, Union
+from typing import Tuple, Callable, List, Dict, Union
 
 import numpy as np
 from numpy import ndarray
@@ -12,6 +12,8 @@ from numpy import ndarray
 from v2.calculator import Calculator, NewAbstractStimulus
 
 logger = logging.getLogger(__name__)
+
+
 # logger.setLevel(level=logging.INFO)
 
 class NewCategory:
@@ -127,16 +129,13 @@ class ConnectionMatrixLxC:
 
     @staticmethod
     def new_matrix(steps: int):
-        row = int(3*np.sqrt(steps))
-        col = int(3*np.sqrt(steps))
+        row = int(3 * np.sqrt(steps))
+        col = int(3 * np.sqrt(steps))
 
         return ConnectionMatrixLxC(row, col)
 
     def __call__(self, row, col) -> float:
         return self._square_matrix[row, col]
-
-    def to_ndarray(self) -> ndarray:
-        return self._square_matrix
 
     def rows(self):
         return self._square_matrix.shape[0]
@@ -157,6 +156,10 @@ class ConnectionMatrixLxC:
     def update_cell(self, row: int, column: int, update: Callable[[float], float]):
         recomputed_value = update(self._square_matrix[row, column])
         self._square_matrix[row, column] = recomputed_value
+        row = self._square_matrix[row, :]
+        sorted_row = np.sort(row)
+        if sorted_row[-2] > 0:
+            print(row)
 
     def update_matrix_on_given_row(self, row_index: int, column_indices: (List[int] or ndarray),
                                    scalar: float):
@@ -169,8 +172,8 @@ class ConnectionMatrixLxC:
     def reset_matrix_on_col_indices(self, col_indices: (List[int] or ndarray)):
         self._square_matrix[:, col_indices] = 0
 
-    def reduce(self, height: int, width: int):
-        return self._square_matrix[:height, :width]
+    def reduce(self):
+        return self._square_matrix[:self._row, :self._col]
 
     def get_row_vector(self, word_index) -> ndarray:
         return self._square_matrix[word_index, :]
@@ -212,9 +215,7 @@ class NewAgent:
         self._discriminative_success_mean = 0.
 
     def __repr__(self):
-        actual_lexicon = len(self._lexicon)
-        actual_categories = len(self._categories)
-        return f'{self.agent_id} {str(self._lxc.reduce(actual_lexicon, actual_categories))}'
+        return f'{self.agent_id} {str(self._lxc.reduce())}'
 
     @staticmethod
     def to_dict(agent) -> Dict:
@@ -228,13 +229,17 @@ class NewAgent:
 
         discriminative_success = list(agent._discriminative_success)
 
-        lxc = agent._lxc.reduce(len(words), len(categories)).tolist()
+        lxc = agent._lxc.reduce().tolist()
 
         return {'agent_id': agent.agent_id,
                 'categories': categories,
                 'words': words,
                 'discriminative_success': discriminative_success,
                 'lxc': lxc}
+
+    @staticmethod
+    def lxc_to_ndarray(agent):
+        return agent._lxc.reduce()
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         category_index = category.category_id
@@ -271,11 +276,11 @@ class NewAgent:
         for c in active_categories:
             c.decrement_weights(self._game_params.alpha)
 
-        to_forget = [i for i, activate_category in enumerate(active_categories) if
-                     activate_category.max_weigth() < self._game_params.super_alpha and category_in_use != i]
+        to_forget = [activate_category for activate_category in active_categories if
+                     activate_category.max_weigth() < self._game_params.super_alpha and category_in_use != activate_category]
 
-        self._lxc.reset_matrix_on_col_indices(to_forget)
-        [self._categories[c].deactivate() for c in to_forget]
+        self._lxc.reset_matrix_on_col_indices([c.category_id for i in to_forget])
+        [c.deactivate() for c in to_forget]
 
     def forget_words(self, super_alpha=.01):
         to_forget = self._lxc.get_rows_all_smaller_than_threshold(super_alpha)
@@ -299,6 +304,7 @@ class NewAgent:
 
     def update_on_success(self, word: NewWord, category: NewCategory):
         self.__update_connection(word, category, lambda v: v + self._game_params.delta_inc * v)
+        self.inhibit_word2categories_connections(word=word, except_category=category)
 
     def update_on_failure(self, word: NewWord, category: NewCategory):
         self.__update_connection(word, category, lambda v: v - self._game_params.delta_dec * v)
@@ -364,6 +370,9 @@ class NewAgent:
         bool_activations = self.semantic_meaning(word, stimuli)
         alt = len([a for a, aa in zip(bool_activations, bool_activations[1:]) if a != aa])
         return alt == 1
+
+    def get_discriminative_success(self):
+        return self._discriminative_success
 
     def add_discrimination_success(self, history=50):
         self._discriminative_success.append(True)
