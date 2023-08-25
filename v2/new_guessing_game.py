@@ -6,13 +6,14 @@ from typing import List, Callable, Any
 from numpy.random import RandomState
 
 import numpy as np
+from tqdm import tqdm
 
 from v2.calculator import NumericCalculator, QuotientCalculator
 from v2.domain_objects import GameParams, NewAgent, AggregatedGameResultStats
 from v2.game_graph import game_graph_with_stage_7, GameGraph
 
 logger = logging.getLogger(__name__)
-logger.setLevel(level=logging.DEBUG)
+logger.setLevel(level=logging.INFO)
 
 
 class RandomFunction:
@@ -66,7 +67,7 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
     assert game_params.population_size % 2 == 0, 'each agent must be paired'
     population = [NewAgent(agent_id, game_params) for agent_id in range(game_params.population_size)]
     stats = AggregatedGameResultStats(game_params)
-    for step in range(game_params.steps):
+    for step in tqdm(range(game_params.steps)):
         shuffle_list(population)
         paired_agents = pair_partition(population)
 
@@ -121,7 +122,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=2)
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
@@ -139,7 +140,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=250)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=5000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -151,7 +152,6 @@ if __name__ == '__main__':
 
     rf = new_random_f(seed=0)
 
-    logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)  # Set the handler level to DEBUG
     logger.addHandler(ch)
@@ -169,10 +169,11 @@ if __name__ == '__main__':
                                     )
 
         agg_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
-        print()
+        agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
         # agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
-    # print([len(NewAgent.to_dict(a)['categories']) for a in population])
-    # print([len(NewAgent.to_dict(a)['words']) for a in population])
+
+    print([len(NewAgent.to_dict(a)['categories']) for a in population])
+    print([len(NewAgent.to_dict(a)['words']) for a in population])
     # categories cnt after 1000x
     # [16, 13, 13, 21, 12, 29, 17, 14, 23, 11, 12, 34, 19, 24, 12, 28, 9, 31, 24, 24]
     # words cnt after 1000x

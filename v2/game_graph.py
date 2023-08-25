@@ -74,7 +74,6 @@ class DiscriminationGameAction(GuessingGameAction):
         data_envelope[self.selected_category_path] = winning_category
 
         agent.add_discrimination_success()
-        stats.add_discrimination_success(agent)
         return self.on_success
 
     def action_description(self) -> str:
@@ -381,7 +380,7 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
                ), agent='HEARER', args=['topic']),
 
     g.add_node(name='4_2_HEARER_LEARNS_WORD_CATEGORY',
-               action=LearnWordCategoryAction(on_success='SPEAKER_SUCCESS_7'),
+               action=LearnWordCategoryAction(on_success='SPEAKER_COMPLETE_WITH_FAILURE'),
                agent='HEARER', args=['SPEAKER.word', 'HEARER.category']),
 
     g.add_node(name='6_HEARER_PICKUPS_WORD_FOR_CATEGORY',
@@ -392,7 +391,8 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
                ), agent='HEARER', args=['HEARER.category']),
 
     g.add_node(name='7_HEARER_COMPARES_WORD',
-               action=CompareWordsAction(on_equal_words='SPEAKER_SUCCESS_7', on_different_words='SPEAKER_FAILURE'),
+               action=CompareWordsAction(on_equal_words='SPEAKER_SUCCESS_7',
+                                         on_different_words='SPEAKER_COMPLETE_WITH_FAILURE_7'),
                agent='HEARER', args=['SPEAKER.word', 'HEARER.word']),
 
     g.add_node(name='5_HEARER_CHECKS_TOPIC',

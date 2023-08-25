@@ -127,8 +127,8 @@ class ConnectionMatrixLxC:
 
     @staticmethod
     def new_matrix(steps: int):
-        row = int(steps / 5)
-        col = int(np.sqrt(steps))
+        row = int(3*np.sqrt(steps))
+        col = int(3*np.sqrt(steps))
 
         return ConnectionMatrixLxC(row, col)
 
