@@ -9,9 +9,11 @@ from numpy.random import RandomState
 import numpy as np
 from tqdm import tqdm
 
+from stats import confidence_intervals, means
 from v2.calculator import NumericCalculator, QuotientCalculator
 from v2.domain_objects import GameParams, NewAgent, AggregatedGameResultStats
 from v2.game_graph import game_graph_with_stage_7, game_graph, GameGraph
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -113,6 +115,53 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
     return population, states_sequences_cnts, states_cnts
 
 
+class PlotSuccessCommand:
+
+    def __call__(self, runs, steps, agg_cs1, agg_cs2, agg_cs12, agg_ds):
+        # shape steps x runs
+        cs1_means = means(agg_cs1)
+        cs2_means = means(agg_cs2)
+        cs12_means = means(agg_cs12)
+        ds_means = means(agg_ds)
+        # nw_means = means(samples_nw)
+        # logging.debug(nw_means)
+
+        # nw_cis_l, nw_cis_u = confidence_intervals(samples_nw)
+        # cs1_cis_l, cs1_cis_u = confidence_intervals(agg_cs1)
+        # cs2_cis_l, cs2_cis_u = confidence_intervals(agg_cs2)
+        # ds_cis_l, ds_cis_u = confidence_intervals(agg_ds)
+        # cs12_cis_l, cs12_cis_u = confidence_intervals(agg_cs12)
+
+        fig, ax1 = plt.subplots()
+        plt.ylim(bottom=0)
+        plt.ylim(top=100)
+        plt.xlabel("step")
+        plt.ylabel("success")
+
+        plt.plot(range(steps), ds_means, 'r-', linewidth=0.6)
+        for i in range(0, runs):
+            plt.plot(range(steps), [agg_ds[s][i] for s in range(0, steps)], 'r-', linewidth=0.2, alpha=.3)
+
+        plt.plot(range(steps), ds_means, 'g--', linewidth=0.6)
+        for i in range(0, runs):
+            plt.plot(range(steps), [ds_means[s][i] for s in range(0, steps)], 'g-', linewidth=0.2, alpha=.3)
+
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('|active lexicon|')
+
+        # ax2.plot(x100, nw_means, 'b--', linewidth=0.3)
+        # ax2.fill_between(x100, nw_cis_l, nw_cis_u,
+        #                  color='b', alpha=.2)
+        # ax2.set_yticks(range(0, 15, 1),
+        #                ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14'))
+        # ax2.tick_params(axis='y')
+
+        fig.tight_layout()
+        # plt.savefig(str(succ_plot_path))
+        plt.show()
+        # plt.close()
+
+
 def run_dummy_simulation(stimulus):
     game_params = {'population_size': 2, 'stimulus': stimulus, 'max_num': 100, 'discriminative_threshold': 0.95,
                    'discriminative_history_length': 50, 'delta_inc': 0.2, 'delta_dec': 0.2, 'delta_inh': 0.2,
@@ -137,7 +186,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
 
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=4)
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=6)
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
@@ -155,8 +204,8 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
-    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=4000)
+    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
     parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=1)
@@ -176,20 +225,29 @@ if __name__ == '__main__':
         return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-    for _, r in zip(range(1), rf):
+    runs = game_params.runs
+    agg_cs1 = []
+    agg_ds = []
+    for _, r in zip(range(runs), rf):
         population, states_sequences, states_cnts = run_simulation(game_params,
                                                                    r.shuffle_list_random_function(),
                                                                    r.flip_a_coin_random_function(),
                                                                    r.pick_element_random_function()
                                                                    )
 
-        agg_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
-        agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
-        discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
+        windowed_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
+        windowed_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
+        windowed_discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
+
+        agg_cs1.append(np.mean(np.array(windowed_communicative_success1), axis=0))
+        agg_ds.append(np.mean(np.array(windowed_discriminative_success), axis=0))
         # agg_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
 
-        print([len(NewAgent.to_dict(a)['categories']) for a in population])
-        print([len(NewAgent.to_dict(a)['words']) for a in population])
-        print(states_sequences)
-        print(states_cnts)
-        print(NewAgent.lxc_to_ndarray(population[1]))
+        # print([len(NewAgent.to_dict(a)['categories']) for a in population])
+        # print([len(NewAgent.to_dict(a)['words']) for a in population])
+        # print(states_sequences)
+        # print(states_cnts)
+        # print(NewAgent.lxc_to_ndarray(population[1]))
+
+    samples = np.array(agg_cs1).transpose() * 100
+    PlotSuccessCommand()(runs, game_params.steps, samples, samples, samples, samples)

@@ -209,9 +209,9 @@ class NewAgent:
         self._lexicon: List[NewWord] = []
         self._categories: List[NewCategory] = []
         self._lex2index = {}
-        self._discriminative_success = []
-        self._communicative_success1 = []
-        self._communicative_success2 = []
+        self._discriminative_success = [0]
+        self._communicative_success1 = [0]
+        self._communicative_success2 = [0]
         self._discriminative_success_mean = 0.
 
     def __repr__(self):
