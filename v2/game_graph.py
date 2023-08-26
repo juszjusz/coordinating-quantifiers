@@ -3,9 +3,8 @@ from typing import Tuple, Dict, Callable, List
 
 import graphviz
 
-from v2.calculator import Calculator, NewAbstractStimulus
-from v2.domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory, AggregatedGameResultStats
-
+from calculator import Calculator, NewAbstractStimulus
+from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory, AggregatedGameResultStats
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
 
@@ -108,10 +107,10 @@ class PickMostConnectedWord(GuessingGameAction):
             agent.add_new_word(word)
             agent.learn_word_category(word, category)
             return self._on_no_word_for_category
-
-        logger.debug("Agent(%d) says: %s" % (agent.agent_id, word))
-        data_envelope[self._selected_word_path] = word
-        return self._select_word_for_category
+        else:
+            logger.debug("Agent(%d) says: %s" % (agent.agent_id, word))
+            data_envelope[self._selected_word_path] = word
+            return self._select_word_for_category
 
     def output_nodes(self) -> List[str]:
         return [self._select_word_for_category]
@@ -291,6 +290,7 @@ class CompleteAction(GuessingGameAction):
         self._on_success = on_success
 
     def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+        agent.update_discriminative_success_mean()
         agent.forget_words()
         return self._on_success
 
@@ -415,6 +415,7 @@ def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
                action=FailureAction(next='SPEAKER_COMPLETE'), agent='HEARER', args=[]),
 
     g.add_node(name='SPEAKER_COMPLETE', action=CompleteAction(on_success='HEARER_COMPLETE'), agent='SPEAKER', args=[]),
+
     g.add_node(name='HEARER_COMPLETE', action=CompleteAction(on_success='NEXT_STEP'), agent='HEARER', args=[]),
 
     g.add_node(name='NEXT_STEP', action=None, agent=None, args=[])

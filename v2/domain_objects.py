@@ -2,19 +2,16 @@ from __future__ import division  # force python 3 division in python 2
 
 import dataclasses
 import logging
-from collections import deque
 from threading import Lock
 from typing import Tuple, Callable, List, Dict, Union
 
 import numpy as np
 from numpy import ndarray
 
-from v2.calculator import Calculator, NewAbstractStimulus
+from calculator import Calculator, NewAbstractStimulus
 
 logger = logging.getLogger(__name__)
 
-
-# logger.setLevel(level=logging.INFO)
 
 class NewCategory:
     def __init__(self, category_id: int):
@@ -64,7 +61,7 @@ class NewCategory:
     def decrement_weights(self, alpha):
         self._weights = [weight - alpha * weight for weight in self._weights]
 
-    def max_weigth(self):
+    def max_weight(self):
         return max(self._weights)
 
     def discretized_distribution(self, calculator: Calculator):
@@ -93,13 +90,9 @@ class NewCategory:
 @dataclasses.dataclass
 class NewWord:
     word_id: int
-    active = True
 
     def __hash__(self):
         return self.word_id
-
-    def deactivate(self):
-        self.active = False
 
 
 @dataclasses.dataclass
@@ -156,10 +149,6 @@ class ConnectionMatrixLxC:
     def update_cell(self, row: int, column: int, update: Callable[[float], float]):
         recomputed_value = update(self._square_matrix[row, column])
         self._square_matrix[row, column] = recomputed_value
-        row = self._square_matrix[row, :]
-        sorted_row = np.sort(row)
-        if sorted_row[-2] > 0:
-            print(row)
 
     def update_matrix_on_given_row(self, row_index: int, column_indices: (List[int] or ndarray),
                                    scalar: float):
@@ -206,21 +195,21 @@ class NewAgent:
         self.agent_id = agent_id
         self._game_params = game_params
         self._lxc = ConnectionMatrixLxC.new_matrix(game_params.steps)
-        self._lexicon: List[NewWord] = []
+        self._lexicon: List[Tuple[NewWord, bool]] = []
         self._categories: List[NewCategory] = []
         self._lex2index = {}
-        self._discriminative_success = [0]
-        self._communicative_success1 = [0]
-        self._communicative_success2 = [0]
-        self._discriminative_success_mean = 0.
+        self._discriminative_success = [False]
+        self._communicative_success1 = [False]
+        self._communicative_success2 = [False]
+        self._discriminative_success_means = [0.]
 
     def __repr__(self):
         return f'{self.agent_id} {str(self._lxc.reduce())}'
 
     @staticmethod
     def to_dict(agent) -> Dict:
-        words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': w.active}
-                 for w in agent._lexicon]
+        words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': active}
+                 for w, active in agent._lexicon]
 
         categories = [{'category_id': category.category_id,
                        'is_active': category.is_active,
@@ -243,15 +232,24 @@ class NewAgent:
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         category_index = category.category_id
-        category_argmax = self._lxc.get_col_argmax(category_index)
-        value = self._lxc(category_argmax, category_index)
-        if value > activation_threshold and category_argmax < len(self._lexicon):
-            return self._lexicon[category_argmax]
+        word_category_maximizer = self._lxc.get_col_argmax(category_index)
+        value = self._lxc(word_category_maximizer, category_index)
+        if value > activation_threshold and word_category_maximizer < len(self._lexicon):
+
+            word, active = self._lexicon[word_category_maximizer]
+            if active:
+                return word
+            else:
+                return None
         else:
             return None
 
     def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Union[NewCategory, None]:
         word_index = self._lex2index[word]
+
+        _, active = self._lexicon[word_index]
+        assert active, 'only active words'
+
         word_argmax = self._lxc.get_row_argmax(word_index)
         value = self._lxc(word_index, word_argmax)
         if value > activation_threshold:
@@ -268,7 +266,7 @@ class NewAgent:
         return self._categories[response_argmax]
 
     def knows_word(self, w: NewWord):
-        return w in self._lex2index.keys()
+        return w in [w for w, is_active in self._lexicon if is_active]
 
     def forget_categories(self, category_in_use: NewCategory):
         active_categories = [c for c in self._categories if c.is_active]
@@ -277,20 +275,27 @@ class NewAgent:
             c.decrement_weights(self._game_params.alpha)
 
         to_forget = [activate_category for activate_category in active_categories if
-                     activate_category.max_weigth() < self._game_params.super_alpha and category_in_use != activate_category]
+                     activate_category.max_weight() < self._game_params.super_alpha and category_in_use != activate_category]
 
-        self._lxc.reset_matrix_on_col_indices([c.category_id for i in to_forget])
+        self._lxc.reset_matrix_on_col_indices([c.category_id for c in to_forget])
         [c.deactivate() for c in to_forget]
 
     def forget_words(self, super_alpha=.01):
         to_forget = self._lxc.get_rows_all_smaller_than_threshold(super_alpha)
         to_forget = [i for i in to_forget if i < len(self._lexicon)]
         self._lxc.reset_matrix_on_row_indices(to_forget)
-        [self._lexicon[i].deactivate() for i in to_forget]
+        for i in to_forget:
+            w, active = self._lexicon[i]
+            self._lexicon[i] = (w, False)
+
+    def update_discriminative_success_mean(self, history=50):
+        discriminative_success_mean = np.mean(self._discriminative_success[-history:])
+        self._discriminative_success_means.append(discriminative_success_mean)
 
     def add_new_word(self, w: NewWord):
+        # assert w not in self._lex2index.keys()
         self._lex2index[w] = len(self._lexicon)
-        self._lexicon.append(w)
+        self._lexicon.append((w, True))
         self._lxc.add_new_row()
 
     def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
@@ -303,14 +308,14 @@ class NewAgent:
         self.__update_connection(word, category, lambda v: connection)
 
     def update_on_success(self, word: NewWord, category: NewCategory):
-        self.__update_connection(word, category, lambda v: v + self._game_params.delta_inc * v)
+        self.__update_connection(word, category, lambda v: v + self._game_params.delta_dec * v)
         self.inhibit_word2categories_connections(word=word, except_category=category)
 
     def update_on_failure(self, word: NewWord, category: NewCategory):
         self.__update_connection(word, category, lambda v: v - self._game_params.delta_dec * v)
 
     def learn_stimulus(self, stimulus: NewAbstractStimulus, calculator: Calculator):
-        if self._discriminative_success_mean >= self._game_params.discriminative_threshold:
+        if self._discriminative_success_means[-1] >= self._game_params.discriminative_threshold:
             logger.debug("updating category by adding reactive unit centered on %s" % stimulus)
             category = self.get_best_matching_category(stimulus, calculator)
             logger.debug("updating category")
@@ -372,15 +377,13 @@ class NewAgent:
         return alt == 1
 
     def get_discriminative_success(self):
-        return self._discriminative_success
+        return self._discriminative_success_means
 
-    def add_discrimination_success(self, history=50):
+    def add_discrimination_success(self):
         self._discriminative_success.append(True)
-        self._discriminative_success_mean = np.mean(self._discriminative_success[-history:])
 
-    def add_discriminative_failure(self, history=50):
+    def add_discriminative_failure(self):
         self._discriminative_success.append(False)
-        self._discriminative_success_mean = np.mean(self._discriminative_success[-history:])
 
     def get_communicative_success1(self):
         return self._communicative_success1
@@ -400,6 +403,9 @@ class NewAgent:
     def add_communicative2_failure(self):
         self._communicative_success2.append(False)
 
+    def get_categories(self):
+        return self._categories
+
 
 class ThreadSafeWordFactory:
 
@@ -415,39 +421,40 @@ class ThreadSafeWordFactory:
 
 
 class AggregatedGameResultStats:
-    def __init__(self, game_params: GameParams) -> None:
-        self._agent2discrimination_success = {}
-        self._agent2communication_success1 = {}
-        self._agent2communication_success2 = {}
-        self._agent2communication_success12 = {}
-        self._game_params = game_params
-
-    def add_discrimination_success(self, agent):
-        self._add_discrimination_result(self._agent2discrimination_success, agent, True)
-
-    def add_discrimination_failure(self, agent):
-        self._add_discrimination_result(self._agent2discrimination_success, agent, False)
-
-    def add_communication1_success(self, agent):
-        self._add_discrimination_result(self._agent2communication_success1, agent, True)
-
-    def add_communication1_failure(self, agent):
-        self._add_discrimination_result(self._agent2communication_success1, agent, False)
-
-    def add_communication2_success(self, agent):
-        self._add_discrimination_result(self._agent2communication_success2, agent, True)
-
-    def add_communication12_failure(self, agent):
-        self._add_discrimination_result(self._agent2communication_success12, agent, False)
-
-    def add_communication12_success(self, agent):
-        self._add_discrimination_result(self._agent2communication_success12, agent, True)
-
-    def add_communication2_failure(self, agent):
-        self._add_discrimination_result(self._agent2communication_success2, agent, False)
-
-    def _add_discrimination_result(self, agent2dict: Dict[int, deque], agent, result: bool):
-        if agent.agent_id not in agent2dict.keys():
-            agent2dict[agent.agent_id] = deque(maxlen=self._game_params.discriminative_history_length)
-
-        agent2dict[agent.agent_id].append(result)
+    pass
+    # def __init__(self, game_params: GameParams) -> None:
+    #     self._agent2discrimination_success = {}
+    #     self._agent2communication_success1 = {}
+    #     self._agent2communication_success2 = {}
+    #     self._agent2communication_success12 = {}
+    #     self._game_params = game_params
+    #
+    # def add_discrimination_success(self, agent):
+    #     self._add_discrimination_result(self._agent2discrimination_success, agent, True)
+    #
+    # def add_discrimination_failure(self, agent):
+    #     self._add_discrimination_result(self._agent2discrimination_success, agent, False)
+    #
+    # def add_communication1_success(self, agent):
+    #     self._add_discrimination_result(self._agent2communication_success1, agent, True)
+    #
+    # def add_communication1_failure(self, agent):
+    #     self._add_discrimination_result(self._agent2communication_success1, agent, False)
+    #
+    # def add_communication2_success(self, agent):
+    #     self._add_discrimination_result(self._agent2communication_success2, agent, True)
+    #
+    # def add_communication12_failure(self, agent):
+    #     self._add_discrimination_result(self._agent2communication_success12, agent, False)
+    #
+    # def add_communication12_success(self, agent):
+    #     self._add_discrimination_result(self._agent2communication_success12, agent, True)
+    #
+    # def add_communication2_failure(self, agent):
+    #     self._add_discrimination_result(self._agent2communication_success2, agent, False)
+    #
+    # def _add_discrimination_result(self, agent2dict: Dict[int, deque], agent, result: bool):
+    #     if agent.agent_id not in agent2dict.keys():
+    #         agent2dict[agent.agent_id] = deque(maxlen=self._game_params.discriminative_history_length)
+    #
+    #     agent2dict[agent.agent_id].append(result)

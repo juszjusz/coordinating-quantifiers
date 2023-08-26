@@ -9,3 +9,5 @@ Kategorie: Lista kategorii
 - pełna enkapsulacja dla zmian stanów agenta:
 
 Implementacja GuessingGame jako grafu z przejściami (czytelniej),
+
+wykładniczy wzrost LxC

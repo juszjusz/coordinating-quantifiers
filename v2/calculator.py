@@ -77,6 +77,9 @@ def read_h5_data(data_path, dataset_key=u'Dataset1'):
 
 
 class Calculator:
+    def domain(self):
+        pass
+
     def pdf(self, stimulus):
         pass
 
@@ -117,6 +120,9 @@ class NumericCalculator(Calculator):
 
     def values(self) -> List[int]:
         return self._numerics.tolist()
+
+    def domain(self):
+        return self._domain
 
     def stimuli(self) -> List[NewNumericStimulus]:
         return [NewNumericStimulus(num) for num in self.values()]
@@ -179,6 +185,9 @@ class QuotientCalculator(Calculator):
 
     def values(self) -> List:
         return self._quotients
+
+    def domain(self):
+        return self._domain
 
     def stimuli(self) -> List[NewQuotientStimulus]:
         return [NewQuotientStimulus((nominator, denominator)) for nominator, denominator in self.values()]
