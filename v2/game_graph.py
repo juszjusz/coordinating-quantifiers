@@ -2,16 +2,17 @@ import logging
 from typing import Tuple, Dict, Callable, List
 
 import graphviz
+import networkx as nx
 
 from calculator import Calculator, NewAbstractStimulus
-from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory, AggregatedGameResultStats
+from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory
+
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
 
 
 class GuessingGameAction:
     def __call__(self,
-                 stats: AggregatedGameResultStats,
                  calculator: Calculator,
                  agent: NewAgent,
                  context: Tuple[NewAbstractStimulus, NewAbstractStimulus],
@@ -41,7 +42,7 @@ class DiscriminationGameAction(GuessingGameAction):
     def output_nodes(self) -> List[str]:
         return [self.on_no_category, self.on_no_discrimination, self.on_success]
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
         if not agent.has_categories():
             logger.debug('no category {}({})'.format(agent, agent.agent_id))
             agent.learn_stimulus(context[topic], calculator)
@@ -97,7 +98,7 @@ class PickMostConnectedWord(GuessingGameAction):
         self._selected_word_path = selected_word_path
         self._new_word = new_word
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
 
         if word is None:
@@ -138,7 +139,7 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
         self._on_known_word = on_success
         self._selected_category_path = selected_category_path
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
         if not agent.knows_word(word):
             agent.add_new_word(word)
             return self._on_unknown_word_or_no_associated_category
@@ -169,7 +170,7 @@ class SelectAndCompareTopic(GuessingGameAction):
 
         self._flip_a_coin = flip_a_coin
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory,
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory,
                  topic: int) -> str:
         selected = category.select(context, calculator)
 
@@ -193,7 +194,7 @@ class CompareWordsAction(GuessingGameAction):
         self._on_equal_words = on_equal_words
         self._on_different_words = on_different_words
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
                  hearer_word: NewWord) -> str:
         if speaker_word == hearer_word:
             return self._on_equal_words
@@ -211,7 +212,7 @@ class IncrementWordCategoryAssociation(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_success(word, category)
         return self._on_success
@@ -227,7 +228,7 @@ class DecrementWordCategoryAssociation(GuessingGameAction):
     def __init__(self, on_success: str):
         self._next = on_success
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_failure(word, category)
         return self._next
@@ -243,7 +244,7 @@ class SuccessAction(GuessingGameAction):
     def __init__(self, next: str):
         self._next = next
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.add_communicative1_success()
         return self._next
 
@@ -258,7 +259,7 @@ class FailureAction(GuessingGameAction):
     def __init__(self, next: str):
         self._next = next
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.add_communicative1_failure()
         return self._next
 
@@ -273,7 +274,7 @@ class LearnWordCategoryAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.learn_word_category(word, category)
         return self._on_success
@@ -289,7 +290,7 @@ class CompleteAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, stats, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.update_discriminative_success_mean()
         agent.forget_words()
         return self._on_success
@@ -301,57 +302,88 @@ class CompleteAction(GuessingGameAction):
         return 'forget words on complete'
 
 
+class StartAction(GuessingGameAction):
+    def __init__(self, start):
+        self._on_start = start
+
+    def __call__(self, *args, **kwargs):
+        return self._on_start
+
+    def output_nodes(self) -> List[str]:
+        return [self._on_start]
+
+    def action_description(self) -> str:
+        return 'start'
+
+
+class EmptyAction(GuessingGameAction):
+    def output_nodes(self) -> List[str]:
+        return []
+
+    def action_description(self) -> str:
+        return 'empy node'
+
+
 class GameGraph:
     def __init__(self):
         self._graph = {}
+        self._action = {}
+        self._agent = {}
+        self._args = {}
         self._viz = graphviz.Digraph()
         self._start_node = []
 
-    def add_simple_node(self, name: str, next_node: str, description: str, action: Callable[[NewAgent], None],
-                        agent: str, args: List[str], is_start_node=False):
-        pass
-
     def add_node(self, name: str, action: GuessingGameAction, agent: str, args: List[str], is_start_node=False):
-        self._graph[name] = {'action': action, 'agent': agent, 'args': args}
+        self._graph[name] = action.output_nodes()
+        self._action[name] = action
+        self._agent[name] = agent
+        self._args[name] = args
 
-        if action:
-            if len(args):
-                node_description = f'{name}\n{agent[:1]} {action.action_description()}\nexpects: {args}'
-            else:
-                node_description = f'{name}\n{agent[:1]} {action.action_description()}'
-            self._viz.node(name, label=node_description)
-            for out in set(action.output_nodes()):
-                self._viz.edge(name, out)
+        if len(args):
+            node_description = f'{name}\n{agent[:1]} {action.action_description()}\nexpects: {args}'
+        else:
+            node_description = f'{name}\n{agent[:1]} {action.action_description()}'
+        self._viz.node(name, label=node_description)
+        for out in set(action.output_nodes()):
+            self._viz.edge(name, out)
 
         if is_start_node:
             self._start_node.append(name)
 
     def __call__(self, state: str):
-        node = self._graph[state]
-        agent = node['agent']
-        action = node['action']
-        args = node['args']
+        agent = self._agent[state]
+        action = self._action[state]
+        args = self._args[state]
         return action, agent, args
+
+    def start(self):
+        assert len(self._start_node) == 1, 'there must be a unique start node to start computation'
+        start_node = self._start_node[0]
+        return start_node, *self(start_node)
 
     def viz(self):
         return self._viz
 
-    def start(self):
-        assert len(self._start_node) == 1, 'there must be a unique start node to start computation'
-        return self(self._start_node[0])
+    @staticmethod
+    def map_to_nxGraph(G):
+        return nx.DiGraph(G._graph)
 
 
 def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
     new_word = ThreadSafeWordFactory()
 
     g = GameGraph()
+
+    g.add_node(name='START', action=StartAction(start='2_SPEAKER_DISCRIMINATION_GAME'),
+               agent='SPEAKER', args=[], is_start_node=True)
+
     g.add_node(name='2_SPEAKER_DISCRIMINATION_GAME',
                action=DiscriminationGameAction(
                    on_no_category='SPEAKER_COMPLETE_WITH_FAILURE',
                    on_no_discrimination='SPEAKER_COMPLETE_WITH_FAILURE',
                    on_success='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
                    selected_category_path='SPEAKER.category'
-               ), agent='SPEAKER', args=['topic'], is_start_node=True)
+               ), agent='SPEAKER', args=['topic'])
 
     g.add_node(name='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
                action=PickMostConnectedWord(
@@ -418,7 +450,7 @@ def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
 
     g.add_node(name='HEARER_COMPLETE', action=CompleteAction(on_success='NEXT_STEP'), agent='HEARER', args=[]),
 
-    g.add_node(name='NEXT_STEP', action=None, agent=None, args=[])
+    g.add_node(name='NEXT_STEP', action=EmptyAction(), agent='', args=[])
 
     return g
 
@@ -542,3 +574,6 @@ if __name__ == '__main__':
     print(dot.source)
     dot.format = 'png'
     dot.render('game_graph', view=True)
+
+    nxG = GameGraph.map_to_nxGraph(g)
+    print(nxG)

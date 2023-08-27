@@ -226,16 +226,11 @@ class NewAgent:
                 'discriminative_success': discriminative_success,
                 'lxc': lxc}
 
-    @staticmethod
-    def lxc_to_ndarray(agent):
-        return agent._lxc.reduce()
-
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         category_index = category.category_id
         word_category_maximizer = self._lxc.get_col_argmax(category_index)
         value = self._lxc(word_category_maximizer, category_index)
-        if value > activation_threshold and word_category_maximizer < len(self._lexicon):
-
+        if value > activation_threshold:
             word, active = self._lexicon[word_category_maximizer]
             if active:
                 return word
@@ -253,17 +248,22 @@ class NewAgent:
         word_argmax = self._lxc.get_row_argmax(word_index)
         value = self._lxc(word_index, word_argmax)
         if value > activation_threshold:
-            return self._categories[word_argmax]
+            c = self._categories[word_argmax]
+            if c.is_active:
+                return c
+            else:
+                return None
         else:
             return None
 
     def has_categories(self) -> bool:
-        return len(self._categories) > 0
+        return len([c for c in self._categories if c.is_active]) > 0
 
     def get_best_matching_category(self, stimulus, calculator: Calculator) -> NewCategory:
-        responses = [c.response(stimulus, calculator) for c in self._categories if c.is_active]
+        active_categories = [c for c in self._categories if c.is_active]
+        responses = [c.response(stimulus, calculator) for c in active_categories]
         response_argmax = np.argmax(responses)
-        return self._categories[response_argmax]
+        return active_categories[response_argmax]
 
     def knows_word(self, w: NewWord):
         return w in [w for w, is_active in self._lexicon if is_active]
@@ -356,11 +356,11 @@ class NewAgent:
         # return sum([category.union() * word2category_weight for category, word2category_weight in
         #             zip(self._categories, self._lxc.get_row_vector(word_index))])
 
-    def semantic_meaning(self, word: NewWord, stimuli: NewAbstractStimulus):
+    def semantic_meaning(self, word: NewWord, stimuli: NewAbstractStimulus, calculator: Calculator):
         word_index = self._lex2index[word]
 
         activations = [
-            sum([float(c.response(s) > 0.0) * float(self._lxc(word_index, c.category_id) > 0.0)
+            sum([float(c.response(s, calculator) > 0.0) * float(self._lxc(word_index, c.category_id) > 0.0)
                  for c in self._categories]) for s in stimuli]
 
         flat_bool_activations = list(map(lambda x: int(x > 0.0), activations))
@@ -369,10 +369,16 @@ class NewAgent:
             window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
             mean_bool_activations.append(int(sum(window) / len(window) > 0.5))
 
-        return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
+        return mean_bool_activations
+        # return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
 
-    def is_monotone(self, word: NewWord, stimuli):
-        bool_activations = self.semantic_meaning(word, stimuli)
+    def get_monotonicity(self, stimuli: List[NewAbstractStimulus], calculator: Calculator):
+        active_lexicon = [w for w, active in self._lexicon if active]
+        mons = [self.is_monotone(w, stimuli, calculator) for w in active_lexicon]
+        return mons.count(True) / len(mons) if len(mons) > 0 else 0.0
+
+    def is_monotone(self, word: NewWord, stimuli, calculator: Calculator):
+        bool_activations = self.semantic_meaning(word, stimuli, calculator)
         alt = len([a for a, aa in zip(bool_activations, bool_activations[1:]) if a != aa])
         return alt == 1
 
@@ -418,43 +424,3 @@ class ThreadSafeWordFactory:
             w = NewWord(self._counter)
             self._counter += 1
             return w
-
-
-class AggregatedGameResultStats:
-    pass
-    # def __init__(self, game_params: GameParams) -> None:
-    #     self._agent2discrimination_success = {}
-    #     self._agent2communication_success1 = {}
-    #     self._agent2communication_success2 = {}
-    #     self._agent2communication_success12 = {}
-    #     self._game_params = game_params
-    #
-    # def add_discrimination_success(self, agent):
-    #     self._add_discrimination_result(self._agent2discrimination_success, agent, True)
-    #
-    # def add_discrimination_failure(self, agent):
-    #     self._add_discrimination_result(self._agent2discrimination_success, agent, False)
-    #
-    # def add_communication1_success(self, agent):
-    #     self._add_discrimination_result(self._agent2communication_success1, agent, True)
-    #
-    # def add_communication1_failure(self, agent):
-    #     self._add_discrimination_result(self._agent2communication_success1, agent, False)
-    #
-    # def add_communication2_success(self, agent):
-    #     self._add_discrimination_result(self._agent2communication_success2, agent, True)
-    #
-    # def add_communication12_failure(self, agent):
-    #     self._add_discrimination_result(self._agent2communication_success12, agent, False)
-    #
-    # def add_communication12_success(self, agent):
-    #     self._add_discrimination_result(self._agent2communication_success12, agent, True)
-    #
-    # def add_communication2_failure(self, agent):
-    #     self._add_discrimination_result(self._agent2communication_success2, agent, False)
-    #
-    # def _add_discrimination_result(self, agent2dict: Dict[int, deque], agent, result: bool):
-    #     if agent.agent_id not in agent2dict.keys():
-    #         agent2dict[agent.agent_id] = deque(maxlen=self._game_params.discriminative_history_length)
-    #
-    #     agent2dict[agent.agent_id].append(result)
