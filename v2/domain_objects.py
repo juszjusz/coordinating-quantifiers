@@ -224,6 +224,7 @@ class NewAgent:
                 'categories': categories,
                 'words': words,
                 'discriminative_success': discriminative_success,
+                'communicative_success1': agent._communicative_success1,
                 'lxc': lxc}
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
