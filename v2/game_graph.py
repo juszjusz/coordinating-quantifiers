@@ -51,7 +51,7 @@ class DiscriminationGameAction(GuessingGameAction):
 
         s1, s2 = context
 
-        assert s1.is_noticeably_different_from(s2), 'stimuli must be noticeably different'
+        # assert s1.is_noticeably_different_from(s2), 'stimuli must be noticeably different'
 
         category1 = agent.get_best_matching_category(s1, calculator)
         category2 = agent.get_best_matching_category(s2, calculator)

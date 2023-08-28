@@ -6,7 +6,7 @@ from typing import Tuple, Callable, List, Dict, Union
 import numpy as np
 from numpy import ndarray
 
-from calculator import Calculator, NewAbstractStimulus
+from calculator import Calculator, NewAbstractStimulus, StimulusContext, Stimulus
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +36,15 @@ class NewCategory:
     def weights(self):
         return self._weights
 
-    def response(self, stimulus: NewAbstractStimulus, calculator: Calculator):
-        return sum([weight * calculator.dot_product(ru_value, stimulus.value()) for weight, ru_value in
+    def response(self, stimulus: Stimulus, calculator: Calculator):
+        return sum([weight * calculator.dot_product(ru_value, stimulus) for weight, ru_value in
                     zip(self._weights, self._reactive_units)])
 
-    def add_reactive_unit(self, stimulus: NewAbstractStimulus, weight=0.5):
+    def add_reactive_unit(self, stimulus: Stimulus, weight=0.5):
         self._weights.append(weight)
-        self._reactive_units.append(stimulus.value())
+        self._reactive_units.append(stimulus)
 
-    def select(self, context: Tuple[NewAbstractStimulus, NewAbstractStimulus], calculator: Calculator) -> int or None:
+    def select(self, context: StimulusContext, calculator: Calculator) -> int or None:
         s1, s2 = context
         r1, r2 = self.response(s1, calculator), self.response(s2, calculator)
         if r1 == r2:
@@ -52,8 +52,8 @@ class NewCategory:
         else:
             return np.argmax([r1, r2])
 
-    def reinforce(self, stimulus: NewAbstractStimulus, beta, calculator: Calculator):
-        self._weights = [weight + beta * calculator.dot_product(ru, stimulus.value()) for weight, ru in
+    def reinforce(self, stimulus: Stimulus, beta, calculator: Calculator):
+        self._weights = [weight + beta * calculator.dot_product(ru, stimulus) for weight, ru in
                          zip(self._weights, self._reactive_units)]
 
     def decrement_weights(self, alpha):
@@ -74,12 +74,6 @@ class NewCategory:
     def __apply_fun_to_coordinates(self, FUN, calculator: Calculator):
         return FUN([weight * calculator.pdf(ru) for weight, ru in
                     zip(self._weights, self._reactive_units)])
-
-    # def show(self):
-    #     DOMAIN = inmem['DOMAIN']
-    #     plt.plot(DOMAIN, self.discretized_distribution(), 'o', DOMAIN, self.discretized_distribution(), '--')
-    #     plt.legend(['data', 'cubic'], loc='best')
-    #     plt.show()
 
 
 @dataclasses.dataclass
@@ -123,7 +117,7 @@ class ConnectionMatrixLxC:
 
         return ConnectionMatrixLxC(row, col)
 
-    def __call__(self, row, col) -> float:
+    def __call__(self, row: int, col: int) -> float:
         return self._square_matrix[row, col]
 
     def rows(self):
@@ -332,7 +326,7 @@ class NewAgent:
 
     def learn_stimulus(self, stimulus: NewAbstractStimulus, calculator: Calculator):
         if self._discriminative_success_means[-1] >= self._game_params.discriminative_threshold:
-            logger.debug("updating category by adding reactive unit centered on %s" % stimulus)
+            logger.debug("updating category by adding reactive unit centered on %s" % str(stimulus))
             category = self.get_best_matching_category(stimulus, calculator)
             logger.debug("updating category")
             category.add_reactive_unit(stimulus)
@@ -361,7 +355,7 @@ class NewAgent:
         words = self.get_active_words()
         meanings = {}
         for word in words:
-            meanings[word] = self.word_meaning_new(word, calculator.stimuli(), calculator)
+            meanings[word] = self.word_meaning_new(word, calculator.values(), calculator)
         return meanings
 
     def word_meaning_new(self, word: NewWord, stimuli: List, calculator: Calculator):

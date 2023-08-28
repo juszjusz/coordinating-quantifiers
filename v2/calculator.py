@@ -1,14 +1,20 @@
 import os
 from fractions import Fraction
 from pathlib import Path
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Union
 
 import h5py
 import numpy as np
 
+NumericStimulus = int
+QuotientStimulus = Tuple[int, int]
+Stimulus = Union[NumericStimulus, QuotientStimulus]
+NumericStimulusContext = Tuple[NumericStimulus, NumericStimulus]
+QuotientStimulusContext = Tuple[QuotientStimulus, QuotientStimulus]
+StimulusContext = Union[NumericStimulusContext, QuotientStimulusContext]
 
 class NewAbstractStimulusFactory:
-    def __init__(self, list_of_stimuli: List, random_choice):
+    def __init__(self, list_of_stimuli: List[Stimulus], random_choice):
         self._list_of_stimuli = list_of_stimuli
         self._random_choice = random_choice
 
@@ -20,7 +26,7 @@ class NewAbstractStimulusFactory:
 
 
 class NewAbstractStimulus:
-    def value(self):
+    def value(self) -> Stimulus:
         pass
 
     def is_noticeably_different_from(self, other) -> bool:
@@ -34,7 +40,7 @@ class NewNumericStimulus(NewAbstractStimulus):
     def __init__(self, value: int):
         self._value = value
 
-    def value(self):
+    def value(self) -> NumericStimulus:
         return self._value
 
     def is_noticeably_different_from(self, other: NewAbstractStimulus):
@@ -43,7 +49,7 @@ class NewNumericStimulus(NewAbstractStimulus):
 
 
 class NewQuotientStimulus(NewAbstractStimulus):
-    def __init__(self, value: Tuple[int, int]):
+    def __init__(self, value: QuotientStimulus):
         self._value = value
 
     def value(self):
@@ -54,22 +60,6 @@ class NewQuotientStimulus(NewAbstractStimulus):
         f2 = Fraction(*other.value())
         ds = 0.3 * f1
         return abs(f1 - f2) > ds
-
-
-class NewContextFactory:
-    def __init__(self, stimulus_factory: Callable[[], NewAbstractStimulus]):
-        self._new_stimulus = stimulus_factory
-
-    def __call__(self):
-        s1 = self._new_stimulus()
-        s2 = self._new_stimulus()
-
-        while not s1.is_noticeably_different_from(s2):
-            s1 = self._new_stimulus()
-            s2 = self._new_stimulus()
-
-        return [s1, s2]
-
 
 def read_h5_data(data_path, dataset_key=u'Dataset1'):
     with h5py.File(data_path, 'r') as py_file:
@@ -87,7 +77,7 @@ class Calculator:
         # nie wiem czy to dobra nazwa
         pass
 
-    def values(self) -> List:
+    def values(self) -> List[NumericStimulus]:
         pass
 
     def stimuli(self) -> List[NewNumericStimulus]:
@@ -96,14 +86,14 @@ class Calculator:
     def context_factory(self, pick_element):
         stimuli = self.stimuli()
 
-        def new_context():
+        def new_context() -> StimulusContext:
             s1 = pick_element(stimuli)
             s2 = pick_element(stimuli)
             while not s1.is_noticeably_different_from(s2):
                 s1 = pick_element(stimuli)
                 s2 = pick_element(stimuli)
 
-            return [s1, s2]
+            return s1.value(), s2.value()
 
         return new_context
 
@@ -175,7 +165,7 @@ class NumericCalculator(Calculator):
 
 class QuotientCalculator(Calculator):
 
-    def __init__(self, values: List[Tuple[int, int]], support, distribution, reactive_x_reactive, sigma=.01):
+    def __init__(self, values: List[QuotientStimulus], support, distribution, reactive_x_reactive, sigma=.01):
         self._quotients = values
         self._quotients_to_index = {v: index for index, v in enumerate(values)}
         self._domain = support
@@ -193,12 +183,12 @@ class QuotientCalculator(Calculator):
         return [NewQuotientStimulus((nominator, denominator)) for nominator, denominator in self.values()]
 
     # ???
-    def dot_product(self, r1: Tuple[int, int], r2: Tuple[int, int]):
+    def dot_product(self, r1: QuotientStimulus, r2: QuotientStimulus):
         i1 = self._quotients_to_index[r1]
         i2 = self._quotients_to_index[r2]
         return self._reactive_x_reactive[i1][i2]
 
-    def pdf(self, r: Tuple[int, int]):
+    def pdf(self, r: QuotientStimulus):
         i = self._quotients_to_index[r]
         return self._reactive_unit_distribution[i]
 

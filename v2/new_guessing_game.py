@@ -2,6 +2,7 @@ import json
 import argparse
 import logging
 from collections import Counter
+from fractions import Fraction
 from pathlib import Path
 from typing import List, Callable, Any, Tuple
 
@@ -137,10 +138,10 @@ def run_dummy_simulation(stimulus):
 
     rf: RandomFunctions = next(new_random_f(p.seed))
     actual_population, _, _, _ = run_simulation(p,
-                                       rf.shuffle_list_random_function(),
-                                       rf.flip_a_coin_random_function(),
-                                       rf.pick_element_random_function()
-                                       )
+                                                rf.shuffle_list_random_function(),
+                                                rf.flip_a_coin_random_function(),
+                                                rf.pick_element_random_function()
+                                                )
     game_state = {'params': game_params, 'population': [NewAgent.to_dict(agent) for agent in actual_population]}
 
     with open(f'serialized_state_{p.stimulus}.json', 'w', encoding='utf-8') as f:
@@ -285,6 +286,14 @@ class PlotMonotonicityCommand:
         plt.close()
 
 
+def plot_category(category: NewCategory, calculator: Calculator):
+    xs = calculator.domain()
+    plt.plot(xs, category.discretized_distribution(calculator), 'o', xs, category.discretized_distribution(calculator),
+             '--')
+    plt.legend(['data', 'cubic'], loc='best')
+    plt.show()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
@@ -306,7 +315,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -347,7 +356,12 @@ if __name__ == '__main__':
     windowed_discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
     active_lexicon_size = [len(a.get_active_words()) for a in population]
     agent = population[0]
-    meanings = agent.get_word_meanings(calculator=calculator)
+    # meanings = agent.get_word_meanings(calculator=calculator)
+    # for w, stimuli in meanings.items():
+    #     print(w, w.originated_from_category)
+    #     print([round(num / denum, 3) for num, denum in w.originated_from_category.reactive_units()])
+    #     print([round(num / denum, 3) for num, denum in stimuli])
+    plot_category(agent.get_categories()[0][0], calculator)
     edge_labels_cnts = states_edges_cnts_normalized
     G: GameGraph = game_graph(None)
     nxG = GameGraph.map_to_nxGraph(G)
@@ -382,7 +396,6 @@ if __name__ == '__main__':
     # ani.save('animated_graph.gif', writer='pillow', fps=1)
 
     # plt.show()
-
 
     # monotonicity = [a.get_monotonicity(calculator.stimuli(), calculator) for a in population]
     # print(monotonicity)
