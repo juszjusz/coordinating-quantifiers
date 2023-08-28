@@ -289,7 +289,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=4)
-    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
                         type=int,
@@ -306,7 +306,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=5000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -345,7 +345,9 @@ if __name__ == '__main__':
     windowed_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
     windowed_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
     windowed_discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
-
+    active_lexicon_size = [len(a.get_active_words()) for a in population]
+    agent = population[0]
+    meanings = agent.get_word_meanings(calculator=calculator)
     edge_labels_cnts = states_edges_cnts_normalized
     G: GameGraph = game_graph(None)
     nxG = GameGraph.map_to_nxGraph(G)

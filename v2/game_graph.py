@@ -91,12 +91,11 @@ class PickMostConnectedWord(GuessingGameAction):
 
     def __init__(self, on_success: str,
                  on_no_word_for_category: str,
-                 selected_word_path: str,
-                 new_word: Callable[[], NewWord]):
+                 selected_word_path: str):
         self._select_word_for_category = on_success
         self._on_no_word_for_category = on_no_word_for_category
         self._selected_word_path = selected_word_path
-        self._new_word = new_word
+        self._new_word = ThreadSafeWordFactory()
 
     def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
@@ -104,7 +103,7 @@ class PickMostConnectedWord(GuessingGameAction):
         if word is None:
             logger.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.agent_id, word))
             logger.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.agent_id, word))
-            word = self._new_word()
+            word = self._new_word(originated_from=NewCategory.make_copy(category))
             agent.add_new_word(word)
             agent.learn_word_category(word, category)
             return self._on_no_word_for_category
@@ -370,8 +369,6 @@ class GameGraph:
 
 
 def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
-    new_word = ThreadSafeWordFactory()
-
     g = GameGraph()
 
     g.add_node(name='START', action=StartAction(start='2_SPEAKER_DISCRIMINATION_GAME'),
@@ -389,8 +386,7 @@ def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
                action=PickMostConnectedWord(
                    on_success='4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',
                    on_no_word_for_category='SPEAKER_COMPLETE_WITH_FAILURE',
-                   selected_word_path='SPEAKER.word',
-                   new_word=new_word
+                   selected_word_path='SPEAKER.word'
                ), agent='SPEAKER', args=['SPEAKER.category'])
 
     g.add_node('4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',

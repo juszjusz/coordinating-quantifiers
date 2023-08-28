@@ -1,5 +1,3 @@
-from __future__ import division  # force python 3 division in python 2
-
 import dataclasses
 import logging
 from threading import Lock
@@ -18,6 +16,13 @@ class NewCategory:
         self.category_id = category_id
         self._weights = []
         self._reactive_units = []
+
+    @staticmethod
+    def make_copy(c):
+        category = NewCategory(c.category_id)
+        category._weights = c._weights.copy()
+        category._reactive_units = c._reactive_units.copy()
+        return category
 
     def __hash__(self):
         return self.category_id
@@ -80,6 +85,7 @@ class NewCategory:
 @dataclasses.dataclass
 class NewWord:
     word_id: int
+    originated_from_category: NewCategory
 
     def __hash__(self):
         return self.word_id
@@ -140,22 +146,23 @@ class ConnectionMatrixLxC:
         recomputed_value = update(self._square_matrix[row, column])
         self._square_matrix[row, column] = recomputed_value
 
-    def update_matrix_on_given_row(self, row_index: int, column_indices: (List[int] or ndarray),
-                                   scalar: float):
-        updated_cells = self._square_matrix[row_index, column_indices]
-        self._square_matrix[row_index, column_indices] += scalar * updated_cells
+    def update_matrix_on_given_row(self, row_index: int, scalar: float):
+        updated_cells = self._square_matrix[row_index, :]
+        self._square_matrix[row_index, :] += scalar * updated_cells
 
-    def reset_matrix_on_row_indices(self, row_indices: (List[int] or ndarray)):
+    def reset_matrix_on_row_indices(self, row_indices: Union[List[int], ndarray]):
         self._square_matrix[row_indices, :] = 0
 
-    def reset_matrix_on_col_indices(self, col_indices: (List[int] or ndarray)):
+    def reset_matrix_on_col_indices(self, col_indices: Union[List[int], ndarray]):
         self._square_matrix[:, col_indices] = 0
 
     def reduce(self):
         return self._square_matrix[:self._row, :self._col]
 
     def get_row_vector(self, word_index) -> ndarray:
-        return self._square_matrix[word_index, :]
+        row_vector = self._square_matrix[word_index, :]
+        adjusted_row_vector = row_vector[:self._col]
+        return adjusted_row_vector
 
     def add_new_row(self):
         self._row += 1
@@ -193,6 +200,7 @@ class NewAgent:
         self._communicative_success1 = [False]
         self._communicative_success2 = [False]
         self._discriminative_success_means = [0.]
+        self._active_lexicon_size_history = [0]
 
     def __repr__(self):
         return f'{self.agent_id} {str(self._lxc.reduce())}'
@@ -219,7 +227,7 @@ class NewAgent:
                 'lxc': lxc}
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
-        category_index = category.category_id
+        category_index = self._cat2index[category]
         word_category_maximizer = self._lxc.get_col_argmax(category_index)
         wXc_value = self._lxc(word_category_maximizer, category_index)
         if wXc_value > activation_threshold:
@@ -247,10 +255,10 @@ class NewAgent:
     def get_categories(self) -> List[Tuple[NewCategory, bool]]:
         return self._categories
 
-    def get_active_categories(self):
+    def get_active_categories(self) -> List[NewCategory]:
         return [c for c, active in self._categories if active]
 
-    def get_active_words(self):
+    def get_active_words(self) -> List[NewWord]:
         return [w for w, active in self._lexicon if active]
 
     def has_categories(self) -> bool:
@@ -307,9 +315,10 @@ class NewAgent:
 
     def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
         word_index = self._lex2index[word]
-        # except_category_index = self._cat2index[except_category]
-        indices = [i for i in range(len(self._categories)) if i != except_category.category_id]
-        self._lxc.update_matrix_on_given_row(word_index, indices, -self._game_params.delta_inh)
+        category_index = self._cat2index[except_category]
+        retained_value = self._lxc(word_index, category_index)
+        self._lxc.update_matrix_on_given_row(word_index, -self._game_params.delta_inh)
+        self._lxc.update_cell(word_index, category_index, lambda v: retained_value)
 
     def learn_word_category(self, word: NewWord, category: NewCategory, connection=.5):
         self.__update_connection(word, category, lambda v: connection)
@@ -344,8 +353,26 @@ class NewAgent:
         word_meaning = self.word_meaning(word, calculator)
         coverage = np.minimum(word_meaning, area)
 
+        # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
-    # based on how much the word meaning covers the category
+
+
+    def get_word_meanings(self, calculator: Calculator) -> Dict[NewWord, List[NewAbstractStimulus]]:
+        words = self.get_active_words()
+        meanings = {}
+        for word in words:
+            meanings[word] = self.word_meaning_new(word, calculator.stimuli(), calculator)
+        return meanings
+
+    def word_meaning_new(self, word: NewWord, stimuli: List, calculator: Calculator):
+        # [f] = {q : SUM L(f,c)*<c|R_q> > 0} <=> [f] = {q : L(f,c) > 0 & <c|R_q> > 0}
+        word_index = self._lex2index[word]
+        word2categories_vector = self._lxc.get_row_vector(word_index)
+        non_zero_cats = np.nonzero(word2categories_vector)[0]
+        # cs = [c for i in non_zero_cats for c, active in self._categories[i] if active]
+
+        cs = [self._categories[i][0] for i in non_zero_cats]
+        return [q for q in stimuli for c in cs if c.response(q, calculator)]
 
     def word_meaning(self, word: NewWord, calculator: Calculator) -> float:
         active_categories = self.get_active_categories()
@@ -360,7 +387,7 @@ class NewAgent:
 
         activations = [
             sum([float(c.response(s, calculator) > 0.0) * float(self._lxc(word_index, c.category_id) > 0.0)
-                 for c in self._categories]) for s in stimuli]
+                 for c, active in self._categories if active]) for s in stimuli]
 
         flat_bool_activations = list(map(lambda x: int(x > 0.0), activations))
         mean_bool_activations = []
@@ -415,8 +442,8 @@ class ThreadSafeWordFactory:
         self._counter = 0
         self._lock = Lock()
 
-    def __call__(self) -> NewWord:
+    def __call__(self, originated_from: NewCategory) -> NewWord:
         with self._lock:
-            w = NewWord(self._counter)
+            w = NewWord(self._counter, originated_from)
             self._counter += 1
             return w

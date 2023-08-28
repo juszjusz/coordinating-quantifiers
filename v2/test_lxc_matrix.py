@@ -1,6 +1,6 @@
 import unittest
 
-from v2.domain_objects import ConnectionMatrixLxC
+from domain_objects import ConnectionMatrixLxC
 
 
 class ConnectionMatrixLxC_test(unittest.TestCase):
