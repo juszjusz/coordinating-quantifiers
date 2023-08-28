@@ -306,7 +306,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=5000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
