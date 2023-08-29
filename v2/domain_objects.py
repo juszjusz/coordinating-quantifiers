@@ -180,6 +180,11 @@ class ConnectionMatrixLxC:
         new_m[:, 0:width] = self._square_matrix
         self._square_matrix = new_m
 
+    def remove_columns(self, to_remove: List[int]):
+        self._square_matrix = np.delete(self._square_matrix, to_remove, axis=1)
+        self._col -= len(to_remove)
+        assert self._col >= 0
+
 
 class NewAgent:
     def __init__(self, agent_id: int, game_params: GameParams):
@@ -187,9 +192,11 @@ class NewAgent:
         self._game_params = game_params
         self._lxc = ConnectionMatrixLxC.new_matrix(game_params.steps)
         self._lexicon: List[Tuple[NewWord, bool]] = []
-        self._categories: List[Tuple[NewCategory, bool]] = []
         self._lex2index = {}
-        self._cat2index = {}
+
+        self._cat2index: Dict[NewCategory, int] = {}
+        self._index2cats: Dict[int, Tuple[NewCategory, bool]] = {}
+
         self._discriminative_success = [False]
         self._communicative_success1 = [False]
         self._communicative_success2 = [False]
@@ -201,13 +208,15 @@ class NewAgent:
 
     @staticmethod
     def to_dict(agent) -> Dict:
+        agent._delete_nonactive_categories()
+
         words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': active}
                  for w, active in agent._lexicon]
 
         categories = [{'category_id': category.category_id,
                        'is_active': active,
                        'reactive_units': [r if isinstance(r, int) else [*r] for r in category.reactive_units()],
-                       'weights': category.weights()} for (category, active) in agent._categories]
+                       'weights': category.weights()} for (category, active) in agent.get_categories()]
 
         discriminative_success = list(agent._discriminative_success)
 
@@ -237,20 +246,20 @@ class NewAgent:
         _, active = self._lexicon[word_index]
         assert active, 'only active words'
 
-        category_word_maximizer = self._lxc.get_row_argmax(word_index)
-        wXc_value = self._lxc(word_index, category_word_maximizer)
+        category_word_maximizer_index = self._lxc.get_row_argmax(word_index)
+        wXc_value = self._lxc(word_index, category_word_maximizer_index)
         if wXc_value > activation_threshold:
-            c, active = self._categories[category_word_maximizer]
+            category_word_maximizer, active = self._index2cats[category_word_maximizer_index]
             assert active, 'WxC > activation_th -> category active'
-            return c
+            return category_word_maximizer
         else:
             return None
 
     def get_categories(self) -> List[Tuple[NewCategory, bool]]:
-        return self._categories
+        return list(self._index2cats.values())
 
     def get_active_categories(self) -> List[NewCategory]:
-        return [c for c, active in self._categories if active]
+        return [c for c, active in self._index2cats.values() if active]
 
     def get_active_words(self) -> List[NewWord]:
         return [w for w, active in self._lexicon if active]
@@ -279,8 +288,20 @@ class NewAgent:
 
         self._lxc.reset_matrix_on_col_indices(to_forget)
         for i in to_forget:
-            c, _ = self._categories[i]
-            self._categories[i] = (c, False)
+            c, _ = self._index2cats[i]
+            self._index2cats[i] = (c, False)
+
+        active_categories_size = len(self.get_active_categories())
+        all_categories_size = len(self._index2cats)
+        if active_categories_size + 2 < all_categories_size:
+            self._delete_nonactive_categories()
+
+    def _delete_nonactive_categories(self):
+        to_remove = [self._cat2index[c] for c, active in self._index2cats.values() if not active]
+        self._lxc.remove_columns(to_remove)
+        active_cats = self.get_active_categories()
+        self._cat2index = {c: i for i, c in enumerate(active_cats)}
+        self._index2cats = {i: (c, True) for c, i in self._cat2index.items()}
 
     def forget_words(self, super_alpha=.01):
         to_forget = self._lxc.get_rows_all_smaller_than_threshold(super_alpha)
@@ -300,11 +321,14 @@ class NewAgent:
         self._lxc.add_new_row()
 
     def add_new_category(self, stimulus: Stimulus, weight=0.5):
-        category_index = len(self._categories)
-        new_category = NewCategory(category_id=category_index)
+        category_index = len(self._cat2index)
+        assert category_index not in self._index2cats.keys()
+        assert category_index not in self._cat2index.values()
+        category_id = len(self._discriminative_success)
+        new_category = NewCategory(category_id=category_id)
         self._cat2index[new_category] = category_index
+        self._index2cats[category_index] = (new_category, True)
         new_category.add_reactive_unit(stimulus, weight)
-        self._categories.append((new_category, True))
         self._lxc.add_new_col()
 
     def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
@@ -339,7 +363,8 @@ class NewAgent:
 
     def __update_connection(self, word: NewWord, category: NewCategory, update: Callable[[float], float]):
         word_index = self._lex2index[word]
-        self._lxc.update_cell(word_index, category.category_id, update)
+        category_index = self._cat2index[category]
+        self._lxc.update_cell(word_index, category_index, update)
 
     def csimilarity(self, word: NewWord, category: NewCategory, calculator: Calculator):
         area = category.union(calculator)
@@ -349,7 +374,6 @@ class NewAgent:
 
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
-
 
     def get_word_meanings(self, calculator: Calculator) -> Dict[NewWord, List[NewAbstractStimulus]]:
         words = self.get_active_words()
@@ -364,7 +388,6 @@ class NewAgent:
         word2categories_vector = self._lxc.get_row_vector(word_index)
         non_zero_cats = np.nonzero(word2categories_vector)[0]
         # cs = [c for i in non_zero_cats for c, active in self._categories[i] if active]
-
         cs = [self._categories[i][0] for i in non_zero_cats]
         return [q for q in stimuli for c in cs if c.response(q, calculator)]
 
