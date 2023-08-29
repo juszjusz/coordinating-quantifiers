@@ -121,14 +121,14 @@ class ConnectionMatrixLxC:
         return self._square_matrix[row, col]
 
     def rows(self):
-        return self._square_matrix.shape[0]
+        return self._row
 
     def cols(self):
-        return self._square_matrix.shape[1]
+        return self._col
 
-    def get_rows_all_smaller_than_threshold(self, threshold: float) -> ndarray:
+    def get_rows_all_smaller_than_threshold(self, threshold: float) -> List[int]:
         result, = np.where(np.all(self._square_matrix < threshold, axis=1))
-        return result
+        return [r for r in result if r < self._row]
 
     def get_row_argmax(self, row_index) -> int:
         return np.argmax(self._square_matrix, axis=1)[row_index]
@@ -180,10 +180,15 @@ class ConnectionMatrixLxC:
         new_m[:, 0:width] = self._square_matrix
         self._square_matrix = new_m
 
-    def remove_columns(self, to_remove: List[int]):
-        self._square_matrix = np.delete(self._square_matrix, to_remove, axis=1)
-        self._col -= len(to_remove)
+    def remove_columns(self, columns_to_remove: List[int]):
+        self._square_matrix = np.delete(self._square_matrix, columns_to_remove, axis=1)
+        self._col -= len(columns_to_remove)
         assert self._col >= 0
+
+    def remove_rows(self, rows_to_remove: List[int]):
+        self._square_matrix = np.delete(self._square_matrix, rows_to_remove, axis=0)
+        self._row -= len(rows_to_remove)
+        assert self._row >= 0
 
 
 class NewAgent:
@@ -191,8 +196,9 @@ class NewAgent:
         self.agent_id = agent_id
         self._game_params = game_params
         self._lxc = ConnectionMatrixLxC.new_matrix(game_params.steps)
-        self._lexicon: List[Tuple[NewWord, bool]] = []
-        self._lex2index = {}
+
+        self._lex2index: Dict[NewWord, int] = {}
+        self._index2lex: Dict[int, Tuple[NewWord, bool]] = {}
 
         self._cat2index: Dict[NewCategory, int] = {}
         self._index2cats: Dict[int, Tuple[NewCategory, bool]] = {}
@@ -211,7 +217,7 @@ class NewAgent:
         agent._delete_nonactive_categories()
 
         words = [{'word_id': w.word_id, 'word_position': agent._lex2index[w], 'active': active}
-                 for w, active in agent._lexicon]
+                 for w, active in agent._index2lex.values()]
 
         categories = [{'category_id': category.category_id,
                        'is_active': active,
@@ -231,19 +237,19 @@ class NewAgent:
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         category_index = self._cat2index[category]
-        word_category_maximizer = self._lxc.get_col_argmax(category_index)
-        wXc_value = self._lxc(word_category_maximizer, category_index)
+        word_category_maximizer_index = self._lxc.get_col_argmax(category_index)
+        wXc_value = self._lxc(word_category_maximizer_index, category_index)
         if wXc_value > activation_threshold:
-            word, active = self._lexicon[word_category_maximizer]
+            word_category_maximizer, active = self._index2lex[word_category_maximizer_index]
             assert active, 'WxC > activation_th -> word active'
-            return word
+            return word_category_maximizer
         else:
             return None
 
     def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Union[NewCategory, None]:
         word_index = self._lex2index[word]
 
-        _, active = self._lexicon[word_index]
+        _, active = self._index2lex[word_index]
         assert active, 'only active words'
 
         category_word_maximizer_index = self._lxc.get_row_argmax(word_index)
@@ -262,7 +268,7 @@ class NewAgent:
         return [c for c, active in self._index2cats.values() if active]
 
     def get_active_words(self) -> List[NewWord]:
-        return [w for w, active in self._lexicon if active]
+        return [w for w, active in self._index2lex.values() if active]
 
     def has_categories(self) -> bool:
         return len(self.get_active_categories()) > 0
@@ -293,7 +299,7 @@ class NewAgent:
 
         active_categories_size = len(self.get_active_categories())
         all_categories_size = len(self._index2cats)
-        if active_categories_size + 2 < all_categories_size:
+        if active_categories_size * 2 < all_categories_size:
             self._delete_nonactive_categories()
 
     def _delete_nonactive_categories(self):
@@ -305,30 +311,57 @@ class NewAgent:
 
     def forget_words(self, super_alpha=.01):
         to_forget = self._lxc.get_rows_all_smaller_than_threshold(super_alpha)
-        to_forget = [i for i in to_forget if i < len(self._lexicon)]
         self._lxc.reset_matrix_on_row_indices(to_forget)
+        assert set(self._lex2index.keys()) == set(w for w, _ in self._index2lex.values())
         for i in to_forget:
-            w, _ = self._lexicon[i]
-            self._lexicon[i] = (w, False)
+            w, _ = self._index2lex[i]
+            self._index2lex[i] = (w, False)
+        assert set(self._lex2index.keys()) == set(w for w, _ in self._index2lex.values())
+
+    def _delete_nonactive_words(self):
+        to_remove = [self._lex2index[w] for w, active in self._index2lex.values() if not active]
+        self._lxc.remove_rows(to_remove)
+        active_words = self.get_active_words()
+        # self._word2lex = {c: i for i, c in enumerate(active_cats)}
+        # self._index2cats = {i: (c, True) for c, i in self._cat2index.items()}
 
     def update_discriminative_success_mean(self, history=50):
         discriminative_success_mean = np.mean(self._discriminative_success[-history:])
         self._discriminative_success_means.append(discriminative_success_mean)
 
     def add_new_word(self, w: NewWord):
-        self._lex2index[w] = len(self._lexicon)
-        self._lexicon.append((w, True))
-        self._lxc.add_new_row()
+        if w in self._lex2index.keys():
+            # activate previously deactivated word
+            word_index = self._lex2index[w]
+            word, not_active = self._index2lex[word_index]
+            assert not not_active, 'only previously not active word'
+            self._index2lex[word_index] = (word, True)
+        else:
+            # add new word
+            word_index = len(self._lex2index)
+
+            assert word_index not in self._index2lex.keys()
+            assert word_index not in self._lex2index.values()
+
+            self._lex2index[w] = word_index
+            self._index2lex[word_index] = (w, True)
+            self._lxc.add_new_row()
+
+        assert self._lxc.rows() == len(self._lex2index)
+        assert self._lxc.rows() == len(self._index2lex)
 
     def add_new_category(self, stimulus: Stimulus, weight=0.5):
         category_index = len(self._cat2index)
+
         assert category_index not in self._index2cats.keys()
         assert category_index not in self._cat2index.values()
+
         category_id = len(self._discriminative_success)
         new_category = NewCategory(category_id=category_id)
+        new_category.add_reactive_unit(stimulus, weight)
+
         self._cat2index[new_category] = category_index
         self._index2cats[category_index] = (new_category, True)
-        new_category.add_reactive_unit(stimulus, weight)
         self._lxc.add_new_col()
 
     def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
