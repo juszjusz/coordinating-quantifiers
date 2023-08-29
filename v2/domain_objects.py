@@ -388,7 +388,8 @@ class NewAgent:
         word2categories_vector = self._lxc.get_row_vector(word_index)
         non_zero_cats = np.nonzero(word2categories_vector)[0]
         # cs = [c for i in non_zero_cats for c, active in self._categories[i] if active]
-        cs = [self._categories[i][0] for i in non_zero_cats]
+        cs = [self._index2cats[i] for i in non_zero_cats]
+        cs = [c for c, active in cs if active]
         return [q for q in stimuli for c in cs if c.response(q, calculator)]
 
     def word_meaning(self, word: NewWord, calculator: Calculator) -> float:

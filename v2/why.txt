@@ -10,4 +10,4 @@ Kategorie: Lista kategorii
 
 Implementacja GuessingGame jako grafu z przejściami (czytelniej),
 
-wykładniczy wzrost LxC
+wykładniczy wzrost LxC -> numeric overflow (1.2)^n
