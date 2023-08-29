@@ -8,20 +8,18 @@ from typing import List, Callable, Any, Tuple
 
 import networkx as nx
 import seaborn as sns
-from matplotlib import animation
-from matplotlib.animation import writers
 from matplotlib.ticker import ScalarFormatter
 from numpy.random import RandomState
-from networkx.drawing.nx_pydot import write_dot
-from networkx.drawing.nx_agraph import graphviz_layout
 import numpy as np
 from tqdm import tqdm
 
-from stats import confidence_intervals, means
+from stats import confidence_intervals
 from calculator import NumericCalculator, QuotientCalculator, Calculator
 from domain_objects import GameParams, NewAgent, NewCategory
-from game_graph import game_graph_with_stage_7, game_graph, GameGraph
+from game_graph import game_graph, GameGraph
 import matplotlib.pyplot as plt
+
+from plot_utils import plot_successes, plot_category
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -70,8 +68,8 @@ def avg_series(elements: List, history=50) -> List:
 
 
 def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> Tuple[List[NewAgent], Any, Any]:
-    calculator = {'numeric': NumericCalculator.load_from_file(),
-                  'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
+    calculator = {'numeric': NumericCalculator.load_from_file(), 'quotient': QuotientCalculator.load_from_file()}[
+        game_params.stimulus]
 
     def pair_partition(agents: List):
         return [agents[i:i + 2] for i in range(0, len(agents), 2)]
@@ -146,52 +144,6 @@ def run_dummy_simulation(stimulus):
 
     with open(f'serialized_state_{p.stimulus}.json', 'w', encoding='utf-8') as f:
         json.dump(game_state, f)
-
-
-def plot_category(agent: str, calculator: Calculator, categories: List[NewCategory], step):
-    def new_linestyles(seq):
-        linestyles = [(color, style) for style in ['solid', 'dotted', 'dashed', 'dashdot'] for color in
-                      sns.color_palette()]
-        return dict(zip(seq, linestyles))
-
-    plt.title("categories")
-    ax = plt.gca()
-    # plt.xscale("symlog")
-    ax.xaxis.set_major_formatter(ScalarFormatter())
-    plt.yscale("symlog")
-    ax.yaxis.set_major_formatter(ScalarFormatter())
-
-    linestyles = new_linestyles(categories)
-
-    for cat in categories:
-        color, linestyle = linestyles[cat]
-
-        plt.plot(calculator.domain(), cat.discretized_distribution(calculator),
-                 color=color,
-                 linestyle=linestyle,
-                 label="%d" % (cat.category_id))
-
-    plt.legend(loc='upper left', prop={'size': 6}, bbox_to_anchor=(1, 1))
-    plt.tight_layout(pad=0)
-    new_path = Path('cats').joinpath('categories{}_{}.png'.format(agent, step))
-    plt.savefig(str(new_path))
-    plt.close()
-
-
-def twoDim_plot(ys):
-    fig, ax1 = plt.subplots()
-    plt.ylim(bottom=0)
-    plt.ylim(top=100)
-    plt.xlabel("step")
-    plt.ylabel("success")
-
-    xs = range(game_params.steps)
-    for values in ys:
-        plt.plot(xs, values, 'r-', linewidth=0.6)
-    # ax2 = ax1.twinx()
-    # ax2.set_ylabel('|active lexicon|')
-    fig.tight_layout()
-    plt.show()
 
 
 class PlotMonotonicityCommand:
@@ -286,14 +238,6 @@ class PlotMonotonicityCommand:
         plt.close()
 
 
-def plot_category(category: NewCategory, calculator: Calculator):
-    xs = calculator.domain()
-    plt.plot(xs, category.discretized_distribution(calculator), 'o', xs, category.discretized_distribution(calculator),
-             '--')
-    plt.legend(['data', 'cubic'], loc='best')
-    plt.show()
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
@@ -361,39 +305,7 @@ if __name__ == '__main__':
     #     print(w, w.originated_from_category)
     #     print([round(num / denum, 3) for num, denum in w.originated_from_category.reactive_units()])
     #     print([round(num / denum, 3) for num, denum in stimuli])
-    plot_category(agent.get_categories()[0][0], calculator)
-    edge_labels_cnts = states_edges_cnts_normalized
-    G: GameGraph = game_graph(None)
-    nxG = GameGraph.map_to_nxGraph(G)
-    edges = list(nxG.edges)
-    nodes = list(nxG.nodes)
-    # osage, acyclic, nop, neato, sfdp, patchwork, ccomps, unflatten, dot, gc, circo, gvpr, twopi, tred, gvcolor, fdp, sccmap.
-    pos = nx.nx_agraph.pygraphviz_layout(nxG, prog='dot')
-    fig, ax = plt.subplots(figsize=(15, 15))
 
-
-    def update(num):
-        ax.clear()
-
-        frame, edge_labels = edge_labels_cnts[num]
-        zero_edges = {e for e in edges if e not in edge_labels.keys()}
-        for e in zero_edges:
-            edge_labels[e] = 0
-        nx.draw(nxG, pos, ax=ax, node_size=1000, with_labels=True,
-                edge_cmap=edge_labels.values(),
-                font_size=8,
-                node_color='skyblue',
-                labels={n: n for n in nodes})
-
-        # Słownik wag dla krawędzi
-        # edge_labels = {(edges[i][0], edges[i][1]): edge_weights[i] for i in range(len(edges))}
-
-        nx.draw_networkx_edge_labels(G, pos, ax=ax, edge_labels=edge_labels)
-        ax.legend(labels=['steps: ' + str(frame)])
-
-
-    # ani = animation.FuncAnimation(fig, update, frames=len(edge_labels_cnts), repeat=False)
-    # ani.save('animated_graph.gif', writer='pillow', fps=1)
 
     # plt.show()
 
@@ -417,6 +329,6 @@ if __name__ == '__main__':
     # samples = np.array(agg_cs1).transpose() * 100
     # PlotSuccessCommand()(runs, game_params.steps, cs1, cs1, cs1, cs1)
 
-    # plot_category('agent', calculator, population[0].get_categories(), 0)
-    twoDim_plot([cs1, ds])
+    # plot_category('agent', calculator)
+    plot_successes(game_params.steps, list(cs1), list(cs1), list(cs1), list(ds))
     # PlotMonotonicityCommand()(game_params.steps, monotonicity)

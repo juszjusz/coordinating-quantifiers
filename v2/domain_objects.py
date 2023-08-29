@@ -299,7 +299,7 @@ class NewAgent:
         self._lexicon.append((w, True))
         self._lxc.add_new_row()
 
-    def add_new_category(self, stimulus: NewAbstractStimulus, weight=0.5):
+    def add_new_category(self, stimulus: Stimulus, weight=0.5):
         category_index = len(self._categories)
         new_category = NewCategory(category_id=category_index)
         self._cat2index[new_category] = category_index
@@ -324,7 +324,7 @@ class NewAgent:
     def update_on_failure(self, word: NewWord, category: NewCategory):
         self.__update_connection(word, category, lambda v: v - self._game_params.delta_dec * v)
 
-    def learn_stimulus(self, stimulus: NewAbstractStimulus, calculator: Calculator):
+    def learn_stimulus(self, stimulus: Stimulus, calculator: Calculator):
         if self._discriminative_success_means[-1] >= self._game_params.discriminative_threshold:
             logger.debug("updating category by adding reactive unit centered on %s" % str(stimulus))
             category = self.get_best_matching_category(stimulus, calculator)

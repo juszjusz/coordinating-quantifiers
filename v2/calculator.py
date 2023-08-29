@@ -13,17 +13,6 @@ NumericStimulusContext = Tuple[NumericStimulus, NumericStimulus]
 QuotientStimulusContext = Tuple[QuotientStimulus, QuotientStimulus]
 StimulusContext = Union[NumericStimulusContext, QuotientStimulusContext]
 
-class NewAbstractStimulusFactory:
-    def __init__(self, list_of_stimuli: List[Stimulus], random_choice):
-        self._list_of_stimuli = list_of_stimuli
-        self._random_choice = random_choice
-
-    def __call__(self):
-        return self._random_choice(self._list_of_stimuli)
-
-    def get_all_stimuli(self) -> List:
-        return self._list_of_stimuli
-
 
 class NewAbstractStimulus:
     def value(self) -> Stimulus:
@@ -60,6 +49,7 @@ class NewQuotientStimulus(NewAbstractStimulus):
         f2 = Fraction(*other.value())
         ds = 0.3 * f1
         return abs(f1 - f2) > ds
+
 
 def read_h5_data(data_path, dataset_key=u'Dataset1'):
     with h5py.File(data_path, 'r') as py_file:
@@ -108,7 +98,7 @@ class NumericCalculator(Calculator):
         self._reactive_x_reactive = reactive_x_reactive
         self._sigma = sigma
 
-    def values(self) -> List[int]:
+    def values(self) -> List[NumericStimulus]:
         return self._numerics.tolist()
 
     def domain(self):

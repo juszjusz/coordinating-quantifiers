@@ -560,6 +560,39 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     return g
 
 
+def animate_graph_transition_frequency(states_edges_cnts_normalized):
+    edge_labels_cnts = states_edges_cnts_normalized
+    G: GameGraph = game_graph(None)
+    nxG = GameGraph.map_to_nxGraph(G)
+    edges = list(nxG.edges)
+    nodes = list(nxG.nodes)
+    # osage, acyclic, nop, neato, sfdp, patchwork, ccomps, unflatten, dot, gc, circo, gvpr, twopi, tred, gvcolor, fdp, sccmap.
+    pos = nx.nx_agraph.pygraphviz_layout(nxG, prog='dot')
+    fig, ax = plt.subplots(figsize=(15, 15))
+
+    def update(num):
+        ax.clear()
+
+        frame, edge_labels = edge_labels_cnts[num]
+        zero_edges = {e for e in edges if e not in edge_labels.keys()}
+        for e in zero_edges:
+            edge_labels[e] = 0
+        nx.draw(nxG, pos, ax=ax, node_size=1000, with_labels=True,
+                edge_cmap=edge_labels.values(),
+                font_size=8,
+                node_color='skyblue',
+                labels={n: n for n in nodes})
+
+        # Słownik wag dla krawędzi
+        # edge_labels = {(edges[i][0], edges[i][1]): edge_weights[i] for i in range(len(edges))}
+
+        nx.draw_networkx_edge_labels(G, pos, ax=ax, edge_labels=edge_labels)
+        ax.legend(labels=['steps: ' + str(frame)])
+
+    ani = animation.FuncAnimation(fig, update, frames=len(edge_labels_cnts), repeat=False)
+    ani.save('animated_graph.gif', writer='pillow', fps=1)
+
+
 if __name__ == '__main__':
     # to render graph you need to have dot installed
     # https://graphviz.org
