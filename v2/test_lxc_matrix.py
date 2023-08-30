@@ -1,10 +1,9 @@
 import unittest
 from typing import List
 
-from domain_objects import ConnectionMatrixLxC
 import numpy as np
 
-from matrix_datastructure import One2OneMapping
+from matrix_datastructure import One2OneMapping, Matrix
 
 
 class One2OneMapping_test(unittest.TestCase):
@@ -25,7 +24,7 @@ class One2OneMapping_test(unittest.TestCase):
         self.r.shuffle(items)
         mapping = One2OneMapping()
         for i in items:
-            mapping.add(i)
+            mapping.add_new_element(i)
 
         self.r.shuffle(items)
         indices = self.create_random_slices(len(items))
@@ -45,14 +44,14 @@ class One2OneMapping_test(unittest.TestCase):
     def test(self):
         mapping = One2OneMapping()
 
-        mapping.add('a')
-        mapping.add('aa')
-        mapping.add('aaa')
-        mapping.add('aaaa')
-        mapping.add('aaaaa')
-        mapping.add('aaaaaa')
-        mapping.add('aaaaaaa')
-        mapping.add('aaaaaaaa')
+        mapping.add_new_element('a')
+        mapping.add_new_element('aa')
+        mapping.add_new_element('aaa')
+        mapping.add_new_element('aaaa')
+        mapping.add_new_element('aaaaa')
+        mapping.add_new_element('aaaaaa')
+        mapping.add_new_element('aaaaaaa')
+        mapping.add_new_element('aaaaaaaa')
         print(mapping)
         mapping.deactivate_element('a')
         mapping.deactivate_element('aa')
@@ -75,7 +74,7 @@ class One2OneMapping_test(unittest.TestCase):
 class ConnectionMatrixLxC_test(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.m = ConnectionMatrixLxC(4, 4)
+        self.m = Matrix(4, 4)
 
         # testing matrix
         # 1   2   3    4

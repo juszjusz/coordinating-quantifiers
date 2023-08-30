@@ -5,7 +5,7 @@ import graphviz
 import networkx as nx
 
 from calculator import Calculator, NewAbstractStimulus
-from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory
+from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory, SimpleCounter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -95,7 +95,7 @@ class PickMostConnectedWord(GuessingGameAction):
         self._select_word_for_category = on_success
         self._on_no_word_for_category = on_no_word_for_category
         self._selected_word_path = selected_word_path
-        self._new_word = ThreadSafeWordFactory()
+        self._new_word_counter = SimpleCounter()
 
     def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
@@ -103,9 +103,10 @@ class PickMostConnectedWord(GuessingGameAction):
         if word is None:
             logger.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.agent_id, word))
             logger.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.agent_id, word))
-            word = self._new_word(originated_from=NewCategory.make_copy(category))
-            agent.add_new_word(word)
-            agent.learn_word_category(word, category)
+            id = self._new_word_counter()
+            new_word = NewWord(word_id=id, originated_from_category=NewCategory.make_copy(category))
+            agent.add_new_word(new_word)
+            agent.learn_word_category(new_word, category)
             return self._on_no_word_for_category
         else:
             logger.debug("Agent(%d) says: %s" % (agent.agent_id, word))

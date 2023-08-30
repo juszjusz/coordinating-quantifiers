@@ -259,7 +259,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=8000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -298,7 +298,7 @@ if __name__ == '__main__':
     windowed_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
     windowed_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]
     windowed_discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
-    active_lexicon_size = [len(a.get_active_words()) for a in population]
+    active_lexicon_size = [len(a.get_words()) for a in population]
     agent = population[0]
     # meanings = agent.get_word_meanings(calculator=calculator)
     # for w, stimuli in meanings.items():
@@ -331,4 +331,7 @@ if __name__ == '__main__':
 
     # plot_category('agent', calculator)
     plot_successes(game_params.steps, list(cs1), list(cs1), list(cs1), list(ds))
+
+    # meanings = population[0].compute_word_meanings(calculator)
+    # print(meanings)
     # PlotMonotonicityCommand()(game_params.steps, monotonicity)

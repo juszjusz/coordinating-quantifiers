@@ -23,6 +23,12 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
                                            )
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
+
+        actual_agent = actual_population[0]
+        expected_agent = self.expected_population[0]
+        actual_lxc = actual_agent['lxc']
+        expected_lxc = expected_agent['lxc']
+        self.assertEqual(actual_agent, expected_agent)
         self.assertEqual(actual_population, self.expected_population)
 
 
