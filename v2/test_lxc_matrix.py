@@ -1,6 +1,75 @@
 import unittest
+from typing import List
 
 from domain_objects import ConnectionMatrixLxC
+import numpy as np
+
+from matrix_datastructure import One2OneMapping
+
+
+class One2OneMapping_test(unittest.TestCase):
+    def setUp(self) -> None:
+        self.r = np.random.RandomState(0)
+
+    def create_random_slices(self, l: int) -> List[int]:
+        slice = 0
+        slices = [slice]
+        while slice != l:
+            next_slice = self.r.randint(slice + 1, l + 1)
+            slices.append(next_slice)
+            slice = next_slice
+        return slices
+
+    def test_items_removal(self):
+        items = [*range(1000)]
+        self.r.shuffle(items)
+        mapping = One2OneMapping()
+        for i in items:
+            mapping.add(i)
+
+        self.r.shuffle(items)
+        indices = self.create_random_slices(len(items))
+        slices = [*zip(indices, indices[1:])]
+        random_partition = [items[i:j] for i, j in slices]
+        for p in random_partition:
+            for i in p:
+                mapping.deactivate_element(i)
+            mapping.remove_nonactive_and_reindex()
+            self.assertEqual(len(mapping.nonactive_elements()), 0)
+            # self.assertEqual(len(mapping.active_elements()), )
+            # indices range densely from 0 to mapping size, i.e. if mapping size = 5, then its indices = 0,1,2,3,4
+            self.assertEqual(set(mapping.index2object.keys()), {*range(len(mapping))})
+
+        self.assertEqual(len(mapping), 0)
+
+    def test(self):
+        mapping = One2OneMapping()
+
+        mapping.add('a')
+        mapping.add('aa')
+        mapping.add('aaa')
+        mapping.add('aaaa')
+        mapping.add('aaaaa')
+        mapping.add('aaaaaa')
+        mapping.add('aaaaaaa')
+        mapping.add('aaaaaaaa')
+        print(mapping)
+        mapping.deactivate_element('a')
+        mapping.deactivate_element('aa')
+        mapping.deactivate_element('aaaaa')
+        mapping.remove_nonactive_and_reindex()
+        print(mapping)
+        mapping.deactivate_element('aaa')
+        mapping.remove_nonactive_and_reindex()
+        print(mapping)
+        mapping.deactivate_element('aaaaaa')
+        mapping.deactivate_element('aaaaaaa')
+        mapping.remove_nonactive_and_reindex()
+        print(mapping)
+        mapping.deactivate_element('aaaa')
+        mapping.deactivate_element('aaaaaaaa')
+        mapping.remove_nonactive_and_reindex()
+        print(mapping)
 
 
 class ConnectionMatrixLxC_test(unittest.TestCase):
@@ -77,4 +146,3 @@ class ConnectionMatrixLxC_test(unittest.TestCase):
         self.assertEqual(r, [0])
         r = self.m.get_rows_all_smaller_than_threshold(threshold=101)
         self.assertEqual(list(r), [0, 1])
-
