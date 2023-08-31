@@ -29,6 +29,7 @@ class IndexedValue:
     def __iter__(self):
         return iter((self.value_index, self.value))
 
+
 @dataclasses.dataclass
 class One2OneMapping:
     object2index: Dict[Any, int]
@@ -39,6 +40,11 @@ class One2OneMapping:
 
     def __repr__(self):
         return str(self.object2index)
+
+    def get_stored_object(self, obj: Any) -> Any:
+        i = self.get_object_index(obj)
+        obj, _ = self.get_object_by_index(i)
+        return obj
 
     def get_object_index(self, obj: Any) -> int:
         return self.object2index[obj]

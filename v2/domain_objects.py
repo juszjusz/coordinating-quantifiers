@@ -1,15 +1,20 @@
 import dataclasses
 import logging
-from copy import copy
+from copy import copy, deepcopy
 from threading import Lock
 from typing import Callable, List, Dict, Union
 
 import numpy as np
+from tqdm import tqdm
 
 from calculator import Calculator, NewAbstractStimulus, StimulusContext, Stimulus
 from matrix_datastructure import Matrix, One2OneMapping
 
 logger = logging.getLogger(__name__)
+logger.setLevel(level=logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)  # Set the handler level to DEBUG
+logger.addHandler(ch)
 
 
 class NewCategory:
@@ -17,6 +22,11 @@ class NewCategory:
         self.category_id = category_id
         self._weights = []
         self._reactive_units = []
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        return self.category_id == other.category_id
 
     def __copy__(self):
         category = NewCategory(self.category_id)
@@ -28,7 +38,7 @@ class NewCategory:
         return self.category_id
 
     def __repr__(self):
-        return f'[{self._weights}x{self._reactive_units}]'
+        return f'{self.category_id}[{self._weights}x{self._reactive_units}]'
 
     def reactive_units(self):
         return self._reactive_units
@@ -44,7 +54,7 @@ class NewCategory:
         self._weights.append(weight)
         self._reactive_units.append(stimulus)
 
-    def select(self, context: StimulusContext, calculator: Calculator) -> int or None:
+    def select(self, context: StimulusContext, calculator: Calculator) -> Union[int, None]:
         s1, s2 = context
         r1, r2 = self.response(s1, calculator), self.response(s2, calculator)
         if r1 == r2:
@@ -84,6 +94,11 @@ class NewWord:
     def __hash__(self):
         return self.word_id
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        return self.word_id == other.word_id
+
     def __copy__(self):
         return NewWord(self.word_id, copy(self.originated_from_category))
 
@@ -107,15 +122,17 @@ class GameParams:
     super_alpha: float
 
 
-def register_update_operation(f):
-    def inner(agent, *args, **kwargs):
-        # z = [vars(arg) for arg in args]
-        agent.updates_history.append([f.__name__, args, kwargs])
+def register_agent_update_operation(update):
+    def update_call(agent, *args, **kwargs):
+        if update.__name__ == 'next_step':
+            agent.updates_history.append([])
 
-        result = f(agent, *args, **kwargs)
-        return result
+        current_step = agent.updates_history[-1]
+        args_copy = [copy(a) for a in args]
+        current_step.append([update.__name__, args_copy, kwargs])
+        update(agent, *args, **kwargs)
 
-    return inner
+    return update_call
 
 
 class NewAgent:
@@ -133,6 +150,26 @@ class NewAgent:
 
     def __repr__(self):
         return f'{self.agent_id}'
+
+    @staticmethod
+    def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: List,
+                              step: int = -1):
+        agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
+
+        if step > len(updates_history):
+            raise RuntimeError('can recreate at most ' + str(len(updates_history)))
+        if step > 0:
+            updates_history = updates_history[:step]
+
+        for game_stage in tqdm(updates_history, f'recreating agent {agent_id} by updates'):
+            for method_name, args, kwargs in game_stage:
+                msg = f'meth: {method_name} {args}'
+                logger.debug(msg)
+
+                agent_method = getattr(agent, method_name)
+                agent_method(*args, **kwargs)
+
+        return agent
 
     @staticmethod
     def to_dict(agent) -> Dict:
@@ -184,29 +221,29 @@ class NewAgent:
         active_words = self._lxc.get_active_words()
         return w in active_words
 
-    @register_update_operation
+    @register_agent_update_operation
     def forget_categories(self, category_in_use: NewCategory):
         self._lxc.forget_categories(category_in_use, self._game_params.alpha, self._game_params.super_alpha)
 
-    @register_update_operation
+    @register_agent_update_operation
     def forget_words(self, super_alpha=.01):
         # todo use super_alpha from game parrams
         self._lxc.forget_words(super_alpha)
 
-    @register_update_operation
+    @register_agent_update_operation
     def update_discriminative_success_mean(self, history=50):
         discriminative_success_mean = np.mean(self._discriminative_success[-history:])
         self._discriminative_success_means.append(discriminative_success_mean)
 
-    @register_update_operation
+    @register_agent_update_operation
     def add_new_word(self, w: NewWord):
         self._lxc.add_new_or_reactivate_word(w)
 
-    @register_update_operation
+    @register_agent_update_operation
     def learn_word_category(self, word: NewWord, category: NewCategory, connection=.5):
         self._lxc.update_word_category_connection(word, category, lambda v: connection)
 
-    @register_update_operation
+    @register_agent_update_operation
     def update_on_success(self, word: NewWord, category: NewCategory):
         self._lxc.update_word_category_connection(word, category, lambda v: v + self._game_params.delta_dec * v)
         self._inhibit_word2categories_connections(word=word, except_category=category)
@@ -216,11 +253,11 @@ class NewAgent:
         self._lxc.update_row_connection(word, scalar=-self._game_params.delta_inh)
         self._lxc.update_word_category_connection(word, except_category, lambda v: retained_value)
 
-    @register_update_operation
+    @register_agent_update_operation
     def update_on_failure(self, word: NewWord, category: NewCategory):
         self._lxc.update_word_category_connection(word, category, lambda v: v - self._game_params.delta_dec * v)
 
-    @register_update_operation
+    @register_agent_update_operation
     def learn_stimulus(self, stimulus: Stimulus, weight=.5):
         if self._discriminative_success_means[-1] >= self._game_params.discriminative_threshold:
             logger.debug("updating category by adding reactive unit centered on %s" % str(stimulus))
@@ -234,11 +271,42 @@ class NewAgent:
             new_category.add_reactive_unit(stimulus, weight)
             self._lxc.add_new_category(new_category)
 
-    @register_update_operation
+    @register_agent_update_operation
     def reinforce_category(self, category: NewCategory, stimulus):
-        category.reinforce(stimulus, self._game_params.beta, self._calculator)
+        # retain previously created category reference, crucial for correct agent reconstruction
+        stored_category = self._lxc.get_stored_category(category)
+        stored_category.reinforce(stimulus, self._game_params.beta, self._calculator)
 
-    def select_stimuli_by_category(self, category: NewCategory, context: StimulusContext):
+    @register_agent_update_operation
+    def add_discrimination_success(self):
+        self._discriminative_success.append(True)
+
+    @register_agent_update_operation
+    def add_discriminative_failure(self):
+        self._discriminative_success.append(False)
+
+    @register_agent_update_operation
+    def add_communicative1_success(self):
+        self._communicative_success1.append(True)
+
+    @register_agent_update_operation
+    def add_communicative1_failure(self):
+        self._communicative_success1.append(False)
+
+    @register_agent_update_operation
+    def add_communicative2_success(self):
+        self._communicative_success2.append(True)
+
+    @register_agent_update_operation
+    def add_communicative2_failure(self):
+        self._communicative_success2.append(False)
+
+    @register_agent_update_operation
+    def next_step(self):
+        # mark end of game between agents
+        pass
+
+    def select_stimuli_by_category(self, category: NewCategory, context: StimulusContext) -> Stimulus:
         return category.select(context, self._calculator)
 
     def csimilarity(self, word: NewWord, category: NewCategory):
@@ -290,29 +358,11 @@ class NewAgent:
     def get_discriminative_success(self):
         return self._discriminative_success_means
 
-    def add_discrimination_success(self):
-        self._discriminative_success.append(True)
-
-    def add_discriminative_failure(self):
-        self._discriminative_success.append(False)
-
     def get_communicative_success1(self):
         return self._communicative_success1
 
     def get_communicative_success2(self):
         return self._communicative_success2
-
-    def add_communicative1_success(self):
-        self._communicative_success1.append(True)
-
-    def add_communicative1_failure(self):
-        self._communicative_success1.append(False)
-
-    def add_communicative2_success(self):
-        self._communicative_success2.append(True)
-
-    def add_communicative2_failure(self):
-        self._communicative_success2.append(False)
 
 
 class SimpleCounter:
@@ -323,19 +373,6 @@ class SimpleCounter:
         i = self._counter
         self._counter += 1
         return i
-
-
-class ThreadSafeWordFactory:
-
-    def __init__(self) -> None:
-        self._counter = 0
-        self._lock = Lock()
-
-    def __call__(self, originated_from: NewCategory) -> NewWord:
-        with self._lock:
-            w = NewWord(self._counter, originated_from)
-            self._counter += 1
-            return w
 
 
 class LxC:
@@ -351,6 +388,9 @@ class LxC:
 
         return LxC(row, col)
 
+    def get_stored_category(self, c: NewCategory) -> NewCategory:
+        return self._categories.get_stored_object(c)
+
     def get_matrix(self) -> np.ndarray:
         return self._lxc.reduce()
 
@@ -361,6 +401,7 @@ class LxC:
             self._words.reactivate_element_at_index(word_index)
         else:
             # add new word
+            self.remove_nonactive_words()
             self._words.add_new_element(w)
             self._lxc.add_new_row()
 
@@ -428,6 +469,7 @@ class LxC:
         to_forget_indices = self._lxc.get_rows_all_smaller_than_threshold(super_alpha)
         self._lxc.reset_matrix_on_row_indices(to_forget_indices)
         to_forget = [self._words.get_object_by_index(i) for i in to_forget_indices]
+
         [self._words.deactivate_element(w) for w, _ in to_forget]
 
         if self._words.sparsity_rate() > .4:

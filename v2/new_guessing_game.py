@@ -115,7 +115,6 @@ def run_simulation(calculator: Calculator, game_params: GameParams, shuffle_list
                 logger.debug(data_envelope)
 
                 states_cnts[step2bucket[step]].update([states_sequence[-1]])
-
             bucket = step2bucket[step]
             state_edges_cnts[bucket].update(
                 [(states_sequence[i], states_sequence[i + 1]) for i in range(1, len(states_sequence) - 1)])
@@ -257,7 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=100)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -299,6 +298,21 @@ if __name__ == '__main__':
     windowed_discriminative_success = [avg_series(a.get_discriminative_success()) for a in population]
     active_lexicon_size = [len(a.get_words()) for a in population]
     agent = population[0]
+    recreated_agent = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
+                                                     game_params=game_params,
+                                                     updates_history=agent.updates_history)
+    print(recreated_agent)
+    print(recreated_agent.get_discriminative_success() == agent.get_discriminative_success())
+    r_m = NewAgent.to_dict(recreated_agent)['lxc']
+    m = NewAgent.to_dict(agent)['lxc']
+    r_cats = NewAgent.to_dict(recreated_agent)['categories']
+    cats = NewAgent.to_dict(agent)['categories']
+    r_words = NewAgent.to_dict(recreated_agent)['words']
+    words = NewAgent.to_dict(agent)['words']
+    print(r_m == m)
+    # todo
+    print(r_cats == cats)
+    print(r_words == words)
     # meanings = agent.get_word_meanings(calculator=calculator)
     # for w, stimuli in meanings.items():
     #     print(w, w.originated_from_category)

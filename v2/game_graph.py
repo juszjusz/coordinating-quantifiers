@@ -6,7 +6,7 @@ import graphviz
 import networkx as nx
 
 from calculator import NewAbstractStimulus
-from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory, SimpleCounter
+from domain_objects import NewCategory, NewWord, NewAgent, SimpleCounter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -305,7 +305,8 @@ class StartAction(GuessingGameAction):
     def __init__(self, start):
         self._on_start = start
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, agent: NewAgent, *args, **kwargs):
+        agent.next_step()
         return self._on_start
 
     def output_nodes(self) -> List[str]:
@@ -316,6 +317,7 @@ class StartAction(GuessingGameAction):
 
 
 class EmptyAction(GuessingGameAction):
+
     def output_nodes(self) -> List[str]:
         return []
 
@@ -371,8 +373,11 @@ class GameGraph:
 def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
     g = GameGraph()
 
-    g.add_node(name='START', action=StartAction(start='2_SPEAKER_DISCRIMINATION_GAME'),
+    g.add_node(name='START_SPEAKER', action=StartAction(start='START_HEARER'),
                agent='SPEAKER', args=[], is_start_node=True)
+
+    g.add_node(name='START_HEARER', action=StartAction(start='2_SPEAKER_DISCRIMINATION_GAME'),
+               agent='HEARER', args=[])
 
     g.add_node(name='2_SPEAKER_DISCRIMINATION_GAME',
                action=DiscriminationGameAction(
@@ -452,8 +457,6 @@ def game_graph(flip_a_coin: Callable[[], int]) -> GameGraph:
 
 
 def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
-    new_word = ThreadSafeWordFactory()
-
     g = GameGraph()
     g.add_node(name='2_SPEAKER_DISCRIMINATION_GAME',
                action=DiscriminationGameAction(
