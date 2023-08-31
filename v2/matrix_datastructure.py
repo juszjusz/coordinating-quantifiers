@@ -41,6 +41,9 @@ class One2OneMapping:
     def __repr__(self):
         return str(self.object2index)
 
+    def __copy__(self):
+        return One2OneMapping(self.object2index.copy(), self.index2object.copy())
+
     def get_stored_object(self, obj: Any) -> Any:
         i = self.get_object_index(obj)
         obj, _ = self.get_object_by_index(i)
@@ -105,6 +108,11 @@ class Matrix:
         self._square_matrix = np.zeros((max_row, max_col))
         self._row = 0
         self._col = 0
+
+    def __copy__(self):
+        m = Matrix(self._row, self._col)
+        m._square_matrix = self.reduce()
+        return m
 
     def __call__(self, row: int, col: int) -> float:
         return self._square_matrix[row, col]

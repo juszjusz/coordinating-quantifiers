@@ -300,19 +300,18 @@ if __name__ == '__main__':
     agent = population[0]
     recreated_agent = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
                                                      game_params=game_params,
-                                                     updates_history=agent.updates_history)
+                                                     updates_history=agent.updates_history, step=15)
     print(recreated_agent)
-    print(recreated_agent.get_discriminative_success() == agent.get_discriminative_success())
-    r_m = NewAgent.to_dict(recreated_agent)['lxc']
-    m = NewAgent.to_dict(agent)['lxc']
-    r_cats = NewAgent.to_dict(recreated_agent)['categories']
-    cats = NewAgent.to_dict(agent)['categories']
-    r_words = NewAgent.to_dict(recreated_agent)['words']
-    words = NewAgent.to_dict(agent)['words']
-    print(r_m == m)
-    # todo
-    print(r_cats == cats)
-    print(r_words == words)
+    # print(recreated_agent.get_discriminative_success() == agent.get_discriminative_success())
+    # r_m = NewAgent.to_dict(recreated_agent)['lxc']
+    # m = NewAgent.to_dict(agent)['lxc']
+    # r_cats = NewAgent.to_dict(recreated_agent)['categories']
+    # cats = NewAgent.to_dict(agent)['categories']
+    # r_words = NewAgent.to_dict(recreated_agent)['words']
+    # words = NewAgent.to_dict(agent)['words']
+    # print(r_m == m)
+    # print(r_cats == cats)
+    # print(r_words == words)
     # meanings = agent.get_word_meanings(calculator=calculator)
     # for w, stimuli in meanings.items():
     #     print(w, w.originated_from_category)
