@@ -1,10 +1,11 @@
 import logging
+from copy import copy
 from typing import Tuple, Dict, Callable, List
 
 import graphviz
 import networkx as nx
 
-from calculator import Calculator, NewAbstractStimulus
+from calculator import NewAbstractStimulus
 from domain_objects import NewCategory, NewWord, NewAgent, ThreadSafeWordFactory, SimpleCounter
 
 logger = logging.getLogger(__name__)
@@ -13,7 +14,6 @@ logger.setLevel(level=logging.INFO)
 
 class GuessingGameAction:
     def __call__(self,
-                 calculator: Calculator,
                  agent: NewAgent,
                  context: Tuple[NewAbstractStimulus, NewAbstractStimulus],
                  data_envelope: Dict,
@@ -42,10 +42,10 @@ class DiscriminationGameAction(GuessingGameAction):
     def output_nodes(self) -> List[str]:
         return [self.on_no_category, self.on_no_discrimination, self.on_success]
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
         if not agent.has_categories():
             logger.debug('no category {}({})'.format(agent, agent.agent_id))
-            agent.learn_stimulus(context[topic], calculator)
+            agent.learn_stimulus(context[topic])
             agent.add_discriminative_failure()
             return self.on_no_category
 
@@ -53,19 +53,19 @@ class DiscriminationGameAction(GuessingGameAction):
 
         # assert s1.is_noticeably_different_from(s2), 'stimuli must be noticeably different'
 
-        category1 = agent.get_best_matching_category(s1, calculator)
-        category2 = agent.get_best_matching_category(s2, calculator)
+        category1 = agent.get_best_matching_category(s1)
+        category2 = agent.get_best_matching_category(s2)
 
         if category1 == category2:
             # logger.debug('no category {}({})'.format(agent, agent.agent_id))
-            agent.learn_stimulus(context[topic], calculator)
+            agent.learn_stimulus(context[topic])
             agent.add_discriminative_failure()
             return self.on_no_discrimination
 
         winning_category = [category1, category2][topic]
 
         # todo można to wbić do jednej metody, dwie metody występują tylko tutaj
-        agent.reinforce_category(winning_category, context[topic], calculator)
+        agent.reinforce_category(winning_category, context[topic])
         agent.forget_categories(winning_category)
 
         data_envelope[self.selected_category_path] = winning_category
@@ -97,14 +97,14 @@ class PickMostConnectedWord(GuessingGameAction):
         self._selected_word_path = selected_word_path
         self._new_word_counter = SimpleCounter()
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
 
         if word is None:
             logger.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.agent_id, word))
             logger.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.agent_id, word))
             id = self._new_word_counter()
-            new_word = NewWord(word_id=id, originated_from_category=NewCategory.make_copy(category))
+            new_word = NewWord(word_id=id, originated_from_category=copy(category))
             agent.add_new_word(new_word)
             agent.learn_word_category(new_word, category)
             return self._on_no_word_for_category
@@ -139,7 +139,7 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
         self._on_known_word = on_success
         self._selected_category_path = selected_category_path
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
         if not agent.knows_word(word):
             agent.add_new_word(word)
             return self._on_unknown_word_or_no_associated_category
@@ -170,9 +170,8 @@ class SelectAndCompareTopic(GuessingGameAction):
 
         self._flip_a_coin = flip_a_coin
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, category: NewCategory,
-                 topic: int) -> str:
-        selected = category.select(context, calculator)
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory, topic: int) -> str:
+        selected = agent.select_stimuli_by_category(category, context)
 
         if selected is None:
             selected = self._flip_a_coin()
@@ -194,7 +193,7 @@ class CompareWordsAction(GuessingGameAction):
         self._on_equal_words = on_equal_words
         self._on_different_words = on_different_words
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
                  hearer_word: NewWord) -> str:
         if speaker_word == hearer_word:
             return self._on_equal_words
@@ -212,7 +211,7 @@ class IncrementWordCategoryAssociation(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_success(word, category)
         return self._on_success
@@ -228,7 +227,7 @@ class DecrementWordCategoryAssociation(GuessingGameAction):
     def __init__(self, on_success: str):
         self._next = on_success
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_failure(word, category)
         return self._next
@@ -244,7 +243,7 @@ class SuccessAction(GuessingGameAction):
     def __init__(self, next: str):
         self._next = next
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.add_communicative1_success()
         return self._next
 
@@ -259,7 +258,7 @@ class FailureAction(GuessingGameAction):
     def __init__(self, next: str):
         self._next = next
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.add_communicative1_failure()
         return self._next
 
@@ -274,7 +273,7 @@ class LearnWordCategoryAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.learn_word_category(word, category)
         return self._on_success
@@ -290,7 +289,7 @@ class CompleteAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, calculator, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
         agent.update_discriminative_success_mean()
         agent.forget_words()
         return self._on_success
@@ -467,8 +466,7 @@ def game_graph_with_stage_7(flip_a_coin: Callable[[], int]) -> GameGraph:
     g.add_node(name='3_SPEAKER_PICKUPS_WORD_FOR_CATEGORY',
                action=PickMostConnectedWord(
                    on_success='4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',
-                   selected_word_path='SPEAKER.word',
-                   new_word=new_word
+                   selected_word_path='SPEAKER.word'
                ), agent='SPEAKER', args=['SPEAKER.category'])
 
     g.add_node('4_SPEAKER_CONVEYS_WORD_TO_THE_HEARER',

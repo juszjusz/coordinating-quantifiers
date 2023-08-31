@@ -67,10 +67,8 @@ def avg_series(elements: List, history=50) -> List:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> Tuple[List[NewAgent], Any, Any]:
-    calculator = {'numeric': NumericCalculator.load_from_file(), 'quotient': QuotientCalculator.load_from_file()}[
-        game_params.stimulus]
-
+def run_simulation(calculator: Calculator, game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> Tuple[
+    List[NewAgent], Any, Any]:
     def pair_partition(agents: List):
         return [agents[i:i + 2] for i in range(0, len(agents), 2)]
 
@@ -78,7 +76,7 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
 
     G: GameGraph = game_graph(flip_a_coin)
     assert game_params.population_size % 2 == 0, 'each agent must be paired'
-    population = [NewAgent(agent_id, game_params) for agent_id in range(game_params.population_size)]
+    population = [NewAgent(agent_id, calculator, game_params) for agent_id in range(game_params.population_size)]
 
     # buckets with counters
     bucket_size = 100
@@ -110,7 +108,7 @@ def run_simulation(game_params: GameParams, shuffle_list, flip_a_coin, pick_elem
                 agent_selector = {'SPEAKER': select_speaker, 'HEARER': select_hearer}[agent_name]
                 agent = agent_selector(speaker, hearer)
 
-                state_name = action(calculator, agent, context, data_envelope, *args)
+                state_name = action(agent, context, data_envelope, *args)
                 action, agent_name, arg_names = G(state_name)
                 args = [data_envelope[a] for a in arg_names]
                 states_sequence.append(state_name)
@@ -282,7 +280,8 @@ if __name__ == '__main__':
     calculator = {'numeric': NumericCalculator.load_from_file(),
                   'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-    population, states_sequences, states_edges_cnts, states_cnts = run_simulation(game_params,
+    population, states_sequences, states_edges_cnts, states_cnts = run_simulation(calculator,
+                                                                                  game_params,
                                                                                   r.shuffle_list_random_function(),
                                                                                   r.flip_a_coin_random_function(),
                                                                                   r.pick_element_random_function()
@@ -305,7 +304,6 @@ if __name__ == '__main__':
     #     print(w, w.originated_from_category)
     #     print([round(num / denum, 3) for num, denum in w.originated_from_category.reactive_units()])
     #     print([round(num / denum, 3) for num, denum in stimuli])
-
 
     # plt.show()
 

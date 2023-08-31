@@ -3,6 +3,7 @@ import unittest
 
 from new_guessing_game import run_simulation, new_random_f, RandomFunctions
 from domain_objects import GameParams, NewAgent
+from calculator import NumericCalculator, QuotientCalculator
 
 
 class TestGuessingGameWithNumericStimulus(unittest.TestCase):
@@ -14,9 +15,11 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
 
     def test_result(self):
         game_params = GameParams(**self.params)
+        calculator = {'numeric': NumericCalculator.load_from_file(),
+                      'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
         rf: RandomFunctions = next(new_random_f(seed=game_params.seed))
-        actual_population, _, _, _ = run_simulation(game_params,
+        actual_population, _, _, _ = run_simulation(calculator, game_params,
                                            rf.shuffle_list_random_function(),
                                            rf.flip_a_coin_random_function(),
                                            rf.pick_element_random_function()
@@ -42,9 +45,11 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
 
     def test_result(self):
         game_params = GameParams(**self.params)
+        calculator = {'numeric': NumericCalculator.load_from_file(),
+                      'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
         rf: RandomFunctions = next(new_random_f(seed=game_params.seed))
-        actual_population, _, _, _ = run_simulation(game_params,
+        actual_population, _, _, _ = run_simulation(calculator, game_params,
                                            rf.shuffle_list_random_function(),
                                            rf.flip_a_coin_random_function(),
                                            rf.pick_element_random_function()

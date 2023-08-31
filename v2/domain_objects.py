@@ -1,7 +1,8 @@
 import dataclasses
 import logging
+from copy import copy
 from threading import Lock
-from typing import Tuple, Callable, List, Dict, Union
+from typing import Callable, List, Dict, Union
 
 import numpy as np
 
@@ -17,11 +18,10 @@ class NewCategory:
         self._weights = []
         self._reactive_units = []
 
-    @staticmethod
-    def make_copy(c):
-        category = NewCategory(c.category_id)
-        category._weights = c._weights.copy()
-        category._reactive_units = c._reactive_units.copy()
+    def __copy__(self):
+        category = NewCategory(self.category_id)
+        category._weights = self._weights.copy()
+        category._reactive_units = self._reactive_units.copy()
         return category
 
     def __hash__(self):
@@ -84,6 +84,9 @@ class NewWord:
     def __hash__(self):
         return self.word_id
 
+    def __copy__(self):
+        return NewWord(self.word_id, copy(self.originated_from_category))
+
 
 @dataclasses.dataclass
 class GameParams:
@@ -104,9 +107,21 @@ class GameParams:
     super_alpha: float
 
 
+def register_update_operation(f):
+    def inner(agent, *args, **kwargs):
+        # z = [vars(arg) for arg in args]
+        agent.updates_history.append([f.__name__, args, kwargs])
+
+        result = f(agent, *args, **kwargs)
+        return result
+
+    return inner
+
+
 class NewAgent:
-    def __init__(self, agent_id: int, game_params: GameParams):
+    def __init__(self, agent_id: int, calculator: Calculator, game_params: GameParams):
         self.agent_id = agent_id
+        self.updates_history = []
         self._game_params = game_params
         self._lxc = LxC.new_matrix(game_params.steps)
         self._discriminative_success = [False]
@@ -114,6 +129,7 @@ class NewAgent:
         self._communicative_success2 = [False]
         self._discriminative_success_means = [0.]
         self._new_category_counter = SimpleCounter()
+        self._calculator = calculator
 
     def __repr__(self):
         return f'{self.agent_id}'
@@ -152,9 +168,9 @@ class NewAgent:
     def get_categories(self) -> List[NewCategory]:
         return self._lxc.get_active_categories()
 
-    def get_best_matching_category(self, stimulus, calculator: Calculator) -> NewCategory:
+    def get_best_matching_category(self, stimulus) -> NewCategory:
         active_categories = self._lxc.get_active_categories()
-        responses = [c.response(stimulus, calculator) for c in active_categories]
+        responses = [c.response(stimulus, self._calculator) for c in active_categories]
         response_argmax = np.argmax(responses)
         return active_categories[response_argmax]
 
@@ -168,86 +184,80 @@ class NewAgent:
         active_words = self._lxc.get_active_words()
         return w in active_words
 
+    @register_update_operation
     def forget_categories(self, category_in_use: NewCategory):
         self._lxc.forget_categories(category_in_use, self._game_params.alpha, self._game_params.super_alpha)
 
+    @register_update_operation
     def forget_words(self, super_alpha=.01):
         # todo use super_alpha from game parrams
         self._lxc.forget_words(super_alpha)
 
+    @register_update_operation
     def update_discriminative_success_mean(self, history=50):
         discriminative_success_mean = np.mean(self._discriminative_success[-history:])
         self._discriminative_success_means.append(discriminative_success_mean)
 
+    @register_update_operation
     def add_new_word(self, w: NewWord):
         self._lxc.add_new_or_reactivate_word(w)
 
-    def add_new_category(self, stimulus: Stimulus, weight=0.5):
-        category_id = self._new_category_counter()
-        new_category = NewCategory(category_id=category_id)
-        new_category.add_reactive_unit(stimulus, weight)
-        self._lxc.add_new_category(new_category)
+    @register_update_operation
+    def learn_word_category(self, word: NewWord, category: NewCategory, connection=.5):
+        self._lxc.update_word_category_connection(word, category, lambda v: connection)
 
-    def inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
+    @register_update_operation
+    def update_on_success(self, word: NewWord, category: NewCategory):
+        self._lxc.update_word_category_connection(word, category, lambda v: v + self._game_params.delta_dec * v)
+        self._inhibit_word2categories_connections(word=word, except_category=category)
+
+    def _inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
         retained_value = self._lxc.get_connection(word, except_category)
         self._lxc.update_row_connection(word, scalar=-self._game_params.delta_inh)
-        self._lxc.update_collection(word, except_category, lambda v: retained_value)
+        self._lxc.update_word_category_connection(word, except_category, lambda v: retained_value)
 
-    def learn_word_category(self, word: NewWord, category: NewCategory, connection=.5):
-        self._lxc.update_collection(word, category, lambda v: connection)
-
-    def update_on_success(self, word: NewWord, category: NewCategory):
-        self._lxc.update_collection(word, category, lambda v: v + self._game_params.delta_dec * v)
-        self.inhibit_word2categories_connections(word=word, except_category=category)
-
+    @register_update_operation
     def update_on_failure(self, word: NewWord, category: NewCategory):
-        self._lxc.update_collection(word, category, lambda v: v - self._game_params.delta_dec * v)
+        self._lxc.update_word_category_connection(word, category, lambda v: v - self._game_params.delta_dec * v)
 
-    def learn_stimulus(self, stimulus: Stimulus, calculator: Calculator):
+    @register_update_operation
+    def learn_stimulus(self, stimulus: Stimulus, weight=.5):
         if self._discriminative_success_means[-1] >= self._game_params.discriminative_threshold:
             logger.debug("updating category by adding reactive unit centered on %s" % str(stimulus))
-            category = self.get_best_matching_category(stimulus, calculator)
+            category = self.get_best_matching_category(stimulus)
             logger.debug("updating category")
             category.add_reactive_unit(stimulus)
         else:
             logger.debug(f'adding new category centered on {stimulus}')
-            self.add_new_category(stimulus)
+            category_id = self._new_category_counter()
+            new_category = NewCategory(category_id=category_id)
+            new_category.add_reactive_unit(stimulus, weight)
+            self._lxc.add_new_category(new_category)
 
-    def reinforce_category(self, category: NewCategory, stimulus, calculator: Calculator):
-        category.reinforce(stimulus, self._game_params.beta, calculator)
+    @register_update_operation
+    def reinforce_category(self, category: NewCategory, stimulus):
+        category.reinforce(stimulus, self._game_params.beta, self._calculator)
 
-    def csimilarity(self, word: NewWord, category: NewCategory, calculator: Calculator):
-        area = category.union(calculator)
+    def select_stimuli_by_category(self, category: NewCategory, context: StimulusContext):
+        return category.select(context, self._calculator)
+
+    def csimilarity(self, word: NewWord, category: NewCategory):
+        area = category.union(self._calculator)
         # omit multiplication by x_delta because all we need is ratio: coverage/area:
-        word_meaning = self.word_meaning(word, calculator)
+        word_meaning = self.word_meaning(word, self._calculator)
         coverage = np.minimum(word_meaning, area)
 
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
 
     def compute_word_meanings(self, calculator: Calculator) -> Dict[NewWord, List[Stimulus]]:
-        # words = self.get_words()
-        # meanings = {}
-        # for word in words:
-        #     meanings[word] = self.word_meaning_new(word, calculator.values(), calculator)
-        # return meanings
         return self._lxc.word_meanings(calculator.values(), calculator)
 
-    def word_meaning_new(self, word: NewWord, stimuli: List, calculator: Calculator):
-        # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}
-        word_index = self._lex2index[word]
-        word2categories_vector = self._lxc.get_row_vector(word_index)
-        non_zero_cats = np.nonzero(word2categories_vector)[0]
-        # cs = [c for i in non_zero_cats for c, active in self._categories[i] if active]
-        cs = [self._index2cats[i] for i in non_zero_cats]
-        cs = [c for c, active in cs if active]
-        return [q for q in stimuli for c in cs if c.response(q, calculator)]
-
-    def word_meaning(self, word: NewWord, calculator: Calculator) -> float:
+    def word_meaning(self, word: NewWord) -> float:
         active_categories = self.get_active_categories()
         word_index = self._lex2index[word]
         word2categories_vector = self._lxc.get_row_vector(word_index)[:len(self._lexicon)]
-        return np.dot([c.union(calculator) for c in active_categories], word2categories_vector)
+        return np.dot([c.union(self._calculator) for c in active_categories], word2categories_vector)
         # return sum([category.union() * word2category_weight for category, word2category_weight in
         #             zip(self._categories, self._lxc.get_row_vector(word_index))])
 
@@ -437,7 +447,7 @@ class LxC:
         assert active, 'update on active word'
         self._lxc.update_matrix_on_given_row(word_index, scalar)
 
-    def update_collection(self, word: NewWord, category: NewCategory, update: Callable[[float], float]):
+    def update_word_category_connection(self, word: NewWord, category: NewCategory, update: Callable[[float], float]):
         word_index = self._words.get_object_index(word)
         _, active = self._words.get_object_by_index(word_index)
         assert active, 'update on active word'
@@ -452,6 +462,8 @@ class LxC:
         return self._lxc(word_index, category_index)
 
     def word_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[Stimulus]]:
+        # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}
+
         # work on active connections only
         self.remove_nonactive_words()
         self.remove_nonactive_categories()
