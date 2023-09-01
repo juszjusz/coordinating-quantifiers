@@ -151,13 +151,10 @@ class NewAgent:
     def __repr__(self):
         return f'{self.agent_id}'
 
-    def __copy__(self):
-        snapshot = NewAgent(agent_id=self.agent_id, calculator=self._calculator, game_params=self._game_params)
-        snapshot._lxc = copy(self._lxc)
-        snapshot._discriminative_success = self._discriminative_success.copy()
-        snapshot._communicative_success1 = self._communicative_success1.copy()
-        snapshot._communicative_success2 = self._communicative_success2.copy()
-        snapshot._discriminative_success_means = self._discriminative_success_means.copy()
+    @staticmethod
+    def snapshot(agent):
+        snapshot = NewAgent(agent_id=agent.agent_id, calculator=agent._calculator, game_params=agent._game_params)
+        snapshot._lxc = copy(agent._lxc)
         return snapshot
 
     @staticmethod
@@ -167,7 +164,7 @@ class NewAgent:
         agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
 
         if step > len(updates_history):
-            raise RuntimeError('can recreate at most ' + str(len(updates_history)))
+            logger.warning('can recreate at most ' + str(len(updates_history)) + ' fall back to full history')
         if step > 0:
             updates_history = updates_history[:step]
 
@@ -393,6 +390,9 @@ class LxC:
         self._lxc = Matrix(row, col)
 
     def __copy__(self):
+        self.remove_nonactive_categories()
+        self.remove_nonactive_words()
+
         lxc = LxC(0, 0)
         lxc._lxc = copy(self._lxc)
         lxc._categories = copy(self._categories)
