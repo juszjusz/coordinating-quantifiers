@@ -110,8 +110,10 @@ class Matrix:
         self._col = 0
 
     def __copy__(self):
-        m = Matrix(self._row, self._col)
+        m = Matrix(0,0)
         m._square_matrix = self.reduce()
+        m._row = self._row
+        m._col = self._col
         return m
 
     def __call__(self, row: int, col: int) -> float:

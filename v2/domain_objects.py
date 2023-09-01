@@ -159,23 +159,25 @@ class NewAgent:
 
     @staticmethod
     def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: List,
-                              step: int = -1):
+                              max_step: int = -1, snapshot_rate: int = 10):
         snapshots = []
         agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
 
-        if step > len(updates_history):
+        if max_step > len(updates_history):
             logger.warning('can recreate at most ' + str(len(updates_history)) + ' fall back to full history')
-        if step > 0:
-            updates_history = updates_history[:step]
+        if max_step > 0:
+            updates_history = updates_history[:max_step]
 
-        for game_stage in tqdm(updates_history, f'recreating agent {agent_id} by updates'):
-            for method_name, args, kwargs in game_stage:
+        for step, step_updates in enumerate(tqdm(updates_history, f'recreating agent {agent_id} by updates')):
+            for method_name, args, kwargs in step_updates:
                 msg = f'meth: {method_name} {args}'
                 logger.debug(msg)
 
                 agent_method = getattr(agent, method_name)
                 agent_method(*args, **kwargs)
-                snapshots.append(copy(agent))
+
+            if step % snapshot_rate == 0:
+                snapshots.append((step_updates, NewAgent.snapshot(agent)))
 
         return snapshots
 
