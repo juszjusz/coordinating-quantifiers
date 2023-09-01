@@ -1,7 +1,7 @@
+import bisect
 import dataclasses
 import logging
-from copy import copy, deepcopy
-from threading import Lock
+from copy import copy
 from typing import Callable, List, Dict, Union
 
 import numpy as np
@@ -13,7 +13,7 @@ from matrix_datastructure import Matrix, One2OneMapping
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)  # Set the handler level to DEBUG
+ch.setLevel(logging.DEBUG)
 logger.addHandler(ch)
 
 
@@ -313,7 +313,7 @@ class NewAgent:
 
     @register_agent_update_operation
     def next_step(self):
-        # mark end of game between agents
+        # mark end of the game between agents
         pass
 
     def select_stimuli_by_category(self, category: NewCategory, context: StimulusContext) -> Stimulus:
@@ -328,8 +328,22 @@ class NewAgent:
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
 
-    def compute_word_meanings(self, calculator: Calculator) -> Dict[NewWord, List[Stimulus]]:
-        return self._lxc.word_meanings(calculator.values(), calculator)
+    def compute_word_meanings(self) -> Dict[NewWord, List[Stimulus]]:
+        return self._lxc.word_meanings(self._calculator.values(), self._calculator)
+
+    @staticmethod
+    def is_monotone_new(word_meaning: List[Stimulus], calculator: Calculator):
+
+        lower = min(word_meaning, key=lambda x: float(x[0]/x[1]))
+        upper = max(word_meaning, key=lambda x: float(x[0]/x[1]))
+        meanings_space = calculator.values()
+        start_index = bisect.bisect(meanings_space, lower)
+        upper_index = bisect.bisect(meanings_space, upper)
+        if start_index == 0 and meanings_space[0:upper_index] == word_meaning:
+            return True
+        elif upper_index == len(meanings_space) and meanings_space[upper_index:] == word_meaning:
+            return True
+        return False
 
     def word_meaning(self, word: NewWord) -> float:
         active_categories = self.get_active_categories()

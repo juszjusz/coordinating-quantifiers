@@ -301,8 +301,11 @@ if __name__ == '__main__':
     recreated_agent_snapshots = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
                                                                game_params=game_params,
                                                                updates_history=agent.updates_history)
-    recreated_agent = recreated_agent_snapshots[-1]
-    print(NewAgent.to_dict(recreated_agent))
+    w2meanings = agent.compute_word_meanings()
+    is_word_monotone = {}
+    for w, meaning in w2meanings.items():
+        is_word_monotone[w] = NewAgent.is_monotone_new(meaning, calculator)
+    print()
     # print(recreated_agent.get_discriminative_success() == agent.get_discriminative_success())
     # r_m = NewAgent.to_dict(recreated_agent)['lxc']
     # m = NewAgent.to_dict(agent)['lxc']
