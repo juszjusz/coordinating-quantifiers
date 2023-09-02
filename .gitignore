@@ -8,3 +8,4 @@ gibberish.egg-info
 *.p
 *.pyc
 !data_plot_examples/*
+.ipynb_checkpoints
