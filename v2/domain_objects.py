@@ -1,7 +1,7 @@
-import bisect
 import dataclasses
 import logging
 from copy import copy
+from fractions import Fraction
 from typing import Callable, List, Dict, Union
 
 import numpy as np
@@ -23,6 +23,13 @@ class NewCategory:
         self._weights = []
         self._reactive_units = []
 
+    @classmethod
+    def init_from_stimulus(cls, stimulus: Stimulus):
+        new_instance = cls(0)
+        new_instance._weights = [.5]
+        new_instance._reactive_units = [stimulus]
+        return new_instance
+
     def __eq__(self, other):
         if not isinstance(other, type(self)):
             return False
@@ -38,7 +45,13 @@ class NewCategory:
         return self.category_id
 
     def __repr__(self):
-        return f'{self.category_id}[{self._weights}x{self._reactive_units}]'
+        return str(self)
+
+    def __str__(self):
+        weights = [round(w, 2) for w in self._weights]
+        ru = [str(r) for r in self._reactive_units]
+        wXr = str([*zip(weights, ru)])
+        return f'id: {self.category_id}; wXr: {wXr}'
 
     def reactive_units(self):
         return self._reactive_units
@@ -159,14 +172,9 @@ class NewAgent:
 
     @staticmethod
     def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: List,
-                              max_step: int = -1, snapshot_rate: int = 10):
+                              snapshot_rate: int = 10):
         snapshots = []
         agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
-
-        if max_step > len(updates_history):
-            logger.warning('can recreate at most ' + str(len(updates_history)) + ' fall back to full history')
-        if max_step > 0:
-            updates_history = updates_history[:max_step]
 
         for step, step_updates in enumerate(tqdm(updates_history, f'recreating agent {agent_id} by updates')):
             for method_name, args, kwargs in step_updates:
@@ -177,7 +185,7 @@ class NewAgent:
                 agent_method(*args, **kwargs)
 
             if step % snapshot_rate == 0:
-                snapshots.append((step_updates, NewAgent.snapshot(agent)))
+                snapshots.append((step, NewAgent.snapshot(agent)))
 
         return snapshots
 
@@ -187,13 +195,15 @@ class NewAgent:
         agent._lxc.remove_nonactive_words()
 
         words = [{'word_id': w.word_id, 'originated_from_category': {
-            'reactive_units': [r if isinstance(r, int) else [*r] for r in w.originated_from_category.reactive_units()],
+            'reactive_units': [[r.numerator, r.denominator] if isinstance(r, Fraction) else r for r in
+                               w.originated_from_category.reactive_units()],
             'weights': [round(w, 3) for w in w.originated_from_category.weights()]
         }}
                  for w in agent.get_words()]
 
         categories = [{'category_id': category.category_id,
-                       'reactive_units': [r if isinstance(r, int) else [*r] for r in category.reactive_units()],
+                       'reactive_units': [[r.numerator, r.denominator] if isinstance(r, Fraction) else r for r in
+                                          category.reactive_units()],
                        'weights': [round(w, 3) for w in category.weights()]} for category in
                       agent.get_categories()]
 
@@ -331,19 +341,15 @@ class NewAgent:
     def compute_word_meanings(self) -> Dict[NewWord, List[Stimulus]]:
         return self._lxc.word_meanings(self._calculator.values(), self._calculator)
 
-    @staticmethod
-    def is_monotone_new(word_meaning: List[Stimulus], calculator: Calculator):
+    def compute_word_pragmatic_meanings(self) -> Dict[NewWord, List[Stimulus]]:
+        return self._lxc.word_pragmatic_meanings(self._calculator.values(), self._calculator)
 
-        lower = min(word_meaning, key=lambda x: float(x[0]/x[1]))
-        upper = max(word_meaning, key=lambda x: float(x[0]/x[1]))
-        meanings_space = calculator.values()
-        start_index = bisect.bisect(meanings_space, lower)
-        upper_index = bisect.bisect(meanings_space, upper)
-        if start_index == 0 and meanings_space[0:upper_index] == word_meaning:
-            return True
-        elif upper_index == len(meanings_space) and meanings_space[upper_index:] == word_meaning:
-            return True
-        return False
+    @staticmethod
+    def is_monotone_new(stimuli_activations: List[bool]):
+        inflection_points = len(
+            [current for current, next_activation in zip(stimuli_activations, stimuli_activations[1:]) if
+             current != next_activation])
+        return inflection_points == 1
 
     def word_meaning(self, word: NewWord) -> float:
         active_categories = self.get_active_categories()
@@ -423,7 +429,7 @@ class LxC:
         return LxC(row, col)
 
     def get_stored_category(self, c: NewCategory) -> NewCategory:
-        return self._categories.get_stored_object(c)
+        return self._categories.get_managed_object(c)
 
     def get_matrix(self) -> np.ndarray:
         return self._lxc.reduce()
@@ -537,12 +543,16 @@ class LxC:
         category_index = self._categories.get_object_index(category)
         return self._lxc(word_index, category_index)
 
-    def word_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[Stimulus]]:
+    def word_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[bool]]:
         # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}
 
         # work on active connections only
         self.remove_nonactive_words()
         self.remove_nonactive_categories()
+
+        stimuli = calculator.values()
+
+        self.assert_list_is_sorted(stimuli)
 
         word2meanings = {}
         non_zero_coordinates = [*zip(*np.nonzero(self._lxc.reduce()))]
@@ -552,11 +562,51 @@ class LxC:
                 word2meanings[word] = []
             category, _ = self._categories.get_object_by_index(category_index)
             word_meaning = word2meanings[word]
-            word_meaning += [q for q in stimuli if category.response(q, calculator) > 0]
+            word_meaning.append([category.response(q, calculator) > 0 for q in stimuli])
 
-        word2meanings_distinct_and_sorted = {}
+        word2meanings_activations = {}
+        # for word, meaning in word2meanings.items():
+        #     distinct_and_sorted = list(set(meaning))
+        #     word2meanings_distinct_and_sorted[word] = sorted(distinct_and_sorted)
         for word, meaning in word2meanings.items():
-            distinct_and_sorted = list(set(meaning))
-            word2meanings_distinct_and_sorted[word] = sorted(distinct_and_sorted)
+            flat_bool_activations = np.sum(meaning, axis=0).astype(bool)
+            # word2meanings_activations[word] = np.sum(meaning, axis=0).astype(bool)
+            activations_masks = [flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)] for i in
+                                 range(len(flat_bool_activations))]
 
-        return word2meanings
+            activations_masks = [np.mean(x) > .5 for x in activations_masks]
+            word2meanings_activations[word] = activations_masks
+            # flat_boo
+
+            # window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
+            # mean_bool_activations.append(int(sum(window) / len(window) > 0.5))
+
+        return word2meanings_activations
+
+    def word_pragmatic_meanings(self, stimuli: List[Stimulus], calculator) -> Dict[NewWord, List[Stimulus]]:
+        # work on active connections only
+        self.remove_nonactive_words()
+        self.remove_nonactive_categories()
+
+        categories = np.array(self._categories.active_elements())
+
+        word2pragmatic_meaning = {}
+
+        for s in stimuli:
+            responses = [c.response(s, calculator) for c in categories]
+            category_stimuli_maximizer_index = np.argmax(responses)
+            category_stimuli_maximizer = categories[category_stimuli_maximizer_index]
+            if category_stimuli_maximizer.response(s, calculator) > 0:
+                word = self.get_most_connected_word(category_stimuli_maximizer)
+                if word is not None:
+                # if self.get_connection(word, category_stimuli_maximizer) > 0:
+                    if word not in word2pragmatic_meaning.keys():
+                        word2pragmatic_meaning[word] = []
+                    word2pragmatic_meaning[word].append(s)
+
+        return word2pragmatic_meaning
+
+    @staticmethod
+    def assert_list_is_sorted(items: List):
+        all_items_in_order = all(a <= b for a, b in zip(items, items[1:]))
+        assert all_items_in_order

@@ -44,7 +44,7 @@ class One2OneMapping:
     def __copy__(self):
         return One2OneMapping(self.object2index.copy(), self.index2object.copy())
 
-    def get_stored_object(self, obj: Any) -> Any:
+    def get_managed_object(self, obj: Any) -> Any:
         i = self.get_object_index(obj)
         obj, _ = self.get_object_by_index(i)
         return obj

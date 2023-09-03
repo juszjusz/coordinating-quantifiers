@@ -1,13 +1,13 @@
 import os
 from fractions import Fraction
 from pathlib import Path
-from typing import List, Tuple, Callable, Union
+from typing import List, Tuple, Union
 
 import h5py
 import numpy as np
 
 NumericStimulus = int
-QuotientStimulus = Tuple[int, int]
+QuotientStimulus = Fraction
 Stimulus = Union[NumericStimulus, QuotientStimulus]
 NumericStimulusContext = Tuple[NumericStimulus, NumericStimulus]
 QuotientStimulusContext = Tuple[QuotientStimulus, QuotientStimulus]
@@ -45,8 +45,8 @@ class NewQuotientStimulus(NewAbstractStimulus):
         return self._value
 
     def is_noticeably_different_from(self, other: NewAbstractStimulus):
-        f1 = Fraction(*self.value())
-        f2 = Fraction(*other.value())
+        f1 = self.value()
+        f2 = other.value()
         ds = 0.3 * f1
         return abs(f1 - f2) > ds
 
@@ -157,11 +157,15 @@ class QuotientCalculator(Calculator):
 
     def __init__(self, values: List[QuotientStimulus], support, distribution, reactive_x_reactive, sigma=.01):
         self._quotients = values
-        self._quotients_to_index = {v: index for index, v in enumerate(values)}
+        self._quotients_to_index = {QuotientCalculator._fraction_index(v): index for index, v in enumerate(values)}
         self._domain = support
         self._reactive_unit_distribution = distribution
         self._reactive_x_reactive = reactive_x_reactive
         self._sigma = sigma
+
+    @staticmethod
+    def _fraction_index(f: QuotientStimulus) -> Tuple[int, int]:
+        return f.numerator, f.denominator
 
     def values(self) -> List:
         return self._quotients
@@ -170,21 +174,29 @@ class QuotientCalculator(Calculator):
         return self._domain
 
     def stimuli(self) -> List[NewQuotientStimulus]:
-        return [NewQuotientStimulus((nominator, denominator)) for nominator, denominator in self.values()]
+        return [NewQuotientStimulus(fraction) for fraction in self.values()]
 
     # ???
     def dot_product(self, r1: QuotientStimulus, r2: QuotientStimulus):
-        i1 = self._quotients_to_index[r1]
-        i2 = self._quotients_to_index[r2]
+        i1 = self._quotients_to_index[QuotientCalculator._fraction_index(r1)]
+        i2 = self._quotients_to_index[QuotientCalculator._fraction_index(r2)]
         return self._reactive_x_reactive[i1][i2]
 
     def pdf(self, r: QuotientStimulus):
-        i = self._quotients_to_index[r]
+        i = self._quotients_to_index[QuotientCalculator._fraction_index(r)]
         return self._reactive_unit_distribution[i]
 
     @staticmethod
     def from_description():
         pass
+
+    @staticmethod
+    def load_from_file_with_ans():
+        return QuotientCalculator.load_from_file('../inmemory_calculus_ans/quotient')
+
+    @staticmethod
+    def load_from_file_with_no_ans():
+        return QuotientCalculator.load_from_file('../inmemory_calculus_no_ans/quotient')
 
     @staticmethod
     def load_from_file(path='../inmemory_calculus/quotient'):
@@ -205,7 +217,7 @@ class QuotientCalculator(Calculator):
         # reduced fractions n/k where n < k and k <= 100; reduced def: n, k are relatively prime integers
         stimulus_list = read_h5_data(root_path.joinpath('nklist.h5'))
         # invoke int(.) for serialization reasons (int64 found here is not json serializable)
-        stimulus_list = [(int(nom), int(denom)) for nom, denom in stimulus_list]
+        stimulus_list = [Fraction(int(nom), int(denom)) for nom, denom in stimulus_list]
 
         # VALIDATE loaded data shapes:
         if not len(stimulus_list) == reactive_unit_distribution.shape[0] == reactive_x_reactive.shape[0] == \

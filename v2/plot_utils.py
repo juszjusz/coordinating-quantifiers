@@ -1,10 +1,10 @@
+from bokeh.plotting import figure
 from pathlib import Path
 from typing import List
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter
-
-from calculator import Calculator
+from calculator import Calculator, Stimulus
 from domain_objects import NewCategory
 
 
@@ -48,6 +48,15 @@ def plot_category(category: NewCategory, stimuli: List, calculator: Calculator):
 
     plt.legend(['data', 'cubic'], loc='best')
     plt.show()
+
+
+def bokeh_plot_category(category: NewCategory, domain: List, quasi_pdf: List[float], active_stimuli=None):
+    if active_stimuli is None:
+        active_stimuli = []
+    p = figure(title='Category Density', x_axis_label='support', y_axis_label='QuasiDensity')
+    p.line(domain, quasi_pdf, legend_label=str(category), line_width=2)
+    p.circle(active_stimuli, -.05, legend_label='Word X Category extension', color='red', size=1)
+    return p
 
 
 def plot_successes(steps: int, cs1: List[List[float]], cs2: List[List[float]], ds: List[List[float]],
