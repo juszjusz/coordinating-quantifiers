@@ -231,17 +231,17 @@ class NewAgent:
     def get_categories(self) -> List[NewCategory]:
         return self._lxc.get_active_categories()
 
-    def get_best_matching_category(self, stimulus) -> NewCategory:
-        active_categories = self._lxc.get_active_categories()
-        responses = [c.response(stimulus, self._calculator) for c in active_categories]
-        response_argmax = np.argmax(responses)
-        return active_categories[response_argmax]
-
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         return self._lxc.get_most_connected_word(category, activation_threshold)
 
     def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Union[NewCategory, None]:
         return self._lxc.get_most_connected_category(word, activation_threshold)
+
+    def get_most_responsive_category(self, stimulus: Stimulus) -> NewCategory:
+        active_categories = self._lxc.get_active_categories()
+        responses = [c.response(stimulus, self._calculator) for c in active_categories]
+        response_argmax = np.argmax(responses)
+        return active_categories[response_argmax]
 
     def knows_word(self, w: NewWord):
         active_words = self._lxc.get_active_words()
@@ -287,7 +287,7 @@ class NewAgent:
     def learn_stimulus(self, stimulus: Stimulus, weight=.5):
         if self._discriminative_success_means[-1] >= self._game_params.discriminative_threshold:
             logger.debug("updating category by adding reactive unit centered on %s" % str(stimulus))
-            category = self.get_best_matching_category(stimulus)
+            category = self.get_most_responsive_category(stimulus)
             logger.debug("updating category")
             category.add_reactive_unit(stimulus)
         else:
@@ -624,7 +624,6 @@ if __name__ == '__main__':
     x = [snap for a in population for snap in a]
     y = [set(word for s in snap for word in s) for snap in zip(*population)]
     print(y)
-
 
     active_lexicon = [set() for _ in range(len(a0))]
     for a in population:

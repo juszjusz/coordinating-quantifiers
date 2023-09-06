@@ -53,8 +53,8 @@ class DiscriminationGameAction(GuessingGameAction):
 
         # assert s1.is_noticeably_different_from(s2), 'stimuli must be noticeably different'
 
-        category1 = agent.get_best_matching_category(s1)
-        category2 = agent.get_best_matching_category(s2)
+        category1 = agent.get_most_responsive_category(s1)
+        category2 = agent.get_most_responsive_category(s2)
 
         if category1 == category2:
             # logger.debug('no category {}({})'.format(agent, agent.agent_id))
