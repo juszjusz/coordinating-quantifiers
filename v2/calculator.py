@@ -126,6 +126,14 @@ class NumericCalculator(Calculator):
         return NumericCalculator(values, support, distribution, reactive_x_reactive, sigma_factor)
 
     @staticmethod
+    def load_from_file_with_ans():
+        return NumericCalculator.load_from_file('../inmemory_calculus_ans/numeric')
+
+    @staticmethod
+    def load_from_file_with_no_ans():
+        return NumericCalculator.load_from_file('../inmemory_calculus_no_ans/numeric')
+
+    @staticmethod
     def load_from_file(path='../inmemory_calculus/numeric'):
         root_path = Path(os.path.abspath(path))
 

@@ -115,6 +115,12 @@ class NewWord:
     def __copy__(self):
         return NewWord(self.word_id, copy(self.originated_from_category))
 
+    def __str__(self):
+        return str(self.word_id)
+
+    def __repr__(self):
+        return str(self)
+
 
 @dataclasses.dataclass
 class GameParams:
@@ -265,7 +271,7 @@ class NewAgent:
 
     @register_agent_update_operation
     def update_on_success(self, word: NewWord, category: NewCategory):
-        self._lxc.update_word_category_connection(word, category, lambda v: v + self._game_params.delta_dec * v)
+        self._lxc.update_word_category_connection(word, category, lambda v: v + self._game_params.delta_inc * v)
         self._inhibit_word2categories_connections(word=word, except_category=category)
 
     def _inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
@@ -599,7 +605,7 @@ class LxC:
             if category_stimuli_maximizer.response(s, calculator) > 0:
                 word = self.get_most_connected_word(category_stimuli_maximizer)
                 if word is not None:
-                # if self.get_connection(word, category_stimuli_maximizer) > 0:
+                    # if self.get_connection(word, category_stimuli_maximizer) > 0:
                     if word not in word2pragmatic_meaning.keys():
                         word2pragmatic_meaning[word] = []
                     word2pragmatic_meaning[word].append(s)
@@ -610,3 +616,22 @@ class LxC:
     def assert_list_is_sorted(items: List):
         all_items_in_order = all(a <= b for a, b in zip(items, items[1:]))
         assert all_items_in_order
+
+
+if __name__ == '__main__':
+    a0 = [['w0', 'w1', 'w2'], ['w0', 'w1', 'w2'], ['w0', 'w1', 'w2', 'w3']]
+    a1 = [['w1', 'w2'], ['w0', 'w1', 'w2'], ['w0', 'w1', 'w2', 'w3', 'w4']]
+    population = [a0, a1]
+
+    x = [snap for a in population for snap in a]
+    y = [set(word for s in snap for word in s) for snap in zip(*population)]
+    print(y)
+
+
+    active_lexicon = [set() for _ in range(len(a0))]
+    for a in population:
+        for step, snap in enumerate(a0):
+            l = active_lexicon[step]
+            active_lexicon[step] = l.union(snap)
+
+    print(active_lexicon)
