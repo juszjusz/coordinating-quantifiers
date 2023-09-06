@@ -49,7 +49,7 @@ class NewCategory:
 
     def __str__(self):
         weights = [round(w, 2) for w in self._weights]
-        ru = [str(r) for r in self._reactive_units]
+        ru = [r for r in self._reactive_units]
         wXr = str([*zip(weights, ru)])
         return f'id: {self.category_id}; wXr: {wXr}'
 
