@@ -7,7 +7,7 @@ from typing import Callable, List, Dict, Union
 import numpy as np
 from tqdm import tqdm
 
-from calculator import Calculator, NewAbstractStimulus, StimulusContext, Stimulus
+from calculator import Calculator, StimulusContext, Stimulus
 from matrix_datastructure import Matrix, One2OneMapping
 
 logger = logging.getLogger(__name__)
@@ -344,11 +344,11 @@ class NewAgent:
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
 
-    def compute_word_meanings(self) -> Dict[NewWord, List[Stimulus]]:
-        return self._lxc.word_meanings(self._calculator.values(), self._calculator)
+    def compute_word_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[Stimulus]]:
+        return self._lxc.word_meanings(stimuli, self._calculator)
 
-    def compute_word_pragmatic_meanings(self) -> Dict[NewWord, List[Stimulus]]:
-        return self._lxc.word_pragmatic_meanings(self._calculator.values(), self._calculator)
+    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[Stimulus]]:
+        return self._lxc.word_pragmatic_meanings(stimuli, self._calculator)
 
     @staticmethod
     def is_monotone_new(stimuli_activations: List[bool]):
@@ -365,7 +365,7 @@ class NewAgent:
         # return sum([category.union() * word2category_weight for category, word2category_weight in
         #             zip(self._categories, self._lxc.get_row_vector(word_index))])
 
-    def semantic_meaning(self, word: NewWord, stimuli: List[NewAbstractStimulus], calculator: Calculator):
+    def semantic_meaning(self, word: NewWord, stimuli: List[Stimulus], calculator: Calculator):
         word_index = self._lex2index[word]
 
         activations = [
@@ -381,7 +381,7 @@ class NewAgent:
         return mean_bool_activations
         # return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
 
-    def get_monotonicity(self, stimuli: List[NewAbstractStimulus], calculator: Calculator):
+    def get_monotonicity(self, stimuli: List[Stimulus], calculator: Calculator):
         active_lexicon = [w for w, active in self._lexicon if active]
         mons = [self.is_monotone(w, stimuli, calculator) for w in active_lexicon]
         return mons.count(True) / len(mons) if len(mons) > 0 else 0.0
@@ -555,8 +555,6 @@ class LxC:
         # work on active connections only
         self.remove_nonactive_words()
         self.remove_nonactive_categories()
-
-        stimuli = calculator.values()
 
         self.assert_list_is_sorted(stimuli)
 

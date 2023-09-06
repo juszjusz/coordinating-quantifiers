@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from new_guessing_game import run_simulation, new_random_f, RandomFunctions
+from new_guessing_game import run_simulation, random_functions, RandomFunctions
 from domain_objects import GameParams, NewAgent
 from calculator import NumericCalculator, QuotientCalculator
 
@@ -18,7 +18,7 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
         calculator = {'numeric': NumericCalculator.load_from_file(),
                       'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-        rf: RandomFunctions = next(new_random_f(seed=game_params.seed))
+        rf: RandomFunctions = next(random_functions(seed=game_params.seed))
         actual_population, _, _, _ = run_simulation(calculator, game_params,
                                            rf.shuffle_list_random_function(),
                                            rf.flip_a_coin_random_function(),
@@ -48,7 +48,7 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
         calculator = {'numeric': NumericCalculator.load_from_file(),
                       'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-        rf: RandomFunctions = next(new_random_f(seed=game_params.seed))
+        rf: RandomFunctions = next(random_functions(seed=game_params.seed))
         actual_population, _, _, _ = run_simulation(calculator, game_params,
                                            rf.shuffle_list_random_function(),
                                            rf.flip_a_coin_random_function(),

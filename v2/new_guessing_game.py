@@ -14,7 +14,7 @@ import numpy as np
 from tqdm import tqdm
 
 from stats import confidence_intervals
-from calculator import NumericCalculator, QuotientCalculator, Calculator
+from calculator import NumericCalculator, QuotientCalculator, Calculator, context_factory, Stimulus
 from domain_objects import GameParams, NewAgent, NewCategory
 from game_graph import game_graph, GameGraph
 import matplotlib.pyplot as plt
@@ -23,36 +23,48 @@ from plot_utils import plot_successes, plot_category
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)  # Set the handler level to DEBUG
+logger.addHandler(ch)
 
 
-class RandomFunctions:
-    def __init__(self, seed: int):
-        self._r = np.random.RandomState(seed=seed)
+def flip_a_coin_random_function(seed: int) -> Callable[[], int]:
+    random_state = np.random.RandomState(seed)
 
-    def flip_a_coin_random_function(self) -> Callable[[], int]:
-        def flip_a_coin() -> int:
-            return self._r.binomial(1, .5)
+    def flip_a_coin() -> int:
+        return random_state.binomial(1, .5)
 
-        return flip_a_coin
-
-    def shuffle_list_random_function(self) -> Callable[[List], None]:
-        def shuffle_list(l: List) -> None:
-            return self._r.shuffle(l)
-
-        return shuffle_list
-
-    def pick_element_random_function(self) -> Callable[[List], Any]:
-        def pick_random_value(l: List) -> Any:
-            i = self._r.randint(len(l))
-            return l[i]
-
-        return pick_random_value
+    return flip_a_coin
 
 
-def new_random_f(seed: int) -> RandomFunctions:
+def shuffle_list_random_function(seed: int) -> Callable[[List], None]:
+    random_state = np.random.RandomState(seed)
+
+    def shuffle_list(l: List) -> None:
+        random_state.shuffle(l)
+
+    return shuffle_list
+
+
+def pick_element_random_function(seed: int) -> Callable[[List], Any]:
+    random_state = np.random.RandomState(seed)
+
+    def pick_random_value(l: List) -> Any:
+        i = random_state.randint(len(l))
+        return l[i]
+
+    return pick_random_value
+
+
+def random_functions(seed: int):
+    """ Generate 3 functions with responsible for randomization in simulation. """
     r = np.random.RandomState(seed=seed)
     while True:
-        yield RandomFunctions(r.randint(2 ** 31))
+        seed0, seed1, seed2 = r.randint(2 ** 31, size=3)
+        shuffle_list = shuffle_list_random_function(seed0)
+        flip_a_coin = flip_a_coin_random_function(seed1)
+        pick_element = pick_element_random_function(seed2)
+        yield shuffle_list, flip_a_coin, pick_element
 
 
 def select_speaker(speaker: NewAgent, _: NewAgent) -> NewAgent:
@@ -67,12 +79,13 @@ def avg_series(elements: List, history=50) -> List:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-def run_simulation(calculator: Calculator, game_params: GameParams, shuffle_list, flip_a_coin, pick_element) -> Tuple[
+def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, shuffle_list, flip_a_coin,
+                   pick_element) -> Tuple[
     List[NewAgent], Any, Any]:
     def pair_partition(agents: List):
         return [agents[i:i + 2] for i in range(0, len(agents), 2)]
 
-    context_constructor = calculator.context_factory(pick_element=pick_element)
+    context_constructor = context_factory(stimuli=stimuli, pick_element=pick_element)
 
     G: GameGraph = game_graph(flip_a_coin)
     assert game_params.population_size % 2 == 0, 'each agent must be paired'
@@ -131,12 +144,9 @@ def run_dummy_simulation(stimulus):
                    'seed': 0}
     p = GameParams(**game_params)
 
-    rf: RandomFunctions = next(new_random_f(p.seed))
-    actual_population, _, _, _ = run_simulation(p,
-                                                rf.shuffle_list_random_function(),
-                                                rf.flip_a_coin_random_function(),
-                                                rf.pick_element_random_function()
-                                                )
+    shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=0))
+
+    actual_population, _, _, _ = run_simulation(p, shuffle_list, flip_a_coin, pick_element)
     game_state = {'params': game_params, 'population': [NewAgent.to_dict(agent) for agent in actual_population]}
 
     with open(f'serialized_state_{p.stimulus}.json', 'w', encoding='utf-8') as f:
@@ -266,24 +276,21 @@ if __name__ == '__main__':
 
     game_params = GameParams(**parsed_params)
 
-    r = next(new_random_f(seed=10))
-
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)  # Set the handler level to DEBUG
-    logger.addHandler(ch)
+    shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=0))
 
     runs = game_params.runs
     agg_cs1 = []
     agg_ds = []
     # for _, r in zip(range(runs), rf):
-    calculator = {'numeric': NumericCalculator.load_from_file(),
-                  'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
+    stimuli, calculator = {'numeric': NumericCalculator.load_from_file(),
+                           'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-    population, states_sequences, states_edges_cnts, states_cnts = run_simulation(calculator,
+    population, states_sequences, states_edges_cnts, states_cnts = run_simulation(stimuli,
+                                                                                  calculator,
                                                                                   game_params,
-                                                                                  r.shuffle_list_random_function(),
-                                                                                  r.flip_a_coin_random_function(),
-                                                                                  r.pick_element_random_function()
+                                                                                  shuffle_list,
+                                                                                  flip_a_coin,
+                                                                                  pick_element
                                                                                   )
     states_edges_cnts_normalized = []
     for bucket, v in states_edges_cnts.items():
@@ -301,7 +308,7 @@ if __name__ == '__main__':
     recreated_agent_snapshots = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
                                                                game_params=game_params,
                                                                updates_history=agent.updates_history)
-    w2meanings = agent.compute_word_pragmatic_meanings()
+    w2meanings = agent.compute_word_pragmatic_meanings(stimuli)
     is_word_monotone = {}
     for w, meaning in w2meanings.items():
         is_word_monotone[w] = NewAgent.is_monotone_new(meaning)

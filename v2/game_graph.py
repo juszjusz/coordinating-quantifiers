@@ -5,8 +5,8 @@ from typing import Tuple, Dict, Callable, List
 import graphviz
 import networkx as nx
 
-from calculator import NewAbstractStimulus
 from domain_objects import NewCategory, NewWord, NewAgent, SimpleCounter
+from calculator import Stimulus
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -15,7 +15,7 @@ logger.setLevel(level=logging.INFO)
 class GuessingGameAction:
     def __call__(self,
                  agent: NewAgent,
-                 context: Tuple[NewAbstractStimulus, NewAbstractStimulus],
+                 context: Tuple[Stimulus, Stimulus],
                  data_envelope: Dict,
                  **kwargs) -> str:
         pass
