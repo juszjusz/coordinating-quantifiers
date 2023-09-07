@@ -1,6 +1,7 @@
 import json
 import argparse
 import logging
+import random
 from collections import Counter
 from fractions import Fraction
 from pathlib import Path
@@ -80,8 +81,7 @@ def avg_series(elements: List, history=50) -> List:
 
 
 def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, shuffle_list, flip_a_coin,
-                   pick_element) -> Tuple[
-    List[NewAgent], Any, Any]:
+                   pick_element) -> List[NewAgent]:
     def pair_partition(agents: List):
         return [agents[i:i + 2] for i in range(0, len(agents), 2)]
 
@@ -133,7 +133,8 @@ def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params:
                 [(states_sequence[i], states_sequence[i + 1]) for i in range(1, len(states_sequence) - 1)])
             states_sequences_cnts[bucket].update(['->'.join(states_sequence)])
 
-    return population, states_sequences_cnts, state_edges_cnts, states_cnts
+    #states_sequences_cnts, state_edges_cnts, states_cnts
+    return population
 
 
 def run_dummy_simulation(stimulus):
@@ -144,9 +145,12 @@ def run_dummy_simulation(stimulus):
                    'seed': 0}
     p = GameParams(**game_params)
 
+    stimuli, calculator = {'numeric': NumericCalculator.load_from_file(),
+                           'quotient': QuotientCalculator.load_from_file()}[p.stimulus]
+
     shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=0))
 
-    actual_population, _, _, _ = run_simulation(p, shuffle_list, flip_a_coin, pick_element)
+    actual_population = run_simulation(stimuli, calculator, p, shuffle_list, flip_a_coin, pick_element)
     game_state = {'params': game_params, 'population': [NewAgent.to_dict(agent) for agent in actual_population]}
 
     with open(f'serialized_state_{p.stimulus}.json', 'w', encoding='utf-8') as f:
@@ -285,20 +289,19 @@ if __name__ == '__main__':
     stimuli, calculator = {'numeric': NumericCalculator.load_from_file(),
                            'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-    population, states_sequences, states_edges_cnts, states_cnts = run_simulation(stimuli,
-                                                                                  calculator,
-                                                                                  game_params,
-                                                                                  shuffle_list,
-                                                                                  flip_a_coin,
-                                                                                  pick_element
-                                                                                  )
-    states_edges_cnts_normalized = []
-    for bucket, v in states_edges_cnts.items():
-        # total_cnt_in_bucket = sum([cnt for _, cnt in v.items()])
-        bucket_start, bucket_end = bucket
-        total_cnt_in_bucket = (bucket_end - bucket_start) * 2
-        normalized_cnts = {edge: round(cnt / total_cnt_in_bucket, 3) for edge, cnt in v.items()}
-        states_edges_cnts_normalized.append((bucket, normalized_cnts))
+    population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
+    # states_edges_cnts_normalized = []
+    # for bucket, v in states_edges_cnts.items():
+    #     bucket_start, bucket_end = bucket
+    #     total_cnt_in_bucket = (bucket_end - bucket_start) * 2
+    #     normalized_cnts = {edge: round(cnt / total_cnt_in_bucket, 3) for edge, cnt in v.items()}
+    #     states_edges_cnts_normalized.append((bucket, normalized_cnts))
+
+    population_snapshots = [NewAgent.recreate_from_history(agent_id=a.agent_id, calculator=calculator, game_params=game_params,
+                                       updates_history=a.updates_history) for a in population]
+
+    population_active_lexicon = [[len(snap.get_active_words(stimuli)) for step, snap in history[1:]] for history in
+                                 population_snapshots]
 
     windowed_communicative_success1 = [avg_series(a.get_communicative_success1()) for a in population]
     windowed_communicative_success2 = [avg_series(a.get_communicative_success2()) for a in population]

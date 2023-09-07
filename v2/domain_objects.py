@@ -178,7 +178,7 @@ class NewAgent:
 
     @staticmethod
     def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: List,
-                              snapshot_rate: int = 10):
+                              snapshot_rate: int = 100):
         snapshots = []
         agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
 
@@ -228,6 +228,13 @@ class NewAgent:
     def get_words(self) -> List[NewWord]:
         return self._lxc.get_active_words()
 
+    def get_active_words(self, stimuli: List[Stimulus]) -> List[NewWord]:
+        response_category_maximizers = [self.get_most_responsive_category(s) for s in stimuli]
+        response_category_maximizers = [c for c in response_category_maximizers]
+        active_lexicon = [self.get_most_connected_word(c) for c in response_category_maximizers]
+        active_lexicon = [w for w in active_lexicon if w is not None]
+        return list(set(active_lexicon))
+
     def get_categories(self) -> List[NewCategory]:
         return self._lxc.get_active_categories()
 
@@ -237,7 +244,7 @@ class NewAgent:
     def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Union[NewCategory, None]:
         return self._lxc.get_most_connected_category(word, activation_threshold)
 
-    def get_most_responsive_category(self, stimulus: Stimulus) -> NewCategory:
+    def get_most_responsive_category(self, stimulus: Stimulus) -> Union[NewCategory, None]:
         active_categories = self._lxc.get_active_categories()
         responses = [c.response(stimulus, self._calculator) for c in active_categories]
         response_argmax = np.argmax(responses)
@@ -377,7 +384,6 @@ class NewAgent:
         for i in range(0, len(flat_bool_activations)):
             window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
             mean_bool_activations.append(int(sum(window) / len(window) > 0.5))
-
         return mean_bool_activations
         # return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
 
@@ -413,8 +419,8 @@ class SimpleCounter:
 
 class LxC:
     def __init__(self, row: int, col: int):
-        self._categories = One2OneMapping({}, {})
-        self._words = One2OneMapping({}, {})
+        self._categories = One2OneMapping()
+        self._words = One2OneMapping()
         self._lxc = Matrix(row, col)
 
     def __copy__(self):

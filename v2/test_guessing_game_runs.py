@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from new_guessing_game import run_simulation, random_functions, RandomFunctions
+from new_guessing_game import run_simulation, random_functions
 from domain_objects import GameParams, NewAgent
 from calculator import NumericCalculator, QuotientCalculator
 
@@ -15,15 +15,12 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
 
     def test_result(self):
         game_params = GameParams(**self.params)
-        calculator = {'numeric': NumericCalculator.load_from_file(),
+        stimuli, calculator = {'numeric': NumericCalculator.load_from_file(),
                       'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-        rf: RandomFunctions = next(random_functions(seed=game_params.seed))
-        actual_population, _, _, _ = run_simulation(calculator, game_params,
-                                           rf.shuffle_list_random_function(),
-                                           rf.flip_a_coin_random_function(),
-                                           rf.pick_element_random_function()
-                                           )
+        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
+
+        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
 
@@ -45,15 +42,12 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
 
     def test_result(self):
         game_params = GameParams(**self.params)
-        calculator = {'numeric': NumericCalculator.load_from_file(),
+        stimuli, calculator = {'numeric': NumericCalculator.load_from_file(),
                       'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
 
-        rf: RandomFunctions = next(random_functions(seed=game_params.seed))
-        actual_population, _, _, _ = run_simulation(calculator, game_params,
-                                           rf.shuffle_list_random_function(),
-                                           rf.flip_a_coin_random_function(),
-                                           rf.pick_element_random_function()
-                                           )
+        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
+
+        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
         self.assertEqual(actual_population, self.expected_population)

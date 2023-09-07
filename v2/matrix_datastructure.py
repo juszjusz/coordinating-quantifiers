@@ -1,7 +1,7 @@
 import dataclasses
 from _bisect import bisect_right
 from functools import total_ordering
-from typing import Dict, Any, Tuple, List, Callable, Union
+from typing import Dict, Any, Tuple, List, Callable, Union, TypeVar, Generic
 
 import numpy as np
 from numpy import ndarray
@@ -30,41 +30,49 @@ class IndexedValue:
         return iter((self.value_index, self.value))
 
 
+T = TypeVar('T')
+
+
 @dataclasses.dataclass
-class One2OneMapping:
-    object2index: Dict[Any, int]
-    index2object: Dict[int, Tuple[Any, bool]]
+class One2OneMapping(Generic[T]):
+
+    def __init__(self):
+        self.object2index: Dict[T, int] = {}
+        self.index2object: Dict[int, Tuple[T, bool]] = {}
 
     def __len__(self):
         return len(self.object2index)
 
     def __repr__(self):
-        return str(self.object2index)
+        return str(self.index2object.values())
 
     def __copy__(self):
-        return One2OneMapping(self.object2index.copy(), self.index2object.copy())
+        copy = One2OneMapping()
+        copy.object2index = self.object2index.copy()
+        copy.index2object = self.index2object.copy()
+        return copy
 
-    def get_managed_object(self, obj: Any) -> Any:
+    def get_managed_object(self, obj: T) -> T:
         i = self.get_object_index(obj)
         obj, _ = self.get_object_by_index(i)
         return obj
 
-    def get_object_index(self, obj: Any) -> int:
+    def get_object_index(self, obj: T) -> int:
         return self.object2index[obj]
 
-    def get_object_by_index(self, i: int) -> Any:
+    def get_object_by_index(self, i: int) -> T:
         return self.index2object[i]
 
-    def contains(self, element: Any):
+    def contains(self, element: T):
         return element in self.object2index.keys()
 
-    def add_new_element(self, element: Any):
+    def add_new_element(self, element: T):
         index = len(self.object2index)
         self.object2index[element] = index
         self.index2object[index] = (element, True)
         assert len(self.object2index) == len(self.index2object)
 
-    def deactivate_element(self, element: Any):
+    def deactivate_element(self, element: T):
         index = self.object2index[element]
         self.index2object[index] = (element, False)
 
@@ -73,10 +81,10 @@ class One2OneMapping:
         assert not active, 'reactivate only previously nonactive object'
         self.index2object[i] = (el, True)
 
-    def active_elements(self) -> List[Any]:
+    def active_elements(self) -> List[T]:
         return [el for el, active in self.index2object.values() if active]
 
-    def nonactive_elements(self) -> List[Any]:
+    def nonactive_elements(self) -> List[T]:
         return [el for el, active in self.index2object.values() if not active]
 
     def sparsity_rate(self) -> float:
@@ -104,16 +112,14 @@ class One2OneMapping:
 
 
 class Matrix:
-    def __init__(self, max_row: int, max_col: int):
+    def __init__(self, max_row: int, max_col: int, initial_row_size=0, initial_col_size=0):
         self._square_matrix = np.zeros((max_row, max_col))
-        self._row = 0
-        self._col = 0
+        self._row = initial_row_size
+        self._col = initial_col_size
 
     def __copy__(self):
-        m = Matrix(0,0)
+        m = Matrix(0, 0, initial_row_size=self._row, initial_col_size=self._col)
         m._square_matrix = self.reduce()
-        m._row = self._row
-        m._col = self._col
         return m
 
     def __call__(self, row: int, col: int) -> float:

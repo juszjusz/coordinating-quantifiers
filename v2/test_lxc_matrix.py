@@ -74,7 +74,7 @@ class One2OneMapping_test(unittest.TestCase):
 class ConnectionMatrixLxC_test(unittest.TestCase):
 
     def setUp(self) -> None:
-        self.m = Matrix(4, 4)
+        self.m = Matrix(4, 4, 4, 4)
 
         # testing matrix
         # 1   2   3    4
