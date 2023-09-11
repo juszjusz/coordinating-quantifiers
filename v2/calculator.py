@@ -181,7 +181,7 @@ class QuotientCalculator(Calculator):
 
         # reduced fractions n/k where n < k and k <= 100; reduced def: n, k are relatively prime integers
         stimuli = read_h5_data(root_path.joinpath('nklist.h5'))
-        # invoke int(.) for serialization reasons (int64 found here is not json serializable)
+        # invoke int(.) for serialization reasons (int64 is not json serializable)
         stimuli = [Fraction(int(nom), int(denom)) for nom, denom in stimuli]
 
         # VALIDATE loaded data shapes:
@@ -192,6 +192,18 @@ class QuotientCalculator(Calculator):
             raise ValueError()
 
         return stimuli, QuotientCalculator(stimuli, domain, reactive_unit_distribution, reactive_x_reactive)
+
+
+def load_stimuli_and_calculator(stimuli_type, with_ans=True):
+    assert stimuli_type in {'quotient', 'numeric'}
+    if stimuli_type == 'quotient' and with_ans:
+        return QuotientCalculator.load_from_file_with_ans()
+    if stimuli_type == 'quotient' and not with_ans:
+        return QuotientCalculator.load_from_file_with_no_ans()
+    if stimuli_type == 'numeric' and with_ans:
+        return NumericCalculator.load_from_file_with_ans()
+    if stimuli_type == 'numeric' and not with_ans:
+        return NumericCalculator.load_from_file_with_no_ans()
 
 
 if __name__ == '__main__':

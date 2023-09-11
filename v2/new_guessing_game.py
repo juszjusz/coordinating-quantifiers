@@ -1,21 +1,16 @@
 import json
 import argparse
 import logging
-import random
 from collections import Counter
-from fractions import Fraction
-from pathlib import Path
-from typing import List, Callable, Any, Tuple
+from typing import List, Callable, Any
 
-import networkx as nx
-import seaborn as sns
-from matplotlib.ticker import ScalarFormatter
 from numpy.random import RandomState
 import numpy as np
 from tqdm import tqdm
 
 from stats import confidence_intervals
-from calculator import NumericCalculator, QuotientCalculator, Calculator, context_factory, Stimulus
+from calculator import NumericCalculator, QuotientCalculator, Calculator, context_factory, Stimulus, \
+    load_stimuli_and_calculator
 from domain_objects import GameParams, NewAgent, NewCategory
 from game_graph import game_graph, GameGraph
 import matplotlib.pyplot as plt
@@ -283,11 +278,10 @@ if __name__ == '__main__':
     shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=0))
 
     runs = game_params.runs
-    agg_cs1 = []
-    agg_ds = []
+    # agg_cs1 = []
+    # agg_ds = []
     # for _, r in zip(range(runs), rf):
-    stimuli, calculator = {'numeric': NumericCalculator.load_from_file(),
-                           'quotient': QuotientCalculator.load_from_file()}[game_params.stimulus]
+    stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
     population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
     # states_edges_cnts_normalized = []

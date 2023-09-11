@@ -13,7 +13,7 @@ from matrix_datastructure import Matrix, One2OneMapping
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.INFO)
 logger.addHandler(ch)
 
 
@@ -142,14 +142,14 @@ class GameParams:
 
 
 def register_agent_update_operation(update):
-    def update_call(agent, *args, **kwargs):
+    def update_call(agent, *args):
         if update.__name__ == 'next_step':
             agent.updates_history.append([])
-
         current_step = agent.updates_history[-1]
         args_copy = [copy(a) for a in args]
-        current_step.append([update.__name__, args_copy, kwargs])
-        update(agent, *args, **kwargs)
+        # logger.info(update.__name__)
+        current_step.append([update.__name__, args_copy])
+        update(agent, *args)
 
     return update_call
 
@@ -168,7 +168,7 @@ class NewAgent:
         self._calculator = calculator
 
     def __repr__(self):
-        return f'{self.agent_id}'
+        return f'agent {self.agent_id}'
 
     @staticmethod
     def snapshot(agent):
@@ -180,18 +180,22 @@ class NewAgent:
     def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: List,
                               snapshot_rate: int = 100):
         snapshots = []
-        agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
+        recreated_agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
 
         for step, step_updates in enumerate(tqdm(updates_history, f'recreating agent {agent_id} by updates')):
-            for method_name, args, kwargs in step_updates:
+            for method_name, args in step_updates:
                 msg = f'meth: {method_name} {args}'
                 logger.debug(msg)
 
-                agent_method = getattr(agent, method_name)
-                agent_method(*args, **kwargs)
+                agent_method = getattr(recreated_agent, method_name)
+                agent_method(*args)
 
             if step % snapshot_rate == 0:
-                snapshots.append((step, NewAgent.snapshot(agent)))
+                snapshots.append((step, NewAgent.snapshot(recreated_agent)))
+
+        if (len(updates_history)-1) % snapshot_rate != 0:
+            # recreate agent's last state
+            snapshots.append(((len(updates_history)-1), NewAgent.snapshot(recreated_agent)))
 
         return snapshots
 
@@ -260,7 +264,7 @@ class NewAgent:
 
     @register_agent_update_operation
     def forget_words(self, super_alpha=.01):
-        # todo use super_alpha from game parrams
+        # todo use super_alpha from game parrams ?
         self._lxc.forget_words(super_alpha)
 
     @register_agent_update_operation
