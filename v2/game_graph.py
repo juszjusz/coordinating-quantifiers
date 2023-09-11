@@ -101,8 +101,8 @@ class PickMostConnectedWord(GuessingGameAction):
         if word is None:
             logger.debug("%s(%d) introduces new word \"%s\"" % (agent, agent.agent_id, word))
             logger.debug("%s(%d) associates \"%s\" with his category" % (agent, agent.agent_id, word))
-            id = self._new_word_counter()
-            new_word = NewWord(word_id=id, originated_from_category=copy(category))
+            word_id = self._new_word_counter()
+            new_word = NewWord(word_id=word_id, originated_from_category=copy(category))
             agent.add_new_word(new_word)
             agent.learn_word_category(new_word, category)
             return self._on_no_word_for_category

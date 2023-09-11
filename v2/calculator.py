@@ -1,6 +1,6 @@
 import os
 from fractions import Fraction
-from functools import singledispatch
+from functools import singledispatch, lru_cache
 from pathlib import Path
 from typing import List, Tuple, Union, Callable, Any
 

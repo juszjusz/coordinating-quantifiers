@@ -2,7 +2,7 @@ import dataclasses
 import logging
 from copy import copy
 from fractions import Fraction
-from typing import Callable, List, Dict, Union
+from typing import Callable, List, Dict, Union, Tuple
 
 import numpy as np
 from tqdm import tqdm
@@ -25,9 +25,13 @@ class NewCategory:
 
     @classmethod
     def init_from_stimulus(cls, stimulus: Stimulus):
+        return cls.init_from_stimuli([(.5, stimulus)])
+
+    @classmethod
+    def init_from_stimuli(cls, wxr: List[Tuple[float, Stimulus]]):
         new_instance = cls(0)
-        new_instance._weights = [.5]
-        new_instance._reactive_units = [stimulus]
+        new_instance._weights = [w for w, _ in wxr]
+        new_instance._reactive_units = [r for _, r in wxr]
         return new_instance
 
     def __eq__(self, other):
@@ -193,9 +197,9 @@ class NewAgent:
             if step % snapshot_rate == 0:
                 snapshots.append((step, NewAgent.snapshot(recreated_agent)))
 
-        if (len(updates_history)-1) % snapshot_rate != 0:
+        if (len(updates_history) - 1) % snapshot_rate != 0:
             # recreate agent's last state
-            snapshots.append(((len(updates_history)-1), NewAgent.snapshot(recreated_agent)))
+            snapshots.append(((len(updates_history) - 1), NewAgent.snapshot(recreated_agent)))
 
         return snapshots
 
@@ -415,6 +419,9 @@ class SimpleCounter:
     def __init__(self) -> None:
         self._counter = 0
 
+    def __repr__(self):
+        return 'offset: ' + str(self._counter)
+
     def __call__(self) -> int:
         i = self._counter
         self._counter += 1
@@ -468,7 +475,7 @@ class LxC:
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         category_index = self._categories.get_object_index(category)
         word_category_maximizer_index = self._lxc.get_col_argmax(category_index)
-        wXc_value = self._lxc(word_category_maximizer_index, category_index)
+        wXc_value = self._lxc[word_category_maximizer_index, category_index]
         if wXc_value > activation_threshold:
             word_category_maximizer, active = self._words.get_object_by_index(word_category_maximizer_index)
             assert active, 'WxC > activation_th -> word active'
@@ -483,7 +490,7 @@ class LxC:
         assert active, 'only active words'
 
         category_word_maximizer_index = self._lxc.get_row_argmax(word_index)
-        wXc_value = self._lxc(word_index, category_word_maximizer_index)
+        wXc_value = self._lxc[word_index, category_word_maximizer_index]
         if wXc_value > activation_threshold:
             category_word_maximizer, active = self._categories.get_object_by_index(category_word_maximizer_index)
             assert active, 'WxC > activation_th -> category active'
@@ -557,7 +564,7 @@ class LxC:
     def get_connection(self, word: NewWord, category: NewCategory) -> float:
         word_index = self._words.get_object_index(word)
         category_index = self._categories.get_object_index(category)
-        return self._lxc(word_index, category_index)
+        return self._lxc[word_index, category_index]
 
     def word_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[bool]]:
         # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}

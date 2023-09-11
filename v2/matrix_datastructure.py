@@ -44,7 +44,7 @@ class One2OneMapping(Generic[T]):
         return len(self.object2index)
 
     def __repr__(self):
-        return str(self.index2object.values())
+        return str(list(self.index2object.values()))
 
     def __copy__(self):
         copy = One2OneMapping()
@@ -122,7 +122,8 @@ class Matrix:
         m._square_matrix = self.reduce()
         return m
 
-    def __call__(self, row: int, col: int) -> float:
+    def __getitem__(self, pos: Tuple[int, int]) -> float:
+        row, col = pos
         return self._square_matrix[row, col]
 
     def rows(self):
@@ -136,10 +137,10 @@ class Matrix:
         return [r for r in result if r < self._row]
 
     def get_row_argmax(self, row_index) -> int:
-        return np.argmax(self._square_matrix, axis=1)[row_index]
+        return np.argmax(self._square_matrix[row_index, :])
 
     def get_col_argmax(self, col_index) -> int:
-        return np.argmax(self._square_matrix, axis=0)[col_index]
+        return np.argmax(self._square_matrix[:, col_index])
 
     def update_cell(self, row: int, column: int, update: Callable[[float], float]):
         recomputed_value = update(self._square_matrix[row, column])
