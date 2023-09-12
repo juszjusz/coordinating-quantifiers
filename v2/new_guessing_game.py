@@ -8,8 +8,8 @@ from typing import List, Callable, Any
 
 from numpy.random import RandomState
 import numpy as np
-from tqdm import tqdm
-
+# from tqdm import tqdm
+from tqdm.auto import tqdm
 from stats import confidence_intervals
 from calculator import NumericCalculator, QuotientCalculator, Calculator, context_factory, Stimulus, \
     load_stimuli_and_calculator
@@ -109,9 +109,9 @@ def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params:
     step2bucket = {i: (int(i / bucket_size) * bucket_size, (int(i / bucket_size) + 1) * bucket_size) for i in
                    range(game_params.steps)}
 
-    for step in (range(game_params.steps)):
-        if step % 100 == 0:
-            logger.info(step)
+    for step in tqdm(range(game_params.steps)):
+        # if step % 100 == 0:
+        #     logger.info(step)
 
         shuffle_list(population)
         paired_agents = pair_partition(population)
