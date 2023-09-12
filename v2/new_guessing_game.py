@@ -81,7 +81,7 @@ def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator,
     # https://stackoverflow.com/questions/63826035/how-to-use-tqdm-with-multithreading
     r_functions = random_functions(seed=game_params.seed)
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         futures = []
         for _ in range(game_params.runs):
             shuffle_list, flip_a_coin, pick_element = next(r_functions)

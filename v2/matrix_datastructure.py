@@ -159,11 +159,6 @@ class Matrix:
     def reduce(self):
         return self._square_matrix[:self._row, :self._col]
 
-    def get_row_vector(self, word_index) -> ndarray:
-        row_vector = self._square_matrix[word_index, :]
-        adjusted_row_vector = row_vector[:self._col]
-        return adjusted_row_vector
-
     def add_new_row(self):
         self._row += 1
         if self._row == self._square_matrix.shape[0]:
