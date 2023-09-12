@@ -1,15 +1,14 @@
-import concurrent
 import json
 import argparse
 import logging
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import Process, Queue, Pool
 from typing import List, Callable, Any
 
 from numpy.random import RandomState
 import numpy as np
-# from tqdm import tqdm
-from tqdm.auto import tqdm
+from tqdm import tqdm
+# from tqdm.auto import tqdm
 from stats import confidence_intervals
 from calculator import NumericCalculator, QuotientCalculator, Calculator, context_factory, Stimulus, \
     load_stimuli_and_calculator
@@ -78,20 +77,20 @@ def avg_series(elements: List, history=50) -> List:
 
 
 def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams):
-    # https://stackoverflow.com/questions/63826035/how-to-use-tqdm-with-multithreading
-    r_functions = random_functions(seed=game_params.seed)
+    r = RandomState(game_params.seed)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        futures = []
-        for _ in range(game_params.runs):
-            shuffle_list, flip_a_coin, pick_element = next(r_functions)
-            futures.append(executor.submit(run_simulation, stimuli, calculator, game_params, shuffle_list, flip_a_coin,
-                                           pick_element))
-        return [f.result() for f in futures]
+    with Pool(processes=4) as pool:
+        args = ((r.randint(0, 2 ** 31), stimuli, calculator, game_params, run + 1) for run in range(game_params.runs))
+        populations = pool.starmap(run_simulation, args)
+
+    return populations
 
 
-def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, shuffle_list, flip_a_coin,
-                   pick_element) -> List[NewAgent]:
+def run_simulation(seed: int, stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, run: int):
+    r_functions = random_functions(seed=seed)
+
+    shuffle_list, flip_a_coin, pick_element = next(r_functions)
+
     def pair_partition(agents: List):
         return [agents[i:i + 2] for i in range(0, len(agents), 2)]
 
@@ -109,10 +108,7 @@ def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params:
     step2bucket = {i: (int(i / bucket_size) * bucket_size, (int(i / bucket_size) + 1) * bucket_size) for i in
                    range(game_params.steps)}
 
-    for step in tqdm(range(game_params.steps)):
-        # if step % 100 == 0:
-        #     logger.info(step)
-
+    for step in tqdm(range(game_params.steps), position=run):
         shuffle_list(population)
         paired_agents = pair_partition(population)
 
@@ -146,7 +142,6 @@ def run_simulation(stimuli: List[Stimulus], calculator: Calculator, game_params:
                 [(states_sequence[i], states_sequence[i + 1]) for i in range(1, len(states_sequence) - 1)])
             states_sequences_cnts[bucket].update(['->'.join(states_sequence)])
 
-    # states_sequences_cnts, state_edges_cnts, states_cnts
     return population
 
 
@@ -283,7 +278,7 @@ if __name__ == '__main__':
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
     parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1200)
-    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=5)
+    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=4)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
     parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=1)
