@@ -205,8 +205,3 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True):
     if stimuli_type == 'numeric' and not with_ans:
         return NumericCalculator.load_from_file_with_no_ans()
 
-
-if __name__ == '__main__':
-    x = QuotientCalculator.load_from_file()
-    # 'C:\\Users\\juszynski\\Desktop\\wspace\\coordinating-quantifiers\\inmemory_calculus\\quotient')
-    print(x)
