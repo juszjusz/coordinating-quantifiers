@@ -86,7 +86,7 @@ def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator,
     return populations
 
 
-def run_simulation(seed: int, stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, run: int):
+def run_simulation(seed: int, stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, run=0):
     r_functions = random_functions(seed=seed)
 
     shuffle_list, flip_a_coin, pick_element = next(r_functions)

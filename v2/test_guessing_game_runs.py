@@ -18,9 +18,7 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
         game_params = GameParams(**self.params)
         stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
-        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
-
-        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
+        actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
 
@@ -43,9 +41,7 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
         game_params = GameParams(**self.params)
         stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
-        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
-
-        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
+        actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
         actual_population = [NewAgent.to_dict(a) for a in actual_population]
         self.assertEqual(actual_population, self.expected_population)
@@ -62,9 +58,7 @@ class TestSnapshot(unittest.TestCase):
         game_params = GameParams(**params)
         stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
-        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
-
-        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
+        actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
         agent0: NewAgent = actual_population[0]
         recreated_agent0_snapshots = NewAgent.recreate_from_history(agent_id=agent0.agent_id, calculator=calculator,
@@ -89,9 +83,7 @@ class TestSnapshot(unittest.TestCase):
         game_params = GameParams(**params)
         stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
-        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
-
-        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
+        actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
         agent0: NewAgent = actual_population[0]
         recreated_agent0_snapshots = NewAgent.recreate_from_history(agent_id=agent0.agent_id, calculator=calculator,
@@ -119,10 +111,9 @@ class TestTime(unittest.TestCase):
         game_params = GameParams(**params)
         stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
-        shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
 
         start = time.time()
-        actual_population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
+        actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
         elapsed = time.time() - start
 
         print(elapsed)

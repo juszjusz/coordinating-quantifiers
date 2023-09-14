@@ -35,12 +35,12 @@ def new_confidence_intervals(sample_series: np.ndarray, level=0.95, method='t'):
     else:
         raise NotImplementedError(f'{method} is an unknown method for computing CI, implemented for "t" and "z"')
 
-    margin = (test_stat * stdevs) / sqrt(n)
+    margins = (test_stat * stdevs) / sqrt(n)
 
-    lower_bound = means - margin
-    upper_bound = means + margin
+    lower_bounds = means - margins
+    upper_bounds = means + margins
 
-    return lower_bound, upper_bound
+    return lower_bounds, upper_bounds
 
 
 def means(sample_series):
