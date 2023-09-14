@@ -2,8 +2,9 @@ import json
 import argparse
 import logging
 from collections import Counter
+from itertools import groupby
 from multiprocessing import Process, Queue, Pool
-from typing import List, Callable, Any
+from typing import List, Callable, Any, Tuple
 
 from numpy.random import RandomState
 import numpy as np
@@ -76,11 +77,41 @@ def avg_series(elements: List, history=50) -> List:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
+def recreate_from_history(agents: List[Tuple[int, NewAgent]], calculator: Calculator, game_params: GameParams,
+                          snapshot_rate: int):
+    snapshots = []
+    for run, agent in agents:
+        recreated_agent_snapshots = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
+                                                                   game_params=game_params,
+                                                                   updates_history=agent.updates_history,
+                                                                   snapshot_rate=snapshot_rate)
+        snapshots.append((run, recreated_agent_snapshots))
+
+    return snapshots
+
+
+def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], calculator: Calculator,
+                                          game_params: GameParams, snapshot_rate=200, processes_num=4):
+    flatten_populations = [(run, agent) for run, population in enumerate(populations) for agent in population]
+    bucket_size = int(len(flatten_populations) / processes_num)
+    bucketed_agents = [flatten_populations[i:i + bucket_size] for i in range(0, len(flatten_populations), bucket_size)]
+    args = [(bucket, calculator, game_params, snapshot_rate) for bucket in bucketed_agents]
+    with Pool(processes=processes_num) as pool:
+        agent_snapshots = pool.starmap(recreate_from_history, args)
+    agent_snapshots = [snapshots for bucket in agent_snapshots for snapshots in bucket]
+    agent_snapshots.sort(key=lambda run2agent: run2agent[0])
+    snapshots_grouped_by_populations = [[*v] for k, v in groupby(agent_snapshots, key=lambda run2agent: run2agent[0])]
+    snapshots_grouped_by_populations = [[snapshots for run, snapshots in population] for population in
+                                        snapshots_grouped_by_populations]
+    return snapshots_grouped_by_populations
+
+
 def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams):
     r = RandomState(game_params.seed)
 
     with Pool(processes=4) as pool:
-        args = ((r.randint(0, 2 ** 31), stimuli, calculator, game_params, run + 1) for run in range(game_params.runs))
+        seeds = [(run, r.randint(0, 2 ** 31)) for run in range(game_params.runs)]
+        args = [(seed, stimuli, calculator, game_params, run + 1) for run, seed in seeds]
         populations = pool.starmap(run_simulation, args)
 
     return populations
@@ -259,7 +290,7 @@ class PlotMonotonicityCommand:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=2)
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=6)
     parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
@@ -277,7 +308,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1200)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=4)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -297,6 +328,7 @@ if __name__ == '__main__':
 
     # population = run_simulation(stimuli, calculator, game_params, shuffle_list, flip_a_coin, pick_element)
     populations = run_simulations_in_parallel(stimuli, calculator, game_params)
+    recreate_agents_snapshots_in_parallel(populations, calculator, game_params)
     population = populations[0]
     # states_edges_cnts_normalized = []
     # for bucket, v in states_edges_cnts.items():
