@@ -2,6 +2,7 @@ import dataclasses
 import logging
 from copy import copy
 from fractions import Fraction
+from itertools import groupby
 from typing import Callable, List, Dict, Union, Tuple
 
 import numpy as np
@@ -67,6 +68,11 @@ class NewCategory:
         return sum([weight * calculator.dot_product(ru_value, stimulus) for weight, ru_value in
                     zip(self._weights, self._reactive_units)])
 
+    def response_all(self, calculator: Calculator):
+        all_stimuli_response = calculator.dot_product_all(self._reactive_units)
+        all_stimuli_response = all_stimuli_response * self._weights
+        return np.sum(all_stimuli_response, axis=1)
+
     def add_reactive_unit(self, stimulus: Stimulus, weight=0.5):
         self._weights.append(weight)
         self._reactive_units.append(stimulus)
@@ -99,8 +105,7 @@ class NewCategory:
     # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x1),g(x1)),...,FUN(f(xn),g(xn))
     # Implementation is defined on family of functions from (REACTIVE_UNIT_DIST[.]).
     def __apply_fun_to_coordinates(self, FUN, calculator: Calculator):
-        return FUN([weight * calculator.pdf(ru) for weight, ru in
-                    zip(self._weights, self._reactive_units)])
+        return FUN([weight * calculator.pdf(ru) for weight, ru in zip(self._weights, self._reactive_units)])
 
 
 @dataclasses.dataclass
@@ -206,7 +211,7 @@ class NewAgent:
     @staticmethod
     def to_dict(agent) -> Dict:
         agent._lxc.remove_nonactive_categories()
-        agent._lxc.remove_nonactive_words()
+        agent._lxc.remove_non_responsive_words()
 
         words = [{'word_id': w.word_id, 'originated_from_category': {
             'reactive_units': [[r.numerator, r.denominator] if isinstance(r, Fraction) else r for r in
@@ -231,20 +236,26 @@ class NewAgent:
                 'lxc': agent._lxc.get_matrix().tolist()}
 
     def has_categories(self) -> bool:
-        return len(self._lxc.get_active_categories()) > 0
+        return len(self._lxc.get_responsive_categories()) > 0
 
     def get_words(self) -> List[NewWord]:
-        return self._lxc.get_active_words()
+        return self._lxc.get_responsive_words()
 
-    def get_active_words(self, stimuli: List[Stimulus]) -> List[NewWord]:
-        response_category_maximizers = [self.get_most_responsive_category(s) for s in stimuli]
-        response_category_maximizers = [c for c in response_category_maximizers]
+    # def get_active_words(self, stimuli: List[Stimulus]) -> List[NewWord]:
+    #     response_category_maximizers = [self.get_most_responsive_category(s) for s in stimuli]
+    #     response_category_maximizers = [c for c in response_category_maximizers]
+    #     active_lexicon = [self.get_most_connected_word(c) for c in response_category_maximizers]
+    #     active_lexicon = [w for w in active_lexicon if w is not None]
+    #     return list(set(active_lexicon))
+
+    def compute_active_words0(self) -> List[NewWord]:
+        response_category_maximizers = self.get_most_responsive_category_over_all_stimuli()
         active_lexicon = [self.get_most_connected_word(c) for c in response_category_maximizers]
         active_lexicon = [w for w in active_lexicon if w is not None]
         return list(set(active_lexicon))
 
     def get_categories(self) -> List[NewCategory]:
-        return self._lxc.get_active_categories()
+        return self._lxc.get_responsive_categories()
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
         return self._lxc.get_most_connected_word(category, activation_threshold)
@@ -253,13 +264,19 @@ class NewAgent:
         return self._lxc.get_most_connected_category(word, activation_threshold)
 
     def get_most_responsive_category(self, stimulus: Stimulus) -> Union[NewCategory, None]:
-        active_categories = self._lxc.get_active_categories()
+        active_categories = self._lxc.get_responsive_categories()
         responses = [c.response(stimulus, self._calculator) for c in active_categories]
         response_argmax = np.argmax(responses)
         return active_categories[response_argmax]
 
+    def get_most_responsive_category_over_all_stimuli(self) -> List[NewCategory]:
+        active_categories = self._lxc.get_responsive_categories()
+        responses = [c.response_all(self._calculator) for c in active_categories]
+        response_maximizers = np.argmax(responses, axis=0)
+        return list(set(active_categories[maximizer] for maximizer in response_maximizers))
+
     def knows_word(self, w: NewWord):
-        active_words = self._lxc.get_active_words()
+        active_words = self._lxc.get_responsive_words()
         return w in active_words
 
     @register_agent_update_operation
@@ -359,51 +376,23 @@ class NewAgent:
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
 
-    def compute_word_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[Stimulus]]:
-        return self._lxc.word_meanings(stimuli, self._calculator)
+    def compute_word_meanings(self) -> Dict[NewWord, List[bool]]:
+        active_words = self.compute_active_words0()
+        return self._lxc.compute_word_meanings(active_words, self._calculator)
 
-    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[Stimulus]]:
-        return self._lxc.word_pragmatic_meanings(stimuli, self._calculator)
+    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[bool]]:
+        return self._lxc.compute_word_pragmatic_meanings(stimuli, self._calculator)
 
     @staticmethod
     def is_monotone_new(stimuli_activations: List[bool]):
-        inflection_points = len(
-            [current for current, next_activation in zip(stimuli_activations, stimuli_activations[1:]) if
-             current != next_activation])
-        return inflection_points == 1
+        return NewAgent._compute_number_of_inflections(stimuli_activations) == 1
+    @staticmethod
+    def is_convex_new(stimuli_activations: List[bool]):
+        return NewAgent._compute_number_of_inflections(stimuli_activations) <= 2
 
-    def word_meaning(self, word: NewWord) -> float:
-        active_categories = self.get_active_categories()
-        word_index = self._lex2index[word]
-        word2categories_vector = self._lxc.get_row_vector(word_index)[:len(self._lexicon)]
-        return np.dot([c.union(self._calculator) for c in active_categories], word2categories_vector)
-        # return sum([category.union() * word2category_weight for category, word2category_weight in
-        #             zip(self._categories, self._lxc.get_row_vector(word_index))])
-
-    def semantic_meaning(self, word: NewWord, stimuli: List[Stimulus], calculator: Calculator):
-        word_index = self._lex2index[word]
-
-        activations = [
-            sum([float(c.response(s, calculator) > 0.0) * float(self._lxc(word_index, c.category_id) > 0.0)
-                 for c, active in self._categories if active]) for s in stimuli]
-
-        flat_bool_activations = list(map(lambda x: int(x > 0.0), activations))
-        mean_bool_activations = []
-        for i in range(0, len(flat_bool_activations)):
-            window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
-            mean_bool_activations.append(int(sum(window) / len(window) > 0.5))
-        return mean_bool_activations
-        # return mean_bool_activations if self.stm == 'quotient' else flat_bool_activations
-
-    def get_monotonicity(self, stimuli: List[Stimulus], calculator: Calculator):
-        active_lexicon = [w for w, active in self._lexicon if active]
-        mons = [self.is_monotone(w, stimuli, calculator) for w in active_lexicon]
-        return mons.count(True) / len(mons) if len(mons) > 0 else 0.0
-
-    def is_monotone(self, word: NewWord, stimuli, calculator: Calculator):
-        bool_activations = self.semantic_meaning(word, stimuli, calculator)
-        alt = len([a for a, aa in zip(bool_activations, bool_activations[1:]) if a != aa])
-        return alt == 1
+    @staticmethod
+    def _compute_number_of_inflections(activations: List[bool]):
+        return len([current for current, next in zip(activations, activations[1:]) if current != next])
 
     def get_discriminative_success(self):
         return self._discriminative_success_means
@@ -436,7 +425,7 @@ class LxC:
 
     def __copy__(self):
         self.remove_nonactive_categories()
-        self.remove_nonactive_words()
+        self.remove_non_responsive_words()
 
         lxc = LxC(0, 0)
         lxc._lxc = copy(self._lxc)
@@ -464,7 +453,7 @@ class LxC:
             self._words.reactivate_element_at_index(word_index)
         else:
             # add new word
-            self.remove_nonactive_words()
+            self.remove_non_responsive_words()
             self._words.add_new_element(w)
             self._lxc.add_new_row()
 
@@ -498,10 +487,10 @@ class LxC:
         else:
             return None
 
-    def get_active_categories(self) -> List[NewCategory]:
+    def get_responsive_categories(self) -> List[NewCategory]:
         return self._categories.active_elements()
 
-    def get_active_words(self) -> List[NewWord]:
+    def get_responsive_words(self) -> List[NewWord]:
         return self._words.active_elements()
 
     def forget_categories(self, category_in_use: NewCategory, alpha: float, super_alpha: float):
@@ -536,9 +525,9 @@ class LxC:
         [self._words.deactivate_element(w) for w, _ in to_forget]
 
         if self._words.sparsity_rate() > .4:
-            self.remove_nonactive_words()
+            self.remove_non_responsive_words()
 
-    def remove_nonactive_words(self):
+    def remove_non_responsive_words(self):
         to_remove = self._words.nonactive_elements()
         to_remove_indices = [self._words.get_object_index(w) for w in to_remove]
         self._lxc.remove_rows(to_remove_indices)
@@ -566,86 +555,48 @@ class LxC:
         category_index = self._categories.get_object_index(category)
         return self._lxc[word_index, category_index]
 
-    def word_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[bool]]:
+    def compute_word_meanings(self, active_words: List[NewWord], calculator: Calculator) -> Dict[NewWord, List[bool]]:
         # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}
-
-        # work on active connections only
-        self.remove_nonactive_words()
+        self.remove_non_responsive_words()
         self.remove_nonactive_categories()
 
-        self.assert_list_is_sorted(stimuli)
+        activate_words_indices = set(self._words.get_object_index(w) for w in active_words)
+        non_zero_wXc_connections = [*zip(*np.nonzero(self._lxc.reduce()))]
+        non_zero_wXc_connections = [(w_index, c_index) for w_index, c_index in non_zero_wXc_connections if
+                                    w_index in activate_words_indices]
+        non_zero_wXc_connections = [(word_index, [*v]) for word_index, v in
+                                    groupby(non_zero_wXc_connections, key=lambda wXc: wXc[0])]
 
         word2meanings = {}
-        non_zero_coordinates = [*zip(*np.nonzero(self._lxc.reduce()))]
-        for word_index, category_index in non_zero_coordinates:
+        for word_index, categories in non_zero_wXc_connections:
             word, _ = self._words.get_object_by_index(word_index)
-            if word not in word2meanings.keys():
-                word2meanings[word] = []
-            category, _ = self._categories.get_object_by_index(category_index)
-            word_meaning = word2meanings[word]
-            word_meaning.append([category.response(q, calculator) > 0 for q in stimuli])
+            categories = [self._categories.get_object_by_index(category_index) for _, category_index in categories]
+            word2meanings[word] = np.sum([category.response_all(calculator) for category, _ in categories], axis=0)
 
-        word2meanings_activations = {}
-        # for word, meaning in word2meanings.items():
-        #     distinct_and_sorted = list(set(meaning))
-        #     word2meanings_distinct_and_sorted[word] = sorted(distinct_and_sorted)
-        for word, meaning in word2meanings.items():
-            flat_bool_activations = np.sum(meaning, axis=0).astype(bool)
-            # word2meanings_activations[word] = np.sum(meaning, axis=0).astype(bool)
-            activations_masks = [flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)] for i in
-                                 range(len(flat_bool_activations))]
+        return {word: calculator.activation_from_responses(responses) for word, responses in word2meanings.items()}
 
-            activations_masks = [np.mean(x) > .5 for x in activations_masks]
-            word2meanings_activations[word] = activations_masks
-            # flat_boo
-
-            # window = flat_bool_activations[max(0, i - 5):min(len(flat_bool_activations), i + 5)]
-            # mean_bool_activations.append(int(sum(window) / len(window) > 0.5))
-
-        return word2meanings_activations
-
-    def word_pragmatic_meanings(self, stimuli: List[Stimulus], calculator) -> Dict[NewWord, List[Stimulus]]:
+    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[bool]]:
         # work on active connections only
-        self.remove_nonactive_words()
+        self.remove_non_responsive_words()
         self.remove_nonactive_categories()
 
         categories = np.array(self._categories.active_elements())
 
-        word2pragmatic_meaning = {}
+        responses = [category.response_all(calculator) for category in categories]
+        stimuli_response_maximizers = np.argmax(responses, axis=0)
 
-        for s in stimuli:
-            responses = [c.response(s, calculator) for c in categories]
-            category_stimuli_maximizer_index = np.argmax(responses)
-            category_stimuli_maximizer = categories[category_stimuli_maximizer_index]
-            if category_stimuli_maximizer.response(s, calculator) > 0:
-                word = self.get_most_connected_word(category_stimuli_maximizer)
-                if word is not None:
-                    # if self.get_connection(word, category_stimuli_maximizer) > 0:
-                    if word not in word2pragmatic_meaning.keys():
-                        word2pragmatic_meaning[word] = []
-                    word2pragmatic_meaning[word].append(s)
+        category2stimuli = [(category, stimuli) for stimuli, category in enumerate(stimuli_response_maximizers)]
 
-        return word2pragmatic_meaning
+        category2stimuli = sorted(category2stimuli, key=lambda c2s: c2s[0])
+        category2stimuli = {category: [s for c, s in v] for category, v in groupby(category2stimuli, key=lambda c2s: c2s[0])}
 
-    @staticmethod
-    def assert_list_is_sorted(items: List):
-        all_items_in_order = all(a <= b for a, b in zip(items, items[1:]))
-        assert all_items_in_order
-
-
-if __name__ == '__main__':
-    a0 = [['w0', 'w1', 'w2'], ['w0', 'w1', 'w2'], ['w0', 'w1', 'w2', 'w3']]
-    a1 = [['w1', 'w2'], ['w0', 'w1', 'w2'], ['w0', 'w1', 'w2', 'w3', 'w4']]
-    population = [a0, a1]
-
-    x = [snap for a in population for snap in a]
-    y = [set(word for s in snap for word in s) for snap in zip(*population)]
-    print(y)
-
-    active_lexicon = [set() for _ in range(len(a0))]
-    for a in population:
-        for step, snap in enumerate(a0):
-            l = active_lexicon[step]
-            active_lexicon[step] = l.union(snap)
-
-    print(active_lexicon)
+        stimuli_response_maximizers = set(stimuli_response_maximizers)
+        word2category = list(set((self.get_most_connected_word(categories[i]), i) for i in stimuli_response_maximizers))
+        word2category = [(w, category_index) for w, category_index in word2category if w is not None]
+        word2meaning = {}
+        for word, category_index in word2category:
+            active_stimuli = category2stimuli[category_index]
+            activations = np.array([False] * len(stimuli))
+            activations[active_stimuli] = True
+            word2meaning = {word: activations}
+        return word2meaning
