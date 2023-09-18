@@ -248,7 +248,7 @@ class NewAgent:
     #     active_lexicon = [w for w in active_lexicon if w is not None]
     #     return list(set(active_lexicon))
 
-    def compute_active_words0(self) -> List[NewWord]:
+    def compute_active_words(self) -> List[NewWord]:
         response_category_maximizers = self.get_most_responsive_category_over_all_stimuli()
         active_lexicon = [self.get_most_connected_word(c) for c in response_category_maximizers]
         active_lexicon = [w for w in active_lexicon if w is not None]
@@ -271,9 +271,12 @@ class NewAgent:
 
     def get_most_responsive_category_over_all_stimuli(self) -> List[NewCategory]:
         active_categories = self._lxc.get_responsive_categories()
-        responses = [c.response_all(self._calculator) for c in active_categories]
-        response_maximizers = np.argmax(responses, axis=0)
-        return list(set(active_categories[maximizer] for maximizer in response_maximizers))
+        if len(active_categories) > 0:
+            responses = [c.response_all(self._calculator) for c in active_categories]
+            response_maximizers = np.argmax(responses, axis=0)
+            return list(set(active_categories[maximizer] for maximizer in response_maximizers))
+        else:
+            return []
 
     def knows_word(self, w: NewWord):
         active_words = self._lxc.get_responsive_words()
@@ -377,7 +380,7 @@ class NewAgent:
         return sum(coverage) / sum(area)
 
     def compute_word_meanings(self) -> Dict[NewWord, List[bool]]:
-        active_words = self.compute_active_words0()
+        active_words = self.compute_active_words()
         return self._lxc.compute_word_meanings(active_words, self._calculator)
 
     def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[bool]]:
@@ -386,6 +389,7 @@ class NewAgent:
     @staticmethod
     def is_monotone_new(stimuli_activations: List[bool]):
         return NewAgent._compute_number_of_inflections(stimuli_activations) == 1
+
     @staticmethod
     def is_convex_new(stimuli_activations: List[bool]):
         return NewAgent._compute_number_of_inflections(stimuli_activations) <= 2
@@ -575,7 +579,8 @@ class LxC:
 
         return {word: calculator.activation_from_responses(responses) for word, responses in word2meanings.items()}
 
-    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[NewWord, List[bool]]:
+    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[
+        NewWord, List[bool]]:
         # work on active connections only
         self.remove_non_responsive_words()
         self.remove_nonactive_categories()
@@ -588,7 +593,8 @@ class LxC:
         category2stimuli = [(category, stimuli) for stimuli, category in enumerate(stimuli_response_maximizers)]
 
         category2stimuli = sorted(category2stimuli, key=lambda c2s: c2s[0])
-        category2stimuli = {category: [s for c, s in v] for category, v in groupby(category2stimuli, key=lambda c2s: c2s[0])}
+        category2stimuli = {category: [s for c, s in v] for category, v in
+                            groupby(category2stimuli, key=lambda c2s: c2s[0])}
 
         stimuli_response_maximizers = set(stimuli_response_maximizers)
         word2category = list(set((self.get_most_connected_word(categories[i]), i) for i in stimuli_response_maximizers))

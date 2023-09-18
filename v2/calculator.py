@@ -198,11 +198,19 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     def compute_pdf(support, stimuli_bucket, sigma_factor):
-        return [(s, norm.pdf(support, loc=s, scale=sigma_factor)) for s in stimuli_bucket]
+        def pdf(s: Stimulus):
+            pdf = norm.pdf(support, loc=s, scale=sigma_factor)
+            pdf[pdf < 1e-12] = 0
+
+        return [(s, pdf(s)) for s in stimuli_bucket]
 
     @staticmethod
-    def compute_pdf_with_ans(support, stimuli_bucket):
-        return [(s, norm.pdf(support, loc=s, scale=s * .1)) for s in stimuli_bucket]
+    def compute_pdf_with_ans(support, stimuli_bucket, sigma_scalar):
+        def pdf(s: Stimulus):
+            pdf = norm.pdf(support, loc=s, scale=s*sigma_scalar)
+            pdf[pdf < 1e-12] = 0
+
+        return [(s, norm.pdf(support, loc=s, scale=s * sigma_scalar)) for s in stimuli_bucket]
 
     @staticmethod
     def from_description_with_no_ans(sigma_factor=.003):
@@ -218,6 +226,7 @@ class QuotientCalculator(Calculator):
         with Pool(processes=processes) as pool:
             args = [(support, stimuli_bucket, sigma_factor) for stimuli_bucket in stimuli_buckets]
             pdfs = pool.starmap(QuotientCalculator.compute_pdf, args)
+
         pdf = [s2pdf for pdf in pdfs for s2pdf in pdf]
         pdf = sorted(pdf, key=lambda s2pdf: s2pdf[0])
         pdf = [pdf for _, pdf in pdf]
@@ -225,7 +234,7 @@ class QuotientCalculator(Calculator):
         return stimuli, QuotientCalculator(stimuli, support, pdf, rxr)
 
     @staticmethod
-    def from_description_with_ans():
+    def from_description_with_ans(sigma_scalar=.1):
         fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
         fractions = sorted(fractions)
         stimuli = fractions
@@ -235,7 +244,7 @@ class QuotientCalculator(Calculator):
         bucket_size = int(len(stimuli) / processes)
         stimuli_buckets = [stimuli[i:i + bucket_size] for i in range(0, len(stimuli), bucket_size)]
         with Pool(processes=processes) as pool:
-            args = [(support, stimuli_bucket) for stimuli_bucket in stimuli_buckets]
+            args = [(support, stimuli_bucket, sigma_scalar) for stimuli_bucket in stimuli_buckets]
             pdfs = pool.starmap(QuotientCalculator.compute_pdf_with_ans, args)
         pdf = [s2pdf for pdf in pdfs for s2pdf in pdf]
         pdf = sorted(pdf, key=lambda s2pdf: s2pdf[0])
@@ -292,3 +301,7 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True):
         return NumericCalculator.from_description_with_ans()
     if stimuli_type == 'numeric' and not with_ans:
         return NumericCalculator.from_description_with_no_ans()
+
+
+if __name__ == '__main__':
+    QuotientCalculator.load_from_file_with_ans()

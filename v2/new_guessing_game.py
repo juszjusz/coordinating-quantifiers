@@ -1,6 +1,7 @@
 import json
 import argparse
 import logging
+import math
 import time
 from collections import Counter
 from itertools import groupby
@@ -73,25 +74,63 @@ def avg_series(elements: List, history=50) -> List:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-def recreate_from_history(agents: List[Tuple[int, NewAgent]], calculator: Calculator, game_params: GameParams,
+def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams,
                           snapshot_rate: int):
+    def compute_monotonicity_in_snapshot(step: int, agent_snapshot: NewAgent):
+        if step > 0:
+            word2activations = agent_snapshot.compute_word_meanings()
+            monotonic_words_count = sum(
+                NewAgent.is_monotone_new(activations) for _, activations in word2activations.items())
+            return monotonic_words_count / len(word2activations)
+        else:
+            return 0
+
+    def compute_convexity_in_snapshot(step: int, agent_snapshot: NewAgent):
+        if step > 0:
+            word2activations = agent_snapshot.compute_word_pragmatic_meanings(stimuli)
+            monotonic_words_count = sum(
+                NewAgent.is_convex_new(activations) for _, activations in word2activations.items())
+            return monotonic_words_count / len(word2activations)
+        else:
+            return 0
+
+    def compute_active_lexicon_in_snapshot(step: int, agent_snapshot: NewAgent):
+        if step > 0:
+            return agent_snapshot.compute_active_words()
+        else:
+            return []
+
     snapshots = []
     for run, agent in agents:
-        recreated_agent_snapshots = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
-                                                                   game_params=game_params,
-                                                                   updates_history=agent.updates_history,
-                                                                   snapshot_rate=snapshot_rate)
-        snapshots.append((run, recreated_agent_snapshots))
+        agent_snapshots = NewAgent.recreate_from_history(agent_id=agent.agent_id, calculator=calculator,
+                                                         game_params=game_params,
+                                                         updates_history=agent.updates_history,
+                                                         snapshot_rate=snapshot_rate)
+
+        active_lexicon_in_snapshots = [compute_active_lexicon_in_snapshot(step, agent_snapshot)
+                                       for step, agent_snapshot in agent_snapshots]
+        monotonicity_in_snapshots = [compute_monotonicity_in_snapshot(step, agent_snapshot) for step, agent_snapshot in
+                                     agent_snapshots]
+        convexity_in_snapshots = [compute_convexity_in_snapshot(step, agent_snapshot) for step, agent_snapshot in
+                                  agent_snapshots]
+
+        agent_snapshots = [(step, agent_snapshot, active_lexicon_snapshot, monotonicity_snapshot, convexity_snapshot)
+                           for
+                           ((step, agent_snapshot), active_lexicon_snapshot, monotonicity_snapshot, convexity_snapshot)
+                           in zip(agent_snapshots, active_lexicon_in_snapshots, monotonicity_in_snapshots,
+                                  convexity_in_snapshots)]
+
+        snapshots.append((run, agent_snapshots))
 
     return snapshots
 
 
-def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], calculator: Calculator,
-                                          game_params: GameParams, snapshot_rate=200, processes_num=4):
+def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], stimuli: List[Stimulus], calculator: Calculator,
+                                          game_params: GameParams, snapshot_rate=200, processes_num=12):
     flatten_populations = [(run, agent) for run, population in enumerate(populations) for agent in population]
-    bucket_size = int(len(flatten_populations) / processes_num)
+    bucket_size = math.ceil(len(flatten_populations) / processes_num)
     bucketed_agents = [flatten_populations[i:i + bucket_size] for i in range(0, len(flatten_populations), bucket_size)]
-    args = [(bucket, calculator, game_params, snapshot_rate) for bucket in bucketed_agents]
+    args = [(bucket, stimuli, calculator, game_params, snapshot_rate) for bucket in bucketed_agents]
     with Pool(processes=processes_num) as pool:
         agent_snapshots = pool.starmap(recreate_from_history, args)
     agent_snapshots = [snapshots for bucket in agent_snapshots for snapshots in bucket]
@@ -212,7 +251,7 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=4)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
@@ -233,7 +272,7 @@ if __name__ == '__main__':
     #     total_cnt_in_bucket = (bucket_end - bucket_start) * 2
     #     normalized_cnts = {edge: round(cnt / total_cnt_in_bucket, 3) for edge, cnt in v.items()}
     #     states_edges_cnts_normalized.append((bucket, normalized_cnts))
-
+    populations_snapshots = recreate_agents_snapshots_in_parallel(populations=[population], stimuli=stimuli, calculator=calculator, game_params=game_params)
     # population_snapshots = [
     #     NewAgent.recreate_from_history(agent_id=a.agent_id, calculator=calculator, game_params=game_params,
     #                                    updates_history=a.updates_history) for a in population]
