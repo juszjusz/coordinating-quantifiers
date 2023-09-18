@@ -2,7 +2,6 @@ import json
 import argparse
 import logging
 import math
-import time
 from collections import Counter
 from itertools import groupby
 from multiprocessing import Pool
@@ -11,7 +10,6 @@ from typing import List, Callable, Any, Tuple
 from numpy.random import RandomState
 import numpy as np
 from tqdm import tqdm
-# from tqdm.auto import tqdm
 from calculator import Calculator, context_factory, Stimulus, load_stimuli_and_calculator
 from domain_objects import GameParams, NewAgent
 from game_graph import game_graph, GameGraph
@@ -141,10 +139,10 @@ def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], sti
     return snapshots_grouped_by_populations
 
 
-def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams):
+def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, processes_num=8):
     r = RandomState(game_params.seed)
 
-    with Pool(processes=4) as pool:
+    with Pool(processes=processes_num) as pool:
         seeds = [(run, r.randint(0, 2 ** 31)) for run in range(game_params.runs)]
         args = [(seed, stimuli, calculator, game_params, run + 1) for run, seed in seeds]
         populations = pool.starmap(run_simulation, args)
@@ -234,7 +232,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
     parser.add_argument('--population_size', '-p', help='population size', type=int, default=6)
-    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
                         type=int,

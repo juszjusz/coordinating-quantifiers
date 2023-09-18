@@ -5,7 +5,7 @@ from fractions import Fraction
 from functools import singledispatch, lru_cache
 from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Tuple, Union, Callable, Any
+from typing import List, Tuple, Union, Callable, Any, Dict
 
 import h5py
 import numpy as np
@@ -74,30 +74,28 @@ class Calculator:
     def activation_from_responses(self, response_over_stimuli: List[float]):
         pass
 
-
+@dataclasses.dataclass(frozen=True)
 class NumericCalculator(Calculator):
-
-    def __init__(self, stimuli: List[int], support, distribution, reactive_x_reactive):
-        self._numeric_to_index = {v: index for index, v in enumerate(stimuli)}
-        self._domain = support
-        self._reactive_unit_distribution = distribution
-        self._reactive_x_reactive = reactive_x_reactive
+    numeric2index: Dict[int, int]
+    support: Tuple
+    reactive_unit_distribution: np.ndarray[np.ndarray[float]]
+    reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
     def domain(self):
-        return self._domain
+        return self.support
 
     def dot_product(self, r1: int, r2: int):
-        i1 = self._numeric_to_index[r1]
-        i2 = self._numeric_to_index[r2]
-        return self._reactive_x_reactive[i1][i2]
+        i1 = self.numeric2index[r1]
+        i2 = self.numeric2index[r2]
+        return self.reactive_x_reactive[i1][i2]
 
     def dot_product_all(self, rs1: List[int]):
-        is1 = [self._numeric_to_index[r1] for r1 in rs1]
-        return self._reactive_x_reactive[:, is1]
+        is1 = [self.numeric2index[r1] for r1 in rs1]
+        return self.reactive_x_reactive[:, is1]
 
     def pdf(self, r: int):
-        i = self._numeric_to_index[r]
-        return self._reactive_unit_distribution[i]
+        i = self.numeric2index[r]
+        return self.reactive_unit_distribution[i]
 
     def activation_from_responses(self, response_over_stimuli: List[float]):
         return np.array(response_over_stimuli).astype(bool)
@@ -108,7 +106,8 @@ class NumericCalculator(Calculator):
         support = tuple(np.arange(-5.5, 105.5, .01))
         pdf = [norm.pdf(support, loc=s, scale=sigma_factor) for s in stimuli]
         rxr = np.dot(support, np.transpose(support))
-        return stimuli, NumericCalculator(stimuli, support, pdf, rxr)
+        numeric2index = {v: index for index, v in enumerate(stimuli)}
+        return stimuli, NumericCalculator(numeric2index, support, pdf, rxr)
 
     @staticmethod
     def from_description_with_ans():
@@ -116,7 +115,8 @@ class NumericCalculator(Calculator):
         support = tuple(np.arange(0, 150., .01))
         pdf = [norm.pdf(support, loc=s, scale=s / 10) for s in stimuli]
         rxr = np.dot(pdf, np.transpose(pdf))
-        return stimuli, NumericCalculator(stimuli, support, pdf, rxr)
+        numeric2index = {v: index for index, v in enumerate(stimuli)}
+        return stimuli, NumericCalculator(numeric2index, support, pdf, rxr)
 
     @staticmethod
     def load_from_file_with_ans():
@@ -141,48 +141,46 @@ class NumericCalculator(Calculator):
         domain = read_h5_data(root_path.joinpath('domain.h5'))
         if not isinstance(domain, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(domain)))
+        domain = tuple(domain)
 
-        stimuli = [*range(1, len(reactive_unit_distribution) + 1)]
+        stimuli = tuple([*range(1, len(reactive_unit_distribution) + 1)])
 
         # VALIDATE loaded data shapes:
         if not len(stimuli) == reactive_unit_distribution.shape[0] == reactive_x_reactive.shape[0] == \
                reactive_x_reactive.shape[1]:
             raise ValueError()
-        if not reactive_unit_distribution.shape[1] == domain.shape[0]:
+        if not reactive_unit_distribution.shape[1] == len(domain):
             raise ValueError()
 
-        calculator = NumericCalculator(stimuli, domain, reactive_unit_distribution, reactive_x_reactive)
+        numeric2index = {v: index for index, v in enumerate(stimuli)}
+        return stimuli, NumericCalculator(numeric2index, domain, reactive_unit_distribution, reactive_x_reactive)
 
-        return stimuli, calculator
 
-
+@dataclasses.dataclass(frozen=True)
 class QuotientCalculator(Calculator):
-
-    def __init__(self, stimuli: List[QuotientStimulus], support, distribution, reactive_x_reactive):
-        self._quotients_to_index = {QuotientCalculator._fraction_index(v): index for index, v in enumerate(stimuli)}
-        self._domain = support
-        self._reactive_unit_distribution = distribution
-        self._reactive_x_reactive = reactive_x_reactive
+    quotient2index: Dict[Tuple[int, int], int]
+    support: Tuple
+    reactive_unit_distribution: np.ndarray[np.ndarray[float]]
+    reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
     @staticmethod
-    def _fraction_index(f: QuotientStimulus) -> Tuple[int, int]:
-        return f.numerator, f.denominator
+    def compute_quotient2index(f: QuotientStimulus): return f.numerator, f.denominator
 
     def domain(self):
-        return self._domain
+        return self.support
 
     def dot_product(self, r1: QuotientStimulus, r2: QuotientStimulus):
-        i1 = self._quotients_to_index[QuotientCalculator._fraction_index(r1)]
-        i2 = self._quotients_to_index[QuotientCalculator._fraction_index(r2)]
-        return self._reactive_x_reactive[i1][i2]
+        i1 = self.quotient2index[QuotientCalculator.compute_quotient2index(r1)]
+        i2 = self.quotient2index[QuotientCalculator.compute_quotient2index(r2)]
+        return self.reactive_x_reactive[i1][i2]
 
     def dot_product_all(self, rs1: List[QuotientStimulus]):
-        is1 = [self._quotients_to_index[QuotientCalculator._fraction_index(r1)] for r1 in rs1]
-        return self._reactive_x_reactive[:, is1]
+        is1 = [self.quotient2index[QuotientCalculator.compute_quotient2index(r1)] for r1 in rs1]
+        return self.reactive_x_reactive[:, is1]
 
     def pdf(self, r: QuotientStimulus):
-        i = self._quotients_to_index[QuotientCalculator._fraction_index(r)]
-        return self._reactive_unit_distribution[i]
+        i = self.quotient2index[QuotientCalculator.compute_quotient2index(r)]
+        return self.reactive_unit_distribution[i]
 
     def activation_from_responses(self, response_over_stimuli: List[float]):
         window_size = 5
@@ -201,19 +199,21 @@ class QuotientCalculator(Calculator):
         def pdf(s: Stimulus):
             pdf = norm.pdf(support, loc=s, scale=sigma_factor)
             pdf[pdf < 1e-12] = 0
+            return pdf
 
         return [(s, pdf(s)) for s in stimuli_bucket]
 
     @staticmethod
     def compute_pdf_with_ans(support, stimuli_bucket, sigma_scalar):
         def pdf(s: Stimulus):
-            pdf = norm.pdf(support, loc=s, scale=s*sigma_scalar)
+            pdf = norm.pdf(support, loc=s, scale=s * sigma_scalar)
             pdf[pdf < 1e-12] = 0
+            return pdf
 
-        return [(s, norm.pdf(support, loc=s, scale=s * sigma_scalar)) for s in stimuli_bucket]
+        return [(s, pdf(s)) for s in stimuli_bucket]
 
     @staticmethod
-    def from_description_with_no_ans(sigma_factor=.003):
+    def from_description_with_no_ans(sigma_factor=.03):
         fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
         fractions = sorted(fractions)
         stimuli = fractions
@@ -231,7 +231,8 @@ class QuotientCalculator(Calculator):
         pdf = sorted(pdf, key=lambda s2pdf: s2pdf[0])
         pdf = [pdf for _, pdf in pdf]
         rxr = np.dot(pdf, np.transpose(pdf))
-        return stimuli, QuotientCalculator(stimuli, support, pdf, rxr)
+        quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
+        return stimuli, QuotientCalculator(quotient2index, support, pdf, rxr)
 
     @staticmethod
     def from_description_with_ans(sigma_scalar=.1):
@@ -246,11 +247,13 @@ class QuotientCalculator(Calculator):
         with Pool(processes=processes) as pool:
             args = [(support, stimuli_bucket, sigma_scalar) for stimuli_bucket in stimuli_buckets]
             pdfs = pool.starmap(QuotientCalculator.compute_pdf_with_ans, args)
+
         pdf = [s2pdf for pdf in pdfs for s2pdf in pdf]
         pdf = sorted(pdf, key=lambda s2pdf: s2pdf[0])
         pdf = [pdf for _, pdf in pdf]
         rxr = np.dot(pdf, np.transpose(pdf))
-        return stimuli, QuotientCalculator(stimuli, support, pdf, rxr)
+        quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
+        return stimuli, QuotientCalculator(quotient2index, support, pdf, rxr)
 
     @staticmethod
     def load_from_file_with_ans():
@@ -261,7 +264,7 @@ class QuotientCalculator(Calculator):
         return QuotientCalculator.load_from_file('../inmemory_calculus_no_ans/quotient')
 
     @staticmethod
-    def load_from_file(path='../inmemory_calculus/quotient') -> Tuple[List[QuotientStimulus], Calculator]:
+    def load_from_file(path='../inmemory_calculus/quotient') -> Tuple[Tuple, Calculator]:
         root_path = Path(os.path.abspath(path))
 
         reactive_unit_distribution = read_h5_data(data_path=root_path.joinpath('R.h5'))
@@ -275,33 +278,31 @@ class QuotientCalculator(Calculator):
         domain = read_h5_data(root_path.joinpath('domain.h5'))
         if not isinstance(domain, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(domain)))
+        domain = tuple(domain)
 
         # reduced fractions n/k where n < k and k <= 100; reduced def: n, k are relatively prime integers
         stimuli = read_h5_data(root_path.joinpath('nklist.h5'))
         # invoke int(.) for serialization reasons (int64 is not json serializable)
-        stimuli = [Fraction(int(nom), int(denom)) for nom, denom in stimuli]
+        stimuli = tuple(Fraction(int(nom), int(denom)) for nom, denom in stimuli)
 
         # VALIDATE loaded data shapes:
         if not len(stimuli) == reactive_unit_distribution.shape[0] == reactive_x_reactive.shape[0] == \
                reactive_x_reactive.shape[1]:
             raise ValueError()
-        if not reactive_unit_distribution.shape[1] == domain.shape[0]:
+        if not reactive_unit_distribution.shape[1] == len(domain):
             raise ValueError()
 
-        return stimuli, QuotientCalculator(stimuli, domain, reactive_unit_distribution, reactive_x_reactive)
+        quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
+        return stimuli, QuotientCalculator(quotient2index, domain, reactive_unit_distribution, reactive_x_reactive)
 
 
 def load_stimuli_and_calculator(stimuli_type, with_ans=True):
     assert stimuli_type in {'quotient', 'numeric'}
     if stimuli_type == 'quotient' and with_ans:
-        return QuotientCalculator.load_from_file_with_ans()
+        return QuotientCalculator.from_description_with_ans()
     if stimuli_type == 'quotient' and not with_ans:
-        return QuotientCalculator.load_from_file_with_no_ans()
+        return QuotientCalculator.from_description_with_no_ans()
     if stimuli_type == 'numeric' and with_ans:
         return NumericCalculator.from_description_with_ans()
     if stimuli_type == 'numeric' and not with_ans:
         return NumericCalculator.from_description_with_no_ans()
-
-
-if __name__ == '__main__':
-    QuotientCalculator.load_from_file_with_ans()
