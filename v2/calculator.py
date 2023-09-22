@@ -1,6 +1,5 @@
 import dataclasses
 import os
-import time
 from fractions import Fraction
 from functools import singledispatch, lru_cache
 from multiprocessing import Pool
@@ -73,6 +72,7 @@ class Calculator:
 
     def activation_from_responses(self, response_over_stimuli: List[float]):
         pass
+
 
 @dataclasses.dataclass(frozen=True)
 class NumericCalculator(Calculator):
@@ -164,7 +164,8 @@ class QuotientCalculator(Calculator):
     reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
     @staticmethod
-    def compute_quotient2index(f: QuotientStimulus): return f.numerator, f.denominator
+    def compute_quotient2index(f: QuotientStimulus):
+        return f.numerator, f.denominator
 
     def domain(self):
         return self.support
@@ -195,19 +196,34 @@ class QuotientCalculator(Calculator):
         return activations > .5
 
     @staticmethod
-    def compute_pdf(support, stimuli_bucket, sigma_factor):
+    def compute_pdf(support_lower_bound, support_discretization_factor, support, stimuli_bucket, sigma_factor):
         def pdf(s: Stimulus):
+            sigma = sigma_factor
+            lower_negligible = s - 7 * sigma
+            upper_negligible = s + 7 * sigma
+            negligible_to = int(abs(support_lower_bound - lower_negligible) / support_discretization_factor)
+            negligible_from = int(abs(support_lower_bound - upper_negligible) / support_discretization_factor)
+
             pdf = norm.pdf(support, loc=s, scale=sigma_factor)
-            pdf[pdf < 1e-12] = 0
+            pdf[:negligible_to] = 0
+            pdf[negligible_from:] = 0
             return pdf
 
         return [(s, pdf(s)) for s in stimuli_bucket]
 
     @staticmethod
-    def compute_pdf_with_ans(support, stimuli_bucket, sigma_scalar):
+    def compute_pdf_with_ans(support_lower_bound, support_discretization_factor, support,
+                             stimuli_bucket, sigma_scalar):
         def pdf(s: Stimulus):
-            pdf = norm.pdf(support, loc=s, scale=s * sigma_scalar)
-            pdf[pdf < 1e-12] = 0
+            sigma = s * sigma_scalar
+            lower_negligible = s - 7 * sigma
+            upper_negligible = s + 7 * sigma
+            negligible_to = int(abs(support_lower_bound - lower_negligible) / support_discretization_factor)
+            negligible_from = int(abs(support_lower_bound - upper_negligible) / support_discretization_factor)
+
+            pdf = norm.pdf(support, loc=s, scale=sigma)
+            pdf[:negligible_to] = 0
+            pdf[negligible_from:] = 0
             return pdf
 
         return [(s, pdf(s)) for s in stimuli_bucket]
@@ -236,16 +252,20 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     def from_description_with_ans(sigma_scalar=.1):
+        support_lower_bound = 0
+        support_upper_bound = 2.3
+        support_discretization_factor = .001
+
         fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
         fractions = sorted(fractions)
         stimuli = fractions
-        support = tuple(np.arange(0., 2.3, .001))
+        support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
         processes = 12
         bucket_size = int(len(stimuli) / processes)
         stimuli_buckets = [stimuli[i:i + bucket_size] for i in range(0, len(stimuli), bucket_size)]
         with Pool(processes=processes) as pool:
-            args = [(support, stimuli_bucket, sigma_scalar) for stimuli_bucket in stimuli_buckets]
+            args = [(support_lower_bound, support_discretization_factor, support, stimuli_bucket, sigma_scalar) for stimuli_bucket in stimuli_buckets]
             pdfs = pool.starmap(QuotientCalculator.compute_pdf_with_ans, args)
 
         pdf = [s2pdf for pdf in pdfs for s2pdf in pdf]
