@@ -50,7 +50,7 @@ def pick_element_random_function(seed: int) -> Callable[[List], Any]:
 
 
 def random_functions(seed: int):
-    """ Generate 3 functions with responsible for randomization in simulation. """
+    """ Generate 3 functions responsible for randomization in simulation. """
     r = np.random.RandomState(seed=seed)
     while True:
         seed0, seed1, seed2 = r.randint(2 ** 31, size=3)

@@ -1,5 +1,6 @@
 import dataclasses
 import os
+import time
 from fractions import Fraction
 from functools import singledispatch, lru_cache
 from multiprocessing import Pool
@@ -35,6 +36,25 @@ def _(i, j):
 def _(f1, f2):
     ds = 0.3 * f1
     return abs(f1 - f2) > ds
+
+
+def calculate_normal_pdfs(support: List[float], means: List[Tuple], sigmas: List[float]):
+    assert len(means) == len(sigmas), 'expects means & sigmas to be of equal sizes'
+    support_size = len(support)
+    size = len(means)
+    total_size = support_size * size
+
+    supports = np.tile(support, size).reshape((total_size,)).astype(np.float32)
+    repeated_means = np.repeat(means, support_size).reshape((total_size,)).astype(np.float32)
+    repeated_sigmas = np.repeat(sigmas, support_size).reshape((total_size,)).astype(np.float32)
+
+    normalization_constant = np.sqrt(2 * np.pi)
+    normalization_constants = np.repeat(1 / (normalization_constant * np.array(sigmas)), support_size).reshape(
+        (total_size,))
+
+    ys = (supports - repeated_means) / repeated_sigmas
+
+    return (normalization_constants * np.exp(-(ys ** 2) / 2)).reshape((size, support_size))
 
 
 def context_factory(stimuli: List[Stimulus], pick_element: Callable[[List[Any]], Any]):
@@ -101,22 +121,43 @@ class NumericCalculator(Calculator):
         return np.array(response_over_stimuli).astype(bool)
 
     @staticmethod
-    def from_description_with_no_ans(sigma_factor=.3):
-        stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
+    def from_description_with_no_ans(sigma=.3):
         support = tuple(np.arange(-5.5, 105.5, .01))
-        pdf = [norm.pdf(support, loc=s, scale=sigma_factor) for s in stimuli]
-        rxr = np.dot(support, np.transpose(support))
+
+        stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
+        # pdf = [norm.pdf(support, loc=s, scale=sigma_factor) for s in stimuli]
+        pdfs = calculate_normal_pdfs(support, stimuli, np.repeat(sigma, len(stimuli)))
+
+        rxr = np.dot(pdfs, np.transpose(pdfs))
+
         numeric2index = {v: index for index, v in enumerate(stimuli)}
-        return stimuli, NumericCalculator(numeric2index, support, pdf, rxr)
+
+        return stimuli, NumericCalculator(numeric2index, support, pdfs, rxr)
 
     @staticmethod
     def from_description_with_ans():
-        stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
+        # def compute_pdf(support_lower_bound, support_discretization_factor, support, mean, sigma):
+        #     lower_negligible = mean - 3 * sigma
+        #     upper_negligible = mean + 3 * sigma
+        #     negligible_to = int(abs(support_lower_bound - lower_negligible) / support_discretization_factor)
+        #     negligible_from = int(abs(support_lower_bound - upper_negligible) / support_discretization_factor)
+        #
+        #     pdf = norm.pdf(support, loc=mean, scale=sigma)
+        #     pdf[:negligible_to] = 0
+        #     pdf[negligible_from:] = 0
+        #
+        #     return pdf
         support = tuple(np.arange(0, 150., .01))
-        pdf = [norm.pdf(support, loc=s, scale=s / 10) for s in stimuli]
-        rxr = np.dot(pdf, np.transpose(pdf))
+
+        stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
+
+        pdfs = calculate_normal_pdfs(support, stimuli, np.array(stimuli) * .1)
+
+        rxr = np.dot(pdfs, np.transpose(pdfs))
+
         numeric2index = {v: index for index, v in enumerate(stimuli)}
-        return stimuli, NumericCalculator(numeric2index, support, pdf, rxr)
+
+        return stimuli, NumericCalculator(numeric2index, support, pdfs, rxr)
 
     @staticmethod
     def load_from_file_with_ans():
@@ -229,51 +270,40 @@ class QuotientCalculator(Calculator):
         return [(s, pdf(s)) for s in stimuli_bucket]
 
     @staticmethod
-    def from_description_with_no_ans(sigma_factor=.03):
+    def from_description_with_no_ans(sigma=.03):
         fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
-        fractions = sorted(fractions)
-        stimuli = fractions
+        fractions = tuple(sorted(fractions))
         support = tuple(np.arange(0., 2., .001))
-        # pdf = [norm.pdf(support, loc=s, scale=sigma_factor) for s in stimuli]
 
-        processes = 12
-        bucket_size = int(len(stimuli) / processes)
-        stimuli_buckets = [stimuli[i:i + bucket_size] for i in range(0, len(stimuli), bucket_size)]
-        with Pool(processes=processes) as pool:
-            args = [(support, stimuli_bucket, sigma_factor) for stimuli_bucket in stimuli_buckets]
-            pdfs = pool.starmap(QuotientCalculator.compute_pdf, args)
+        stimuli = fractions
+        stimuli_floats = np.array(fractions).astype(float)
 
-        pdf = [s2pdf for pdf in pdfs for s2pdf in pdf]
-        pdf = sorted(pdf, key=lambda s2pdf: s2pdf[0])
-        pdf = [pdf for _, pdf in pdf]
-        rxr = np.dot(pdf, np.transpose(pdf))
+        pdfs = calculate_normal_pdfs(support, stimuli_floats, np.repeat(sigma, len(stimuli_floats)))
+
+        rxr = np.dot(pdfs, np.transpose(pdfs))
         quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
-        return stimuli, QuotientCalculator(quotient2index, support, pdf, rxr)
+
+        return stimuli, QuotientCalculator(quotient2index, support, pdfs, rxr)
 
     @staticmethod
-    def from_description_with_ans(sigma_scalar=.1):
+    @lru_cache
+    def from_description_with_ans(sigma_scalar=.15):
         support_lower_bound = 0
         support_upper_bound = 2.3
         support_discretization_factor = .001
-
-        fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
-        fractions = sorted(fractions)
-        stimuli = fractions
         support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
-        processes = 12
-        bucket_size = int(len(stimuli) / processes)
-        stimuli_buckets = [stimuli[i:i + bucket_size] for i in range(0, len(stimuli), bucket_size)]
-        with Pool(processes=processes) as pool:
-            args = [(support_lower_bound, support_discretization_factor, support, stimuli_bucket, sigma_scalar) for stimuli_bucket in stimuli_buckets]
-            pdfs = pool.starmap(QuotientCalculator.compute_pdf_with_ans, args)
+        fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
+        fractions = tuple(sorted(fractions))
 
-        pdf = [s2pdf for pdf in pdfs for s2pdf in pdf]
-        pdf = sorted(pdf, key=lambda s2pdf: s2pdf[0])
-        pdf = [pdf for _, pdf in pdf]
-        rxr = np.dot(pdf, np.transpose(pdf))
+        stimuli = fractions
+        stimuli_floats = np.array(fractions).astype(float)
+        pdfs = calculate_normal_pdfs(support, stimuli_floats, np.array(stimuli_floats) * sigma_scalar)
+
+        rxr = np.dot(pdfs, np.transpose(pdfs))
         quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
-        return stimuli, QuotientCalculator(quotient2index, support, pdf, rxr)
+
+        return stimuli, QuotientCalculator(quotient2index, support, pdfs, rxr)
 
     @staticmethod
     def load_from_file_with_ans():
@@ -326,3 +356,11 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True):
         return NumericCalculator.from_description_with_ans()
     if stimuli_type == 'numeric' and not with_ans:
         return NumericCalculator.from_description_with_no_ans()
+
+if __name__ == '__main__':
+    s = time.time()
+    a = QuotientCalculator.from_description_with_ans()
+    print(time.time()-s)
+    s = time.time()
+    a = QuotientCalculator.from_description_with_ans()
+    print(time.time()-s)
