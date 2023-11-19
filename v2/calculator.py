@@ -1,15 +1,12 @@
 import dataclasses
 import os
-import time
 from fractions import Fraction
-from functools import singledispatch, lru_cache
-from multiprocessing import Pool
+from functools import singledispatch
 from pathlib import Path
 from typing import List, Tuple, Union, Callable, Any, Dict
 
 import h5py
 import numpy as np
-from scipy.stats import norm
 
 NumericStimulus = int
 QuotientStimulus = Fraction
@@ -55,6 +52,21 @@ def calculate_normal_pdfs(support: List[float], means: List[Tuple], sigmas: List
     ys = (supports - repeated_means) / repeated_sigmas
 
     return (normalization_constants * np.exp(-(ys ** 2) / 2)).reshape((size, support_size))
+
+
+def filter_distant_values_in_distribution(pdfs, sigmas, means, support_discretization_factor, lower_bound,
+                                          upper_bound, negligible_distance=5):
+    lower_negligible = means - (negligible_distance * sigmas)
+    upper_negligible = means + (negligible_distance * sigmas)
+    negligible_to = ((np.maximum(np.repeat(lower_bound, len(means)),
+                                 lower_negligible)) / support_discretization_factor).astype(int)
+    negligible_from = ((np.minimum(np.repeat(upper_bound, len(means)),
+                                   upper_negligible)) / support_discretization_factor).astype(int)
+
+    for i, n in enumerate(negligible_to):
+        pdfs[i, :n] = 0
+    for i, n in enumerate(negligible_from):
+        pdfs[i, n:] = 0
 
 
 def context_factory(stimuli: List[Stimulus], pick_element: Callable[[List[Any]], Any]):
@@ -121,11 +133,11 @@ class NumericCalculator(Calculator):
         return np.array(response_over_stimuli).astype(bool)
 
     @staticmethod
-    def from_description_with_no_ans(sigma=.3):
+    def from_description_with_no_ans(sigma=.03):
         support = tuple(np.arange(-5.5, 105.5, .01))
 
         stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
-        # pdf = [norm.pdf(support, loc=s, scale=sigma_factor) for s in stimuli]
+
         pdfs = calculate_normal_pdfs(support, stimuli, np.repeat(sigma, len(stimuli)))
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
@@ -136,17 +148,6 @@ class NumericCalculator(Calculator):
 
     @staticmethod
     def from_description_with_ans():
-        # def compute_pdf(support_lower_bound, support_discretization_factor, support, mean, sigma):
-        #     lower_negligible = mean - 3 * sigma
-        #     upper_negligible = mean + 3 * sigma
-        #     negligible_to = int(abs(support_lower_bound - lower_negligible) / support_discretization_factor)
-        #     negligible_from = int(abs(support_lower_bound - upper_negligible) / support_discretization_factor)
-        #
-        #     pdf = norm.pdf(support, loc=mean, scale=sigma)
-        #     pdf[:negligible_to] = 0
-        #     pdf[negligible_from:] = 0
-        #
-        #     return pdf
         support = tuple(np.arange(0, 150., .01))
 
         stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
@@ -168,7 +169,7 @@ class NumericCalculator(Calculator):
         return NumericCalculator.load_from_file('../inmemory_calculus_no_ans/numeric')
 
     @staticmethod
-    def load_from_file(path='../inmemory_calculus/numeric'):
+    def load_from_file(path='../inmemory_calculus/franek/numeric'):
         root_path = Path(os.path.abspath(path))
 
         reactive_unit_distribution = read_h5_data(data_path=root_path.joinpath('R.h5'))
@@ -237,48 +238,23 @@ class QuotientCalculator(Calculator):
         return activations > .5
 
     @staticmethod
-    def compute_pdf(support_lower_bound, support_discretization_factor, support, stimuli_bucket, sigma_factor):
-        def pdf(s: Stimulus):
-            sigma = sigma_factor
-            lower_negligible = s - 7 * sigma
-            upper_negligible = s + 7 * sigma
-            negligible_to = int(abs(support_lower_bound - lower_negligible) / support_discretization_factor)
-            negligible_from = int(abs(support_lower_bound - upper_negligible) / support_discretization_factor)
-
-            pdf = norm.pdf(support, loc=s, scale=sigma_factor)
-            pdf[:negligible_to] = 0
-            pdf[negligible_from:] = 0
-            return pdf
-
-        return [(s, pdf(s)) for s in stimuli_bucket]
-
-    @staticmethod
-    def compute_pdf_with_ans(support_lower_bound, support_discretization_factor, support,
-                             stimuli_bucket, sigma_scalar):
-        def pdf(s: Stimulus):
-            sigma = s * sigma_scalar
-            lower_negligible = s - 7 * sigma
-            upper_negligible = s + 7 * sigma
-            negligible_to = int(abs(support_lower_bound - lower_negligible) / support_discretization_factor)
-            negligible_from = int(abs(support_lower_bound - upper_negligible) / support_discretization_factor)
-
-            pdf = norm.pdf(support, loc=s, scale=sigma)
-            pdf[:negligible_to] = 0
-            pdf[negligible_from:] = 0
-            return pdf
-
-        return [(s, pdf(s)) for s in stimuli_bucket]
-
-    @staticmethod
-    def from_description_with_no_ans(sigma=.03):
+    def from_description_with_no_ans(sigma=.006):
         fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
         fractions = tuple(sorted(fractions))
-        support = tuple(np.arange(0., 2., .001))
+        support_lower_bound = 0.
+        support_upper_bound = 2.
+        support_discretization_factor = .001
+
+        support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
         stimuli = fractions
-        stimuli_floats = np.array(fractions).astype(float)
+        stimuli_floats = np.array(fractions).astype(float)  # means
+        sigmas = np.repeat(sigma, len(stimuli_floats))
 
-        pdfs = calculate_normal_pdfs(support, stimuli_floats, np.repeat(sigma, len(stimuli_floats)))
+        pdfs = calculate_normal_pdfs(support, stimuli_floats, sigmas)
+
+        filter_distant_values_in_distribution(pdfs, sigmas, stimuli_floats, support_discretization_factor,
+                                              support_lower_bound, support_upper_bound)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
         quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
@@ -286,8 +262,7 @@ class QuotientCalculator(Calculator):
         return stimuli, QuotientCalculator(quotient2index, support, pdfs, rxr)
 
     @staticmethod
-    @lru_cache
-    def from_description_with_ans(sigma_scalar=.15):
+    def from_description_with_ans(sigma_scalar=.1):
         support_lower_bound = 0
         support_upper_bound = 2.3
         support_discretization_factor = .001
@@ -298,7 +273,11 @@ class QuotientCalculator(Calculator):
 
         stimuli = fractions
         stimuli_floats = np.array(fractions).astype(float)
-        pdfs = calculate_normal_pdfs(support, stimuli_floats, np.array(stimuli_floats) * sigma_scalar)
+        sigmas = np.array(stimuli_floats) * sigma_scalar
+        pdfs = calculate_normal_pdfs(support, stimuli_floats, sigmas)
+
+        filter_distant_values_in_distribution(pdfs, sigmas, stimuli_floats, support_discretization_factor,
+                                              support_lower_bound, support_upper_bound)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
         quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
@@ -307,31 +286,40 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     def load_from_file_with_ans():
-        return QuotientCalculator.load_from_file('../inmemory_calculus_ans/quotient')
+        return QuotientCalculator.load_from_file(root_path='../inmemory_calculus/franek',
+                                                 pdfs_file_name='quotient_discrete_Ri_sigma_5.h5',
+                                                 rxr_file_name='quotient_elements.h5',
+                                                 support_file_name='x.h5',
+                                                 stimuli_file_name='nklist.h5')
 
     @staticmethod
     def load_from_file_with_no_ans():
-        return QuotientCalculator.load_from_file('../inmemory_calculus_no_ans/quotient')
+        return QuotientCalculator.load_from_file(root_path='../inmemory_calculus_no_ans/quotient',
+                                                 pdfs_file_name='R.h5',
+                                                 rxr_file_name='RxR.h5',
+                                                 support_file_name='domain.h5',
+                                                 stimuli_file_name='nklist.h5')
 
     @staticmethod
-    def load_from_file(path='../inmemory_calculus/quotient') -> Tuple[Tuple, Calculator]:
-        root_path = Path(os.path.abspath(path))
+    def load_from_file(root_path, pdfs_file_name, rxr_file_name, support_file_name, stimuli_file_name) -> Tuple[
+        Tuple, Calculator]:
+        root_path = Path(os.path.abspath(root_path))
 
-        reactive_unit_distribution = read_h5_data(data_path=root_path.joinpath('R.h5'))
+        reactive_unit_distribution = read_h5_data(data_path=root_path.joinpath(pdfs_file_name))
         if not isinstance(reactive_unit_distribution, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(reactive_unit_distribution)))
 
-        reactive_x_reactive = read_h5_data(root_path.joinpath('RxR.h5'))
+        reactive_x_reactive = read_h5_data(root_path.joinpath(rxr_file_name))
         if not isinstance(reactive_x_reactive, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(reactive_x_reactive)))
 
-        domain = read_h5_data(root_path.joinpath('domain.h5'))
+        domain = read_h5_data(root_path.joinpath(support_file_name))
         if not isinstance(domain, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(domain)))
         domain = tuple(domain)
 
         # reduced fractions n/k where n < k and k <= 100; reduced def: n, k are relatively prime integers
-        stimuli = read_h5_data(root_path.joinpath('nklist.h5'))
+        stimuli = read_h5_data(root_path.joinpath(stimuli_file_name))
         # invoke int(.) for serialization reasons (int64 is not json serializable)
         stimuli = tuple(Fraction(int(nom), int(denom)) for nom, denom in stimuli)
 
@@ -357,10 +345,16 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True):
     if stimuli_type == 'numeric' and not with_ans:
         return NumericCalculator.from_description_with_no_ans()
 
+
 if __name__ == '__main__':
-    s = time.time()
-    a = QuotientCalculator.from_description_with_ans()
-    print(time.time()-s)
-    s = time.time()
-    a = QuotientCalculator.from_description_with_ans()
-    print(time.time()-s)
+    # s = time.time()
+    # a = QuotientCalculator.from_description_with_ans()
+    # print(time.time()-s)
+    # s = time.time()
+    # a = QuotientCalculator.from_description_with_ans()
+    # print(time.time()-s)
+    # root_path = Path(os.path.abspath('../inmemory_calculus/franek'))
+    # elements = read_h5_data(data_path=root_path.joinpath('elements.h5'))
+    # numeric_elements = read_h5_data(data_path=root_path.joinpath('numeric_elements.h5'))
+    # print(numeric_elements)
+    QuotientCalculator.from_description_with_ans()

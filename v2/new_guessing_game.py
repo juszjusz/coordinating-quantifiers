@@ -231,8 +231,8 @@ def run_dummy_simulation(stimulus):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(prog='quantifiers simulation')
     # parser.add_argument('--simulation_name', '-sn', help='simulation name', type=str, default='test')
-    parser.add_argument('--population_size', '-p', help='population size', type=int, default=6)
-    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='numeric',
+    parser.add_argument('--population_size', '-p', help='population size', type=int, default=10)
+    parser.add_argument('--stimulus', '-stm', help='quotient or numeric', type=str, default='quotient',
                         choices=['quotient', 'numeric'])
     parser.add_argument('--max_num', '-mn', help='max number for numerics or max denominator for quotients',
                         type=int,
@@ -249,36 +249,47 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1000)
-    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=4)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
+    parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
-    parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=1)
+    parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=100)
+    parser.add_argument('--with_ans', help='set seed value to replicate a random values', type=bool, default=False)
 
     parsed_params = vars(parser.parse_args())
 
     game_params = GameParams(**parsed_params)
 
-    shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=0))
+    shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
 
-    stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
+    stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus, with_ans=game_params.with_ans)
 
-    population = run_simulation(0, stimuli, calculator, game_params)
+    # population = run_simulation(0, stimuli, calculator, game_params)
+    populations = run_simulations_in_parallel(stimuli, calculator, game_params)
     # states_edges_cnts_normalized = []
     # for bucket, v in states_edges_cnts.items():
     #     bucket_start, bucket_end = bucket
     #     total_cnt_in_bucket = (bucket_end - bucket_start) * 2
     #     normalized_cnts = {edge: round(cnt / total_cnt_in_bucket, 3) for edge, cnt in v.items()}
     #     states_edges_cnts_normalized.append((bucket, normalized_cnts))
-    populations_snapshots = recreate_agents_snapshots_in_parallel(populations=[population], stimuli=stimuli, calculator=calculator, game_params=game_params)
+    populations_snapshots = recreate_agents_snapshots_in_parallel(populations=populations, stimuli=stimuli, calculator=calculator, game_params=game_params)
     # population_snapshots = [
     #     NewAgent.recreate_from_history(agent_id=a.agent_id, calculator=calculator, game_params=game_params,
     #                                    updates_history=a.updates_history) for a in population]
+    population = populations[0]
     agent = population[0]
     agent_active_words = agent.compute_word_meanings()
+    s = populations_snapshots[0]
     # w2meanings = agent.compute_word_pragmatic_meanings(stimuli)
+
     for word, activations in agent_active_words.items():
         print(NewAgent.is_monotone_new(activations))
+        print(NewAgent.is_convex_new(activations))
+
+    monotonicity_snapshots = [[[monotonicity for _, _, _, monotonicity, _ in agent_snapshots] for agent_snapshots in population_snapshots]
+        for population_snapshots in populations_snapshots]
+
+    print()
     # is_word_monotone = {}
     # for w, meaning in w2meanings.items():
     #     is_word_monotone[w] = NewAgent.is_monotone_new(meaning)

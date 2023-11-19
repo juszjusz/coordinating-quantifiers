@@ -148,6 +148,7 @@ class GameParams:
     alpha: float
     beta: float
     super_alpha: float
+    with_ans: bool
 
 
 def register_agent_update_operation(update):
