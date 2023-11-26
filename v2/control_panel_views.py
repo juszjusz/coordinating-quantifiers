@@ -100,7 +100,7 @@ def render_control_panel(simulation_result: Dict):
                             stimulus=stimulus,
                             max_num=max_num,
                             discriminative_threshold=discriminative_threshold,
-                            discriminative_history_length=discriminative_threshold,
+                            discriminative_history_length=discriminative_history_length,
                             delta_inc=delta_inc,
                             delta_dec=delta_dec,
                             delta_inh=delta_inh,
@@ -115,7 +115,8 @@ def render_control_panel(simulation_result: Dict):
 
         with output:
             clear_output()
-            print('Running simulation with params:', vars(params))
+            print('Running simulation with params:')
+            print(vars(params))
 
             stimuli, calculator = load_stimuli_and_calculator(params.stimulus, params.with_ans)
 
