@@ -1,5 +1,6 @@
 from typing import Dict
 
+import pprint
 from new_guessing_game import run_simulations_in_parallel
 from calculator import load_stimuli_and_calculator
 from ipywidgets import widgets, HBox, VBox
@@ -116,7 +117,8 @@ def render_control_panel(simulation_result: Dict):
         with output:
             clear_output()
             print('Running simulation with params:')
-            print(vars(params))
+            printer = pprint.PrettyPrinter()
+            printer.pprint(vars(params))
 
             stimuli, calculator = load_stimuli_and_calculator(params.stimulus, params.with_ans)
 

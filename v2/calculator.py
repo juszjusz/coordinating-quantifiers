@@ -55,9 +55,10 @@ def calculate_normal_pdfs(support: List[float], means: List[Tuple], sigmas: List
 
 
 def filter_distant_values_in_distribution(pdfs, sigmas, means, support_discretization_factor, lower_bound,
-                                          upper_bound, negligible_distance=5):
-    lower_negligible = means - (negligible_distance * sigmas)
-    upper_negligible = means + (negligible_distance * sigmas)
+                                          upper_bound, negligible_distance_in_sigma=5):
+    lower_negligible = means - (negligible_distance_in_sigma * sigmas) - lower_bound
+    upper_negligible = means + (negligible_distance_in_sigma * sigmas) - lower_bound
+
     negligible_to = ((np.maximum(np.repeat(lower_bound, len(means)),
                                  lower_negligible)) / support_discretization_factor).astype(int)
     negligible_from = ((np.minimum(np.repeat(upper_bound, len(means)),
@@ -133,12 +134,22 @@ class NumericCalculator(Calculator):
         return np.array(response_over_stimuli).astype(bool)
 
     @staticmethod
-    def from_description_with_no_ans(sigma=.03):
-        support = tuple(np.arange(-5.5, 105.5, .01))
+    # def from_description_with_no_ans(sigma=1/3, negligible_distance_in_sigma=5):
+    def from_description_with_no_ans(sigma=1/3, negligible_distance_in_sigma=5):
+        support_lower_bound = -5
+        support_upper_bound = 105
+        support_discretization_factor = .01
 
-        stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
+        support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
-        pdfs = calculate_normal_pdfs(support, stimuli, np.repeat(sigma, len(stimuli)))
+        stimuli = tuple([int(x) for x in np.arange(1, 21).astype(int)])
+
+        sigmas = np.repeat(sigma, len(stimuli))
+
+        pdfs = calculate_normal_pdfs(support, stimuli, sigmas)
+
+        filter_distant_values_in_distribution(pdfs, sigmas, stimuli, support_discretization_factor,
+                                              support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
 
@@ -147,12 +158,19 @@ class NumericCalculator(Calculator):
         return stimuli, NumericCalculator(numeric2index, support, pdfs, rxr)
 
     @staticmethod
-    def from_description_with_ans():
-        support = tuple(np.arange(0, 150., .01))
+    def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=5):
+        support_lower_bound = 0
+        support_upper_bound = 150
+        support_discretization_factor = .01
+        support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
         stimuli = tuple([int(x) for x in np.arange(1, 101).astype(int)])
 
-        pdfs = calculate_normal_pdfs(support, stimuli, np.array(stimuli) * .1)
+        sigmas = np.array(stimuli) * sigma_scalar
+        pdfs = calculate_normal_pdfs(support, stimuli, sigmas)
+
+        filter_distant_values_in_distribution(pdfs, sigmas, stimuli, support_discretization_factor,
+                                              support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
 
@@ -238,7 +256,7 @@ class QuotientCalculator(Calculator):
         return activations > .5
 
     @staticmethod
-    def from_description_with_no_ans(sigma=.006):
+    def from_description_with_no_ans(sigma=.025, negligible_distance_in_sigma=5):
         fractions = list(set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)]))
         fractions = tuple(sorted(fractions))
         support_lower_bound = 0.
@@ -254,7 +272,7 @@ class QuotientCalculator(Calculator):
         pdfs = calculate_normal_pdfs(support, stimuli_floats, sigmas)
 
         filter_distant_values_in_distribution(pdfs, sigmas, stimuli_floats, support_discretization_factor,
-                                              support_lower_bound, support_upper_bound)
+                                              support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
         quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
@@ -262,7 +280,7 @@ class QuotientCalculator(Calculator):
         return stimuli, QuotientCalculator(quotient2index, support, pdfs, rxr)
 
     @staticmethod
-    def from_description_with_ans(sigma_scalar=.1):
+    def from_description_with_ans(sigma_scalar=.15, negligible_distance_in_sigma=5):
         support_lower_bound = 0
         support_upper_bound = 2.3
         support_discretization_factor = .001
@@ -277,7 +295,7 @@ class QuotientCalculator(Calculator):
         pdfs = calculate_normal_pdfs(support, stimuli_floats, sigmas)
 
         filter_distant_values_in_distribution(pdfs, sigmas, stimuli_floats, support_discretization_factor,
-                                              support_lower_bound, support_upper_bound)
+                                              support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
         quotient2index = {QuotientCalculator.compute_quotient2index(v): index for index, v in enumerate(stimuli)}
@@ -286,10 +304,11 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     def load_from_file_with_ans():
-        return QuotientCalculator.load_from_file(root_path='../inmemory_calculus/franek',
-                                                 pdfs_file_name='quotient_discrete_Ri_sigma_5.h5',
-                                                 rxr_file_name='quotient_elements.h5',
-                                                 support_file_name='x.h5',
+        return QuotientCalculator.load_from_file(root_path='../inmemory_calculus/quotient',
+                                                 # pdfs_file_name='quotient_discrete_Ri_sigma_5.h5',
+                                                 pdfs_file_name='R.h5',
+                                                 rxr_file_name='RxR.h5',
+                                                 support_file_name='domain.h5',
                                                  stimuli_file_name='nklist.h5')
 
     @staticmethod
@@ -357,4 +376,5 @@ if __name__ == '__main__':
     # elements = read_h5_data(data_path=root_path.joinpath('elements.h5'))
     # numeric_elements = read_h5_data(data_path=root_path.joinpath('numeric_elements.h5'))
     # print(numeric_elements)
-    QuotientCalculator.from_description_with_ans()
+    # QuotientCalculator.from_description_with_ans()
+    NumericCalculator.from_description_with_no_ans(sigma=.3, negligible_distance_in_sigma=3)
