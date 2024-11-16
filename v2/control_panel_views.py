@@ -120,7 +120,7 @@ def render_control_panel(simulation_result: Dict):
             printer = pprint.PrettyPrinter()
             printer.pprint(vars(params))
 
-            stimuli, calculator = load_stimuli_and_calculator(params.stimulus, params.with_ans)
+            stimuli, density, calculator = load_stimuli_and_calculator(params.stimulus, params.with_ans)
 
             populations = run_simulations_in_parallel(stimuli, calculator, params)
 
@@ -139,6 +139,7 @@ def render_control_panel(simulation_result: Dict):
             simulation_result['params'] = params
             simulation_result['populations'] = populations
             simulation_result['calculator'] = calculator
+            simulation_result['density'] = density
 
     run_simulation_button.on_click(run_simulation_action)
 

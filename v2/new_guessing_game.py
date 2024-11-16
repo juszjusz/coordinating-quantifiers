@@ -72,7 +72,8 @@ def avg_series(elements: List, history=50) -> List:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams,
+def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stimulus], calculator: Calculator,
+                          game_params: GameParams,
                           snapshot_rate: int):
     def compute_monotonicity_in_snapshot(step: int, agent_snapshot: NewAgent):
         if step > 0:
@@ -86,9 +87,9 @@ def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stim
     def compute_convexity_in_snapshot(step: int, agent_snapshot: NewAgent):
         if step > 0:
             word2activations = agent_snapshot.compute_word_pragmatic_meanings(stimuli)
-            monotonic_words_count = sum(
+            convexity_words_count = sum(
                 NewAgent.is_convex_new(activations) for _, activations in word2activations.items())
-            return monotonic_words_count / len(word2activations)
+            return convexity_words_count / len(word2activations)
         else:
             return 0
 
@@ -123,7 +124,8 @@ def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stim
     return snapshots
 
 
-def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], stimuli: List[Stimulus], calculator: Calculator,
+def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], stimuli: List[Stimulus],
+                                          calculator: Calculator,
                                           game_params: GameParams, snapshot_rate=200, processes_num=12):
     flatten_populations = [(run, agent) for run, population in enumerate(populations) for agent in population]
     bucket_size = math.ceil(len(flatten_populations) / processes_num)
@@ -139,7 +141,8 @@ def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], sti
     return snapshots_grouped_by_populations
 
 
-def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, processes_num=8):
+def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams,
+                                processes_num=8):
     r = RandomState(game_params.seed)
 
     with Pool(processes=processes_num) as pool:
@@ -217,7 +220,7 @@ def run_dummy_simulation(stimulus):
                    'seed': 0}
     params = GameParams(**game_params)
 
-    stimuli, calculator = load_stimuli_and_calculator(params.stimulus)
+    stimuli, density, calculator = load_stimuli_and_calculator(params.stimulus)
 
     shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=0))
 
@@ -249,20 +252,21 @@ if __name__ == '__main__':
     parser.add_argument('--super_alpha', '-sa', help='complete forgetting of categories that have smaller weights',
                         type=float, default=.001)
     parser.add_argument('--beta', '-b', help='learning rate', type=float, default=0.2)
-    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=3000)
+    parser.add_argument('--steps', '-s', help='number of steps', type=int, default=1500)
     parser.add_argument('--runs', '-r', help='number of runs', type=int, default=1)
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
     parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=100)
-    parser.add_argument('--with_ans', help='set seed value to replicate a random values', type=bool, default=False)
+    parser.add_argument('--with_ans', help='set seed value to replicate a random values', type=bool, default=True)
 
     parsed_params = vars(parser.parse_args())
 
     game_params = GameParams(**parsed_params)
+    print(game_params)
 
     shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
 
-    stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus, with_ans=game_params.with_ans)
+    stimuli, density, calculator = load_stimuli_and_calculator(game_params.stimulus, with_ans=game_params.with_ans)
 
     # population = run_simulation(0, stimuli, calculator, game_params)
     populations = run_simulations_in_parallel(stimuli, calculator, game_params)
@@ -272,24 +276,27 @@ if __name__ == '__main__':
     #     total_cnt_in_bucket = (bucket_end - bucket_start) * 2
     #     normalized_cnts = {edge: round(cnt / total_cnt_in_bucket, 3) for edge, cnt in v.items()}
     #     states_edges_cnts_normalized.append((bucket, normalized_cnts))
-    populations_snapshots = recreate_agents_snapshots_in_parallel(populations=populations, stimuli=stimuli, calculator=calculator, game_params=game_params)
+    populations_snapshots = recreate_agents_snapshots_in_parallel(populations=populations, stimuli=stimuli,
+                                                                  calculator=calculator, game_params=game_params)
+    print(populations_snapshots)
     # population_snapshots = [
     #     NewAgent.recreate_from_history(agent_id=a.agent_id, calculator=calculator, game_params=game_params,
     #                                    updates_history=a.updates_history) for a in population]
     population = populations[0]
-    agent = population[0]
-    agent_active_words = agent.compute_word_meanings()
-    s = populations_snapshots[0]
-    # w2meanings = agent.compute_word_pragmatic_meanings(stimuli)
+    for agent in population:
+        # agent = population[1]
+        agent_active_words = agent.compute_word_meanings()
+        # s = populations_snapshots[0]
+        # w2meanings = agent.compute_word_pragmatic_meanings(stimuli)
 
-    for word, activations in agent_active_words.items():
-        print(NewAgent.is_monotone_new(activations))
-        print(NewAgent.is_convex_new(activations))
+        for word, activations in agent_active_words.items():
+            print('monotonicity', NewAgent.is_monotone_new(activations))
+            print('convexity', NewAgent.is_convex_new(activations))
 
-    monotonicity_snapshots = [[[monotonicity for _, _, _, monotonicity, _ in agent_snapshots] for agent_snapshots in population_snapshots]
+    monotonicity_snapshots = [
+        [[monotonicity for _, _, _, monotonicity, _ in agent_snapshots] for agent_snapshots in population_snapshots]
         for population_snapshots in populations_snapshots]
 
-    print()
     # is_word_monotone = {}
     # for w, meaning in w2meanings.items():
     #     is_word_monotone[w] = NewAgent.is_monotone_new(meaning)

@@ -8,7 +8,7 @@ from typing import Callable, List, Dict, Union, Tuple
 import numpy as np
 from tqdm import tqdm
 
-from calculator import Calculator, StimulusContext, Stimulus
+from calculator import Calculator, StimulusContext, Stimulus, StimuliDensity
 from matrix_datastructure import Matrix, One2OneMapping
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class NewCategory:
         return cls.init_from_stimuli([(.5, stimulus)])
 
     @classmethod
-    def init_from_stimuli(cls, wxr: List[Tuple[float, Stimulus]]):
+    def init_from_stimuli(cls, wxr: List[tuple[float, Stimulus]]):
         new_instance = cls(0)
         new_instance._weights = [w for w, _ in wxr]
         new_instance._reactive_units = [r for _, r in wxr]
@@ -95,17 +95,17 @@ class NewCategory:
     def max_weight(self):
         return max(self._weights)
 
-    def discretized_distribution(self, calculator: Calculator):
-        return self.__apply_fun_to_coordinates(lambda x: np.sum(x, axis=0), calculator)
+    def discretized_distribution(self, density: StimuliDensity):
+        return self.__apply_fun_to_coordinates(lambda x: np.sum(x, axis=0), density)
 
-    def union(self, calculator: Calculator):
-        return self.__apply_fun_to_coordinates(lambda x: np.max(x, axis=0), calculator)
+    def union(self, density: StimuliDensity):
+        return self.__apply_fun_to_coordinates(lambda x: np.max(x, axis=0), density)
 
     # Given values f(x0),f(x1),...,f(xn); g(x0),g(x1),...,g(xn) for functions f, g defined on points x0 < x1 < ... < xn
     # @__apply_fun_to_coordinates results in FUN(f(x0),g(x0)),FUN(f(x1),g(x1)),...,FUN(f(xn),g(xn))
     # Implementation is defined on family of functions from (REACTIVE_UNIT_DIST[.]).
-    def __apply_fun_to_coordinates(self, FUN, calculator: Calculator):
-        return FUN([weight * calculator.pdf(ru) for weight, ru in zip(self._weights, self._reactive_units)])
+    def __apply_fun_to_coordinates(self, FUN, density: StimuliDensity):
+        return FUN([weight * density.pdf(ru) for weight, ru in zip(self._weights, self._reactive_units)])
 
 
 @dataclasses.dataclass
@@ -588,7 +588,16 @@ class LxC:
 
         categories = np.array(self._categories.active_elements())
 
+        # Calculate response of each stimuli for each of the category, i.e.:
+        # category 1: [response to stimuli 0], [response to stimuli 1], ..., [response to stimuli n]
+        # category 4: [response to stimuli 0], [response to stimuli 1], ..., [response to stimuli n]
+        # category 9: [response to stimuli 0], [response to stimuli 1], ..., [response to stimuli n]
         responses = [category.response_all(calculator) for category in categories]
+
+
+        # Calculate category with maximal response to each stimuli, i.e.:
+        # all stimuli                   [0, 1, 2, ..., n]
+        # categories maximizing stimuli [1, 4, 4, ..., 2]
         stimuli_response_maximizers = np.argmax(responses, axis=0)
 
         category2stimuli = [(category, stimuli) for stimuli, category in enumerate(stimuli_response_maximizers)]
