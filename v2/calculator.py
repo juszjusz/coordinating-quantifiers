@@ -122,6 +122,9 @@ class Calculator:
     def activation_from_responses(self, response_over_stimuli: list[float]):
         pass
 
+    @staticmethod
+    def create_support(lower, upper, discretization_factor) -> tuple[float,]:
+        return tuple(np.arange(lower, upper, discretization_factor))
 
 @dataclasses.dataclass(frozen=True)
 class NumericCalculator(Calculator):
@@ -143,13 +146,14 @@ class NumericCalculator(Calculator):
     def activation_from_responses(self, response_over_stimuli: list[float]):
         return np.array(response_over_stimuli).astype(bool)
 
+
     @staticmethod
     def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=5, stimuli_range=20):
         support_lower_bound = -5
         support_upper_bound = 105
         support_discretization_factor = .01
 
-        support: Support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
+        support: Support = Calculator.create_support(support_lower_bound, support_upper_bound, support_discretization_factor)
 
         stimuli: Stimuli = tuple([int(x) for x in np.arange(1, stimuli_range + 1).astype(int)])
 
@@ -264,27 +268,29 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     @lru_cache
-    def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=4):
+    def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=3):
         normalized_and_sorted_fractions = QuotientCalculator.calculate_and_sort_normalized_fractions()
-        sigmas = np.repeat(sigma, len(normalized_and_sorted_fractions))
-        fractions, sigmas = QuotientCalculator.calculate_quotient_dist_params_for_quotient_without_ans(
-            normalized_and_sorted_fractions, sigmas)
-
+        estimated_sigmas = QuotientCalculator.estimate_quotient_sigmas(quotients=normalized_and_sorted_fractions,
+                                                                       calculate_sigma=lambda _: sigma)
+        # estimated_sigmas = np.array([.0033]*len(normalized_and_sorted_fractions))
         support_lower_bound = 0.
         support_upper_bound = 2.
         support_discretization_factor = .001
 
         support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
-        stimuli = fractions
-        stimuli_floats = np.array(fractions).astype(float)  # means
+        stimuli = normalized_and_sorted_fractions
+        stimuli_floats = np.array(normalized_and_sorted_fractions).astype(float)  # means
 
-        pdfs = calculate_normal_pdfs(support, stimuli_floats, sigmas)
+        pdfs = calculate_normal_pdfs(support, stimuli_floats, estimated_sigmas)
 
-        rxr = np.dot(pdfs, np.transpose(pdfs))
-        filter_distant_values_in_distribution(pdfs, sigmas, stimuli_floats, support_discretization_factor,
+        filter_distant_values_in_distribution(pdfs, estimated_sigmas, stimuli_floats, support_discretization_factor,
                                               support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
 
+        rxr = np.dot(pdfs, np.transpose(pdfs))
+        estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_floats, rxr)
+        rxr = calculate_normal_pdfs(stimuli_floats, estimated_rxr_means, estimated_rxr_sigmas)
+        # rxr[rxr < 1e-3] = 0
         quotient2index = {stimuli: index for index, stimuli in enumerate(stimuli)}
 
         return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
@@ -302,24 +308,24 @@ class QuotientCalculator(Calculator):
         support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
         stimuli_as_float = np.array(normalized_and_sorted_fractions).astype(float)
         estimated_sigmas = QuotientCalculator.estimate_quotient_sigmas(quotients=normalized_and_sorted_fractions,
-                                                                       sigma_scalar=sigma_scalar)
+                                                                       calculate_sigma=lambda i: sigma_scalar * i)
         pdfs = calculate_normal_pdfs(support, stimuli_as_float, estimated_sigmas)
 
         stimuli = normalized_and_sorted_fractions
         filter_distant_values_in_distribution(pdfs, estimated_sigmas, stimuli, support_discretization_factor,
                                               support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
         rxr = np.dot(pdfs, np.transpose(pdfs))
-        estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_mu_and_sigma(stimuli_as_float, rxr)
+        estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_as_float, rxr)
         rxr = calculate_normal_pdfs(stimuli_as_float, estimated_rxr_means, estimated_rxr_sigmas)
         quotient2index = {fraction: index for index, fraction in enumerate(normalized_and_sorted_fractions)}
 
         return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
 
     @staticmethod
-    def estimate_quotient_sigmas(*, quotients: Stimuli, sigma_scalar, sample_size=10_000):
+    def estimate_quotient_sigmas(*, quotients: Stimuli, calculate_sigma: Callable[[int], float], sample_size=10_000):
         r = np.random.RandomState(seed=1)
-        nom_samples = np.array([r.normal(loc=i, scale=sigma_scalar * i, size=sample_size) for i in range(1, 101)])
-        den_samples = np.array([r.normal(loc=i, scale=sigma_scalar * i, size=sample_size) for i in range(1, 101)])
+        nom_samples = np.array([r.normal(loc=i, scale=calculate_sigma(i), size=sample_size) for i in range(1, 101)])
+        den_samples = np.array([r.normal(loc=i, scale=calculate_sigma(i), size=sample_size) for i in range(1, 101)])
         ratios = np.array([nom_samples[f.numerator - 1] / den_samples[f.denominator - 1] for f in
                            quotients], dtype=np.float32)
         means = np.repeat(np.array(quotients, dtype=np.float32), sample_size).reshape((-1, sample_size))
@@ -328,7 +334,7 @@ class QuotientCalculator(Calculator):
         return np.sqrt(np.mean(squared_diff, axis=1))
 
     @staticmethod
-    def estimate_mu_and_sigma(stimuli, rxr):
+    def estimate_rxr_mu_and_sigma(stimuli, rxr):
         norm = np.sum(rxr, axis=1).repeat(len(stimuli)).reshape(rxr.shape)
         p_normalized = rxr / norm
 
@@ -344,58 +350,6 @@ class QuotientCalculator(Calculator):
         estimated_sigmas = np.sqrt(variances)
 
         return estimated_means, estimated_sigmas
-
-    @staticmethod
-    def calculate_quotient_dist_params_for_quotient_without_ans(normalized_and_sorted_fractions,
-                                                                sigmas: list[float],
-                                                                sample_size=10_000):
-        # Here randomness is used for density approximation, hence it is fixed.
-        random_state = np.random.RandomState(seed=1)
-
-        nominators = np.array([(f.numerator * (100 / f.denominator)) for f in normalized_and_sorted_fractions])
-        denominators = np.repeat(100, len(normalized_and_sorted_fractions))
-        numerator_samples = random_state.normal(nominators[:, np.newaxis], sigmas[:, np.newaxis],
-                                                (len(nominators), sample_size))
-        denominator_samples = random_state.normal(denominators[:, np.newaxis], sigmas[:, np.newaxis],
-                                                  (len(denominators), sample_size))
-
-        distribution_means = []
-        distribution_sigmas = []
-        for f, nk, denominator in zip(normalized_and_sorted_fractions, numerator_samples, denominator_samples):
-            samples = np.divide(nk, denominator)
-            distribution_means.append(f)
-            distribution_sigmas.append(np.std(samples, ddof=1))
-
-        return np.array(distribution_means), np.array(distribution_sigmas)
-
-    @staticmethod
-    def calculate_quotient_dist_params_for_quotient_with_ans(number_means: tuple[Fraction, ...],
-                                                             number_sigmas: list[float],
-                                                             sample_size=10_000):
-        # Here randomness is used for density approximation, hence it is fixed.
-        random_state = np.random.RandomState(seed=1)
-        # fractions = set([Fraction(nom, denom) for denom in number_means for nom in range(1, denom + 1)])
-        # fractions = tuple(sorted(fractions))
-
-        number_means_as_float = np.array(number_means).astype(float)
-        number_sigmas = np.array(number_sigmas)
-        numerator_samples = random_state.normal(number_means_as_float[:, np.newaxis], number_sigmas[:, np.newaxis],
-                                                (len(number_means), sample_size))
-        denominator_samples = random_state.normal(number_means_as_float[:, np.newaxis], number_sigmas[:, np.newaxis],
-                                                  (len(number_means), sample_size))
-        distribution_means = []
-        distribution_sigmas = []
-
-        for f in number_means:
-            numerator_idx = f.numerator - 1
-            denominator_idx = f.denominator - 1
-            n = numerator_samples[numerator_idx]
-            k = denominator_samples[denominator_idx]
-            samples = np.divide(n, k)
-            distribution_means.append(f)
-            distribution_sigmas.append(np.std(samples, ddof=1))
-
-        return np.array(distribution_means), np.array(distribution_sigmas)
 
     @staticmethod
     def load_from_file_with_ans() -> tuple[Stimuli, StimuliDensity, Calculator]:
@@ -462,25 +416,10 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True) -> [tuple, StimuliD
         return NumericCalculator.from_description_with_no_ans()
 
 
-def normalize(mu, sigmas):
-    a = np.tile(mu, reps=len(mu)).reshape((len(mu), -1))
-    # print(a)
-    a = a - np.repeat(mu, len(mu)).reshape((len(mu), -1))
-    # print(a)
-    a = a ** 2
-    a = a / np.repeat(2 * sigmas ** 2, len(mu)).reshape((len(mu), -1))
-    # print(a)
-    # exp0 = np.exp(-a)
-    # print(exp0)
-    return a
-
-
-# def sum_up(dist, )
-
 if __name__ == '__main__':
     # fg(np.array([1, 2, 3]), np.array([1, .2, .3]))
     # s = time.time()
-    a = QuotientCalculator.from_description_with_ans()
+    a = QuotientCalculator.from_description_with_no_ans()
     # print(time.time()-s)
     # s = time.time()
     # a = QuotientCalculator.from_description_with_ans()

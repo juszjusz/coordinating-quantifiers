@@ -1,3 +1,4 @@
+import gc
 import json
 import argparse
 import logging
@@ -259,7 +260,7 @@ if __name__ == '__main__':
     parser.add_argument('--guessing_game_2', '-gg2', help='is the second stage of the guessing game on',
                         action='store_true')
     parser.add_argument('--seed', help='set seed value to replicate a random values', type=int, default=100)
-    parser.add_argument('--with_ans', help='set seed value to replicate a random values', type=bool, default=True)
+    parser.add_argument('--with_ans', help='set seed value to replicate a random values', type=bool, default=False)
 
     parsed_params = vars(parser.parse_args())
 
