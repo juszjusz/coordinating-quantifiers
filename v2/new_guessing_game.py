@@ -5,12 +5,12 @@ import math
 from collections import Counter
 from itertools import groupby
 from multiprocessing import Pool
-from typing import List, Callable, Any, Tuple
+from typing import Callable, Any
 
 from numpy.random import RandomState
 import numpy as np
 from tqdm import tqdm
-from calculator import Calculator, context_factory, Stimulus, load_stimuli_and_calculator
+from calculator import Calculator, context_factory, Stimulus, load_stimuli_and_calculator, StimulusContext
 from domain_objects import GameParams, NewAgent
 from game_graph import game_graph, GameGraph
 
@@ -30,19 +30,19 @@ def flip_a_coin_random_function(seed: int) -> Callable[[], int]:
     return flip_a_coin
 
 
-def shuffle_list_random_function(seed: int) -> Callable[[List], None]:
+def shuffle_list_random_function(seed: int) -> Callable[[list], None]:
     random_state = np.random.RandomState(seed)
 
-    def shuffle_list(l: List) -> None:
+    def shuffle_list(l: list) -> None:
         random_state.shuffle(l)
 
     return shuffle_list
 
 
-def pick_element_random_function(seed: int) -> Callable[[List], Any]:
+def pick_element_random_function(seed: int) -> Callable[[list], Any]:
     random_state = np.random.RandomState(seed)
 
-    def pick_random_value(l: List) -> Any:
+    def pick_random_value(l: list) -> Any:
         i = random_state.randint(len(l))
         return l[i]
 
@@ -68,11 +68,13 @@ def select_hearer(_: NewAgent, hearer: NewAgent) -> NewAgent:
     return hearer
 
 
-def avg_series(elements: List, history=50) -> List:
+def avg_series(elements: list, history=50) -> list:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stimulus], calculator: Calculator,
+def recreate_from_history(agents: list[tuple[int, NewAgent]],
+                          stimuli: list[Stimulus],
+                          calculator: Calculator,
                           game_params: GameParams,
                           snapshot_rate: int):
     def compute_monotonicity_in_snapshot(step: int, agent_snapshot: NewAgent):
@@ -124,7 +126,7 @@ def recreate_from_history(agents: List[Tuple[int, NewAgent]], stimuli: List[Stim
     return snapshots
 
 
-def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], stimuli: List[Stimulus],
+def recreate_agents_snapshots_in_parallel(populations: list[list[NewAgent]], stimuli: list[Stimulus],
                                           calculator: Calculator,
                                           game_params: GameParams, snapshot_rate=200, processes_num=12):
     flatten_populations = [(run, agent) for run, population in enumerate(populations) for agent in population]
@@ -141,7 +143,7 @@ def recreate_agents_snapshots_in_parallel(populations: List[List[NewAgent]], sti
     return snapshots_grouped_by_populations
 
 
-def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams,
+def run_simulations_in_parallel(stimuli: list[Stimulus], calculator: Calculator, game_params: GameParams,
                                 processes_num=8):
     r = RandomState(game_params.seed)
 
@@ -153,18 +155,18 @@ def run_simulations_in_parallel(stimuli: List[Stimulus], calculator: Calculator,
     return populations
 
 
-def run_simulation(seed: int, stimuli: List[Stimulus], calculator: Calculator, game_params: GameParams, run=0):
+def run_simulation(seed: int, stimuli: list[Stimulus], calculator: Calculator, game_params: GameParams, run=0):
     r_functions = random_functions(seed=seed)
 
     shuffle_list, flip_a_coin, pick_element = next(r_functions)
 
-    def pair_partition(agents: List):
+    def pair_partition(agents: list[NewAgent]):
         return [agents[i:i + 2] for i in range(0, len(agents), 2)]
 
     context_constructor = context_factory(stimuli=stimuli, pick_element=pick_element)
 
     G: GameGraph = game_graph(flip_a_coin)
-    assert game_params.population_size % 2 == 0, 'each agent must be paired'
+    assert game_params.population_size % 2 == 0, "each agent must be paired"
     population = [NewAgent(agent_id, calculator, game_params) for agent_id in range(game_params.population_size)]
 
     # buckets with counters
@@ -182,7 +184,7 @@ def run_simulation(seed: int, stimuli: List[Stimulus], calculator: Calculator, g
         for speaker, hearer in paired_agents:
             debug_msg = f'step {step}'
             logger.debug(debug_msg)
-            context = context_constructor()
+            context: StimulusContext = context_constructor()
 
             data_envelope = {'topic': 0}
 

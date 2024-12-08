@@ -3,7 +3,7 @@ import logging
 from copy import copy
 from fractions import Fraction
 from itertools import groupby
-from typing import Callable, List, Dict, Union, Tuple
+from typing import Callable, Union
 
 import numpy as np
 from tqdm import tqdm
@@ -21,15 +21,15 @@ logger.addHandler(ch)
 class NewCategory:
     def __init__(self, category_id: int):
         self.category_id = category_id
-        self._weights = []
-        self._reactive_units = []
+        self._weights: list[float] = []
+        self._reactive_units: list[Stimulus] = []
 
     @classmethod
     def init_from_stimulus(cls, stimulus: Stimulus):
         return cls.init_from_stimuli([(.5, stimulus)])
 
     @classmethod
-    def init_from_stimuli(cls, wxr: List[tuple[float, Stimulus]]):
+    def init_from_stimuli(cls, wxr: list[tuple[float, Stimulus]]):
         new_instance = cls(0)
         new_instance._weights = [w for w, _ in wxr]
         new_instance._reactive_units = [r for _, r in wxr]
@@ -58,13 +58,13 @@ class NewCategory:
         wXr = str([*zip(weights, ru)])
         return f'id: {self.category_id}; wXr: {wXr}'
 
-    def reactive_units(self):
+    def reactive_units(self) -> list[Stimulus]:
         return self._reactive_units
 
-    def weights(self):
+    def weights(self) -> list[float]:
         return self._weights
 
-    def response(self, stimulus: Stimulus, calculator: Calculator):
+    def response(self, stimulus: Stimulus, calculator: Calculator) -> float:
         return sum([weight * calculator.dot_product(ru_value, stimulus) for weight, ru_value in
                     zip(self._weights, self._reactive_units)])
 
@@ -187,7 +187,7 @@ class NewAgent:
         return snapshot
 
     @staticmethod
-    def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: List,
+    def recreate_from_history(agent_id: int, calculator: Calculator, game_params: GameParams, updates_history: list,
                               snapshot_rate: int = 100):
         snapshots = []
         recreated_agent = NewAgent(agent_id=agent_id, calculator=calculator, game_params=game_params)
@@ -210,7 +210,7 @@ class NewAgent:
         return snapshots
 
     @staticmethod
-    def to_dict(agent) -> Dict:
+    def to_dict(agent) -> dict:
         agent._lxc.remove_nonactive_categories()
         agent._lxc.remove_non_responsive_words()
 
@@ -239,7 +239,7 @@ class NewAgent:
     def has_categories(self) -> bool:
         return len(self._lxc.get_responsive_categories()) > 0
 
-    def get_words(self) -> List[NewWord]:
+    def get_words(self) -> list[NewWord]:
         return self._lxc.get_responsive_words()
 
     # def get_active_words(self, stimuli: List[Stimulus]) -> List[NewWord]:
@@ -249,13 +249,13 @@ class NewAgent:
     #     active_lexicon = [w for w in active_lexicon if w is not None]
     #     return list(set(active_lexicon))
 
-    def compute_active_words(self) -> List[NewWord]:
+    def compute_active_words(self) -> list[NewWord]:
         response_category_maximizers = self.get_most_responsive_category_over_all_stimuli()
         active_lexicon = [self.get_most_connected_word(c) for c in response_category_maximizers]
         active_lexicon = [w for w in active_lexicon if w is not None]
         return list(set(active_lexicon))
 
-    def get_categories(self) -> List[NewCategory]:
+    def get_categories(self) -> list[NewCategory]:
         return self._lxc.get_responsive_categories()
 
     def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
@@ -270,7 +270,7 @@ class NewAgent:
         response_argmax = np.argmax(responses)
         return active_categories[response_argmax]
 
-    def get_most_responsive_category_over_all_stimuli(self) -> List[NewCategory]:
+    def get_most_responsive_category_over_all_stimuli(self) -> list[NewCategory]:
         active_categories = self._lxc.get_responsive_categories()
         if len(active_categories) > 0:
             responses = [c.response_all(self._calculator) for c in active_categories]
@@ -309,11 +309,6 @@ class NewAgent:
     def update_on_success(self, word: NewWord, category: NewCategory):
         self._lxc.update_word_category_connection(word, category, lambda v: v + self._game_params.delta_inc * v)
         self._inhibit_word2categories_connections(word=word, except_category=category)
-
-    def _inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
-        retained_value = self._lxc.get_connection(word, except_category)
-        self._lxc.update_row_connection(word, scalar=-self._game_params.delta_inh)
-        self._lxc.update_word_category_connection(word, except_category, lambda v: retained_value)
 
     @register_agent_update_operation
     def update_on_failure(self, word: NewWord, category: NewCategory):
@@ -368,6 +363,11 @@ class NewAgent:
         # mark end of the game between agents
         pass
 
+    def _inhibit_word2categories_connections(self, word: NewWord, except_category: NewCategory):
+        retained_value = self._lxc.get_connection(word, except_category)
+        self._lxc.update_row_connection(word, scalar=-self._game_params.delta_inh)
+        self._lxc.update_word_category_connection(word, except_category, lambda v: retained_value)
+
     def select_stimuli_by_category(self, category: NewCategory, context: StimulusContext) -> Stimulus:
         return category.select(context, self._calculator)
 
@@ -380,23 +380,23 @@ class NewAgent:
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
 
-    def compute_word_meanings(self) -> Dict[NewWord, List[bool]]:
+    def compute_word_meanings(self) -> dict[NewWord, list[bool]]:
         active_words = self.compute_active_words()
         return self._lxc.compute_word_meanings(active_words, self._calculator)
 
-    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus]) -> Dict[NewWord, List[bool]]:
+    def compute_word_pragmatic_meanings(self, stimuli: list[Stimulus]) -> dict[NewWord, list[bool]]:
         return self._lxc.compute_word_pragmatic_meanings(stimuli, self._calculator)
 
     @staticmethod
-    def is_monotone_new(stimuli_activations: List[bool]):
+    def is_monotone_new(stimuli_activations: list[bool]):
         return NewAgent._compute_number_of_inflections(stimuli_activations) == 1
 
     @staticmethod
-    def is_convex_new(stimuli_activations: List[bool]):
+    def is_convex_new(stimuli_activations: list[bool]):
         return NewAgent._compute_number_of_inflections(stimuli_activations) <= 2
 
     @staticmethod
-    def _compute_number_of_inflections(activations: List[bool]):
+    def _compute_number_of_inflections(activations: list[bool]):
         return len([current for current, next in zip(activations, activations[1:]) if current != next])
 
     def get_discriminative_success(self):
@@ -492,10 +492,10 @@ class LxC:
         else:
             return None
 
-    def get_responsive_categories(self) -> List[NewCategory]:
+    def get_responsive_categories(self) -> list[NewCategory]:
         return self._categories.active_elements()
 
-    def get_responsive_words(self) -> List[NewWord]:
+    def get_responsive_words(self) -> list[NewWord]:
         return self._words.active_elements()
 
     def forget_categories(self, category_in_use: NewCategory, alpha: float, super_alpha: float):
@@ -560,7 +560,7 @@ class LxC:
         category_index = self._categories.get_object_index(category)
         return self._lxc[word_index, category_index]
 
-    def compute_word_meanings(self, active_words: List[NewWord], calculator: Calculator) -> Dict[NewWord, List[bool]]:
+    def compute_word_meanings(self, active_words: list[NewWord], calculator: Calculator) -> dict[NewWord, list[bool]]:
         # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}
         self.remove_non_responsive_words()
         self.remove_nonactive_categories()
@@ -578,10 +578,11 @@ class LxC:
             categories = [self._categories.get_object_by_index(category_index) for _, category_index in categories]
             word2meanings[word] = np.sum([category.response_all(calculator) for category, _ in categories], axis=0)
 
-        return {word: calculator.activation_from_responses(responses) for word, responses in word2meanings.items()}
+        result = {word: calculator.activation_from_responses(responses) for word, responses in word2meanings.items()}
+        return result
 
-    def compute_word_pragmatic_meanings(self, stimuli: List[Stimulus], calculator: Calculator) -> Dict[
-        NewWord, List[bool]]:
+    def compute_word_pragmatic_meanings(self, stimuli: list[Stimulus], calculator: Calculator) -> dict[
+        NewWord, list[bool]]:
         # work on active connections only
         self.remove_non_responsive_words()
         self.remove_nonactive_categories()

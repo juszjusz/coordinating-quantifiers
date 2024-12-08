@@ -3,7 +3,7 @@ import os
 from fractions import Fraction
 from functools import singledispatch, lru_cache
 from pathlib import Path
-from typing import List, Tuple, Union, Callable, Any, Dict
+from typing import Union, Callable, Any
 
 import h5py
 import numpy as np
@@ -38,13 +38,13 @@ def _(f1, f2):
     return abs(f1 - f2) > ds
 
 
-def calculate_normal_pdfs(support: Support, means: Stimuli, sigmas: list[float]):
+def calculate_normal_pdfs(support: Stimuli, means: np.ndarray, sigmas: list[float]):
     assert len(means) == len(sigmas), "expects means & sigmas to be of equal sizes"
     support_size = len(support)
     size = len(means)
     total_size = support_size * size
 
-    supports = np.tile(support, size).reshape((total_size,))
+    ys = np.tile(support, size).reshape((total_size,))
     repeated_means = np.repeat(means, support_size).reshape((total_size,))
     repeated_sigmas = np.repeat(sigmas, support_size).reshape((total_size,))
 
@@ -52,9 +52,11 @@ def calculate_normal_pdfs(support: Support, means: Stimuli, sigmas: list[float])
     normalization_constants = np.repeat(1 / (normalization_constant * np.array(sigmas)), support_size).reshape(
         (total_size,))
 
-    ys = (supports - repeated_means) / repeated_sigmas
-
-    return (normalization_constants * np.exp(-(ys ** 2) / 2)).reshape((size, support_size))
+    np.subtract(ys, repeated_means, out=ys)
+    np.divide(ys, repeated_sigmas, out=ys)
+    np.multiply(ys, ys, out=ys)
+    np.divide(-ys, 2, out=ys)
+    return (normalization_constants * np.exp(ys)).reshape((size, support_size))
 
 
 def filter_distant_values_in_distribution(pdfs, sigmas, means, support_discretization_factor, lower_bound,
@@ -73,7 +75,7 @@ def filter_distant_values_in_distribution(pdfs, sigmas, means, support_discretiz
         pdfs[i, n:] = 0
 
 
-def context_factory(stimuli: List[Stimulus], pick_element: Callable[[List[Any]], Any]):
+def context_factory(stimuli: list[Stimulus], pick_element: Callable[[list[Any]], Any]):
     def new_context() -> StimulusContext:
         s1 = pick_element(stimuli)
         s2 = pick_element(stimuli)
@@ -113,11 +115,11 @@ class Calculator:
         # nie wiem czy to dobra nazwa
         pass
 
-    def dot_product_all(self, i: List[Stimulus]):
+    def dot_product_all(self, i: list[Stimulus]):
         # nie wiem czy to dobra nazwa
         pass
 
-    def activation_from_responses(self, response_over_stimuli: List[float]):
+    def activation_from_responses(self, response_over_stimuli: list[float]):
         pass
 
 
@@ -126,12 +128,15 @@ class NumericCalculator(Calculator):
     numeric2index: dict[int, int]
     reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
-    def dot_product(self, r1: int, r2: int):
+    def get_rxr(self):
+        return self.reactive_x_reactive
+
+    def dot_product(self, r1: Stimulus, r2: Stimulus) -> float:
         i1 = self.numeric2index[r1]
         i2 = self.numeric2index[r2]
         return self.reactive_x_reactive[i1][i2]
 
-    def dot_product_all(self, rs1: list[int]):
+    def dot_product_all(self, rs1: list[Stimulus]):
         is1 = [self.numeric2index[r1] for r1 in rs1]
         return self.reactive_x_reactive[:, is1]
 
@@ -224,6 +229,9 @@ class QuotientCalculator(Calculator):
     quotient2index: dict[QuotientStimulus, int]
     reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
+    def get_rxr(self):
+        return self.reactive_x_reactive
+
     @staticmethod
     def compute_quotient2index(f: QuotientStimulus):
         return f.numerator, f.denominator
@@ -233,11 +241,11 @@ class QuotientCalculator(Calculator):
         i2 = self.quotient2index[r2]
         return self.reactive_x_reactive[i1][i2]
 
-    def dot_product_all(self, rs1: List[QuotientStimulus]):
+    def dot_product_all(self, rs1: list[QuotientStimulus]):
         is1 = [self.quotient2index[r1] for r1 in rs1]
         return self.reactive_x_reactive[:, is1]
 
-    def activation_from_responses(self, response_over_stimuli: List[float]):
+    def activation_from_responses(self, response_over_stimuli: list[float]):
         window_size = 5
         activations = np.array(response_over_stimuli).astype(bool)
         activations = [activations[max(0, i - window_size):min(len(activations), i + window_size)] for i in
@@ -283,71 +291,69 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     @lru_cache
-    def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=4):
-        normalized_and_sorted_fractions: tuple[
-            Fraction, ...] = QuotientCalculator.calculate_and_sort_normalized_fractions()
-        number_sigmas = [sigma_scalar * mean for mean in normalized_and_sorted_fractions]
-        # sigmas = np.array([(f.numerator * sigma_scalar) / (f.denominator * sigma_scalar) for f in
-        #           normalized_and_sorted_fractions])
+    def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=5) -> tuple[
+        Stimuli, StimuliDensity, Calculator]:
 
-        # fractions, sigmas = QuotientCalculator.calculate_quotient_dist_params_for_quotient_with_ans1(
-        #     normalized_and_sorted_fractions,
-        #     sigmas)
-
-        fractions, sigmas = QuotientCalculator.calculate_quotient_dist_params_for_quotient_with_ans(
-            normalized_and_sorted_fractions,
-            number_sigmas)
+        normalized_and_sorted_fractions: Stimuli = QuotientCalculator.calculate_and_sort_normalized_fractions()
 
         support_lower_bound = 0
         support_upper_bound = 2.3
         support_discretization_factor = .001
         support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
+        stimuli_as_float = np.array(normalized_and_sorted_fractions).astype(float)
+        estimated_sigmas = QuotientCalculator.estimate_quotient_sigmas(quotients=normalized_and_sorted_fractions,
+                                                                       sigma_scalar=sigma_scalar)
+        pdfs = calculate_normal_pdfs(support, stimuli_as_float, estimated_sigmas)
 
-        stimuli = fractions
-        stimuli_floats = np.array(fractions).astype(float)
-
-        pdfs = calculate_normal_pdfs(support, stimuli_floats, sigmas)
-
+        stimuli = normalized_and_sorted_fractions
+        filter_distant_values_in_distribution(pdfs, estimated_sigmas, stimuli, support_discretization_factor,
+                                              support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
         rxr = np.dot(pdfs, np.transpose(pdfs))
-        # filter_distant_values_in_distribution(pdfs, sigmas, stimuli_floats, support_discretization_factor,
-        #                                       support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
-
-        quotient2index = {fraction: index for index, fraction in enumerate(stimuli)}
+        estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_mu_and_sigma(stimuli_as_float, rxr)
+        rxr = calculate_normal_pdfs(stimuli_as_float, estimated_rxr_means, estimated_rxr_sigmas)
+        quotient2index = {fraction: index for index, fraction in enumerate(normalized_and_sorted_fractions)}
 
         return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
 
     @staticmethod
+    def estimate_quotient_sigmas(*, quotients: Stimuli, sigma_scalar, sample_size=10_000):
+        r = np.random.RandomState(seed=1)
+        nom_samples = np.array([r.normal(loc=i, scale=sigma_scalar * i, size=sample_size) for i in range(1, 101)])
+        den_samples = np.array([r.normal(loc=i, scale=sigma_scalar * i, size=sample_size) for i in range(1, 101)])
+        ratios = np.array([nom_samples[f.numerator - 1] / den_samples[f.denominator - 1] for f in
+                           quotients], dtype=np.float32)
+        means = np.repeat(np.array(quotients, dtype=np.float32), sample_size).reshape((-1, sample_size))
+        np.subtract(ratios, means, out=ratios)
+        squared_diff = ratios ** 2
+        return np.sqrt(np.mean(squared_diff, axis=1))
+
+    @staticmethod
+    def estimate_mu_and_sigma(stimuli, rxr):
+        norm = np.sum(rxr, axis=1).repeat(len(stimuli)).reshape(rxr.shape)
+        p_normalized = rxr / norm
+
+        # Estimate mean
+        stimuli = np.tile(stimuli, len(stimuli)).reshape(rxr.shape)
+        estimated_means = np.sum(stimuli * p_normalized, axis=1)
+        estimated_mean_repeated = estimated_means.repeat(len(stimuli)).reshape(rxr.shape)
+
+        # Estimate variance
+        variances = np.sum(p_normalized * ((stimuli - estimated_mean_repeated) ** 2), axis=1)
+
+        # Estimate standard deviation
+        estimated_sigmas = np.sqrt(variances)
+
+        return estimated_means, estimated_sigmas
+
+    @staticmethod
     def calculate_quotient_dist_params_for_quotient_without_ans(normalized_and_sorted_fractions,
-                                                                sigmas: List[float],
+                                                                sigmas: list[float],
                                                                 sample_size=10_000):
         # Here randomness is used for density approximation, hence it is fixed.
         random_state = np.random.RandomState(seed=1)
 
         nominators = np.array([(f.numerator * (100 / f.denominator)) for f in normalized_and_sorted_fractions])
         denominators = np.repeat(100, len(normalized_and_sorted_fractions))
-        numerator_samples = random_state.normal(nominators[:, np.newaxis], sigmas[:, np.newaxis],
-                                                (len(nominators), sample_size))
-        denominator_samples = random_state.normal(denominators[:, np.newaxis], sigmas[:, np.newaxis],
-                                                  (len(denominators), sample_size))
-
-        distribution_means = []
-        distribution_sigmas = []
-        for f, nk, denominator in zip(normalized_and_sorted_fractions, numerator_samples, denominator_samples):
-            samples = np.divide(nk, denominator)
-            distribution_means.append(f)
-            distribution_sigmas.append(np.std(samples, ddof=1))
-
-        return np.array(distribution_means), np.array(distribution_sigmas)
-
-    @staticmethod
-    def calculate_quotient_dist_params_for_quotient_with_ans1(normalized_and_sorted_fractions,
-                                                              sigmas: List[float],
-                                                              sample_size=10_000):
-        # Here randomness is used for density approximation, hence it is fixed.
-        random_state = np.random.RandomState(seed=1)
-
-        nominators = np.array([(f.numerator * (10 / f.denominator)) for f in normalized_and_sorted_fractions])
-        denominators = np.repeat(10, len(normalized_and_sorted_fractions))
         numerator_samples = random_state.normal(nominators[:, np.newaxis], sigmas[:, np.newaxis],
                                                 (len(nominators), sample_size))
         denominator_samples = random_state.normal(denominators[:, np.newaxis], sigmas[:, np.newaxis],
@@ -379,6 +385,7 @@ class QuotientCalculator(Calculator):
                                                   (len(number_means), sample_size))
         distribution_means = []
         distribution_sigmas = []
+
         for f in number_means:
             numerator_idx = f.numerator - 1
             denominator_idx = f.denominator - 1
@@ -443,7 +450,7 @@ class QuotientCalculator(Calculator):
             quotient2index, reactive_x_reactive)
 
 
-def load_stimuli_and_calculator(stimuli_type, with_ans=True) -> [Tuple, StimuliDensity, Calculator]:
+def load_stimuli_and_calculator(stimuli_type, with_ans=True) -> [tuple, StimuliDensity, Calculator]:
     assert stimuli_type in {'quotient', 'numeric'}
     if stimuli_type == 'quotient' and with_ans:
         return QuotientCalculator.from_description_with_ans()
@@ -455,9 +462,25 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True) -> [Tuple, StimuliD
         return NumericCalculator.from_description_with_no_ans()
 
 
+def normalize(mu, sigmas):
+    a = np.tile(mu, reps=len(mu)).reshape((len(mu), -1))
+    # print(a)
+    a = a - np.repeat(mu, len(mu)).reshape((len(mu), -1))
+    # print(a)
+    a = a ** 2
+    a = a / np.repeat(2 * sigmas ** 2, len(mu)).reshape((len(mu), -1))
+    # print(a)
+    # exp0 = np.exp(-a)
+    # print(exp0)
+    return a
+
+
+# def sum_up(dist, )
+
 if __name__ == '__main__':
+    # fg(np.array([1, 2, 3]), np.array([1, .2, .3]))
     # s = time.time()
-    # a = QuotientCalculator.from_description_with_ans()
+    a = QuotientCalculator.from_description_with_ans()
     # print(time.time()-s)
     # s = time.time()
     # a = QuotientCalculator.from_description_with_ans()
@@ -465,9 +488,4 @@ if __name__ == '__main__':
     # root_path = Path(os.path.abspath('../inmemory_calculus/franek'))
     # elements = read_h5_data(data_path=root_path.joinpath('elements.h5'))
     # numeric_elements = read_h5_data(data_path=root_path.joinpath('numeric_elements.h5'))
-    # print(numeric_elements)
-    # QuotientCalculator.from_description_with_ans()
-    support, density, calculator = QuotientCalculator.from_description_with_ans()
-    # np.dot(pdfs[1352, :], np.transpose(pdfs))
-    # calculator.dot_product_all([Fraction(43, 97)])
-    # QuotientCalculator.from_description_with_ans()
+    # _, _, calculator = QuotientCalculator.from_description_with_ans2()

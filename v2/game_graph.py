@@ -1,6 +1,6 @@
 import logging
 from copy import copy
-from typing import Tuple, Dict, Callable, List
+from typing import Callable
 
 import graphviz
 import networkx as nx
@@ -15,12 +15,12 @@ logger.setLevel(level=logging.INFO)
 class GuessingGameAction:
     def __call__(self,
                  agent: NewAgent,
-                 context: Tuple[Stimulus, Stimulus],
-                 data_envelope: Dict,
+                 context: tuple[Stimulus, Stimulus],
+                 data_envelope: dict,
                  **kwargs) -> str:
         pass
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return []
 
     def action_description(self) -> str:
@@ -39,10 +39,10 @@ class DiscriminationGameAction(GuessingGameAction):
 
         self.selected_category_path = selected_category_path
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self.on_no_category, self.on_no_discrimination, self.on_success]
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, topic: int) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, topic: int) -> str:
         if not agent.has_categories():
             logger.debug('no category {}({})'.format(agent, agent.agent_id))
             agent.learn_stimulus(context[topic])
@@ -95,7 +95,7 @@ class PickMostConnectedWord(GuessingGameAction):
         self._selected_word_path = selected_word_path
         self._new_word_counter = SimpleCounter()
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, category: NewCategory) -> str:
         word = agent.get_most_connected_word(category)
 
         if word is None:
@@ -111,7 +111,7 @@ class PickMostConnectedWord(GuessingGameAction):
             data_envelope[self._selected_word_path] = word
             return self._select_word_for_category
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._select_word_for_category]
 
     def action_description(self) -> str:
@@ -137,7 +137,7 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
         self._on_known_word = on_success
         self._selected_category_path = selected_category_path
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord):
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, word: NewWord):
         if not agent.knows_word(word):
             agent.add_new_word(word)
             return self._on_unknown_word_or_no_associated_category
@@ -151,7 +151,7 @@ class PickMostConnectedCategoryAction(GuessingGameAction):
 
         return self._on_known_word
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_unknown_word_or_no_associated_category, self._on_known_word]
 
     def action_description(self) -> str:
@@ -168,7 +168,7 @@ class SelectAndCompareTopic(GuessingGameAction):
 
         self._flip_a_coin = flip_a_coin
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, category: NewCategory, topic: int) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, category: NewCategory, topic: int) -> str:
         selected = agent.select_stimuli_by_category(category, context)
 
         if selected is None:
@@ -179,7 +179,7 @@ class SelectAndCompareTopic(GuessingGameAction):
         else:
             return self._on_failure
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_success, self._on_failure]
 
     def action_description(self) -> str:
@@ -191,14 +191,14 @@ class CompareWordsAction(GuessingGameAction):
         self._on_equal_words = on_equal_words
         self._on_different_words = on_different_words
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, speaker_word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, speaker_word: NewWord,
                  hearer_word: NewWord) -> str:
         if speaker_word == hearer_word:
             return self._on_equal_words
         else:
             return self._on_different_words
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_equal_words, self._on_different_words]
 
     def action_description(self) -> str:
@@ -209,12 +209,12 @@ class IncrementWordCategoryAssociation(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_success(word, category)
         return self._on_success
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_success]
 
     def action_description(self) -> str:
@@ -225,12 +225,12 @@ class DecrementWordCategoryAssociation(GuessingGameAction):
     def __init__(self, on_success: str):
         self._next = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.update_on_failure(word, category)
         return self._next
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._next]
 
     def action_description(self) -> str:
@@ -241,11 +241,11 @@ class SuccessAction(GuessingGameAction):
     def __init__(self, next: str):
         self._next = next
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: dict) -> str:
         agent.add_communicative1_success()
         return self._next
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._next]
 
     def action_description(self) -> str:
@@ -256,11 +256,11 @@ class FailureAction(GuessingGameAction):
     def __init__(self, next: str):
         self._next = next
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: dict) -> str:
         agent.add_communicative1_failure()
         return self._next
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._next]
 
     def action_description(self) -> str:
@@ -271,12 +271,12 @@ class LearnWordCategoryAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict, word: NewWord,
+    def __call__(self, agent: NewAgent, context, data_envelope: dict, word: NewWord,
                  category: NewCategory) -> str:
         agent.learn_word_category(word, category)
         return self._on_success
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_success]
 
     def action_description(self) -> str:
@@ -287,12 +287,12 @@ class CompleteAction(GuessingGameAction):
     def __init__(self, on_success: str):
         self._on_success = on_success
 
-    def __call__(self, agent: NewAgent, context, data_envelope: Dict) -> str:
+    def __call__(self, agent: NewAgent, context, data_envelope: dict) -> str:
         agent.update_discriminative_success_mean()
         agent.forget_words()
         return self._on_success
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_success]
 
     def action_description(self) -> str:
@@ -307,7 +307,7 @@ class StartAction(GuessingGameAction):
         agent.next_step()
         return self._on_start
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return [self._on_start]
 
     def action_description(self) -> str:
@@ -316,7 +316,7 @@ class StartAction(GuessingGameAction):
 
 class EmptyAction(GuessingGameAction):
 
-    def output_nodes(self) -> List[str]:
+    def output_nodes(self) -> list[str]:
         return []
 
     def action_description(self) -> str:
@@ -332,7 +332,7 @@ class GameGraph:
         self._viz = graphviz.Digraph()
         self._start_node = []
 
-    def add_node(self, name: str, action: GuessingGameAction, agent: str, args: List[str], is_start_node=False):
+    def add_node(self, name: str, action: GuessingGameAction, agent: str, args: list[str], is_start_node=False):
         self._graph[name] = action.output_nodes()
         self._action[name] = action
         self._agent[name] = agent
