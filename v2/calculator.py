@@ -126,6 +126,7 @@ class Calculator:
     def create_support(lower, upper, discretization_factor) -> tuple[float,]:
         return tuple(np.arange(lower, upper, discretization_factor))
 
+
 @dataclasses.dataclass(frozen=True)
 class NumericCalculator(Calculator):
     numeric2index: dict[int, int]
@@ -146,14 +147,14 @@ class NumericCalculator(Calculator):
     def activation_from_responses(self, response_over_stimuli: list[float]):
         return np.array(response_over_stimuli).astype(bool)
 
-
     @staticmethod
     def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=5, stimuli_range=20):
         support_lower_bound = -5
         support_upper_bound = 105
         support_discretization_factor = .01
 
-        support: Support = Calculator.create_support(support_lower_bound, support_upper_bound, support_discretization_factor)
+        support: Support = Calculator.create_support(support_lower_bound, support_upper_bound,
+                                                     support_discretization_factor)
 
         stimuli: Stimuli = tuple([int(x) for x in np.arange(1, stimuli_range + 1).astype(int)])
 
@@ -161,9 +162,12 @@ class NumericCalculator(Calculator):
 
         pdfs = calculate_normal_pdfs(support, stimuli, sigmas)
 
-        rxr = np.dot(pdfs, np.transpose(pdfs))
+        # np.sum(numeric_calculator_onfly.get_rxr()[i])
+
         filter_distant_values_in_distribution(pdfs, sigmas, stimuli, support_discretization_factor,
                                               support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
+        rxr = np.dot(pdfs, np.transpose(pdfs))
+        rxr = rxr / np.sum(rxr, axis=0)
 
         numeric2index = {v: index for index, v in enumerate(stimuli)}
 
@@ -171,8 +175,8 @@ class NumericCalculator(Calculator):
 
     @staticmethod
     def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=5, stimuli_range=20):
-        support_lower_bound = 0
-        support_upper_bound = 150
+        support_lower_bound = -5
+        support_upper_bound = 105
         support_discretization_factor = .01
         support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
 
@@ -181,40 +185,41 @@ class NumericCalculator(Calculator):
         sigmas = np.array(stimuli) * sigma_scalar
         pdfs = calculate_normal_pdfs(support, stimuli, sigmas)
 
-        rxr = np.dot(pdfs, np.transpose(pdfs))
         filter_distant_values_in_distribution(pdfs, sigmas, stimuli, support_discretization_factor,
                                               support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
+        rxr = np.dot(pdfs, np.transpose(pdfs))
+        rxr = rxr / np.sum(rxr, axis=0)  # normalize rxr
 
         numeric2index = {v: index for index, v in enumerate(stimuli)}
 
         return stimuli, StimuliDensity(numeric2index, support, pdfs), NumericCalculator(numeric2index, rxr)
 
     @staticmethod
-    def load_from_file_with_ans():
-        return NumericCalculator.load_from_file('./inmemory_calculus_ans/numeric')
+    def load_from_file_with_ans(path='./inmemory_calculus_ans/numeric'):
+        return NumericCalculator.load_from_file(path)
 
     @staticmethod
-    def load_from_file_with_no_ans():
-        return NumericCalculator.load_from_file('./inmemory_calculus_no_ans/numeric')
+    def load_from_file_with_no_ans(path='./inmemory_calculus_no_ans/numeric'):
+        return NumericCalculator.load_from_file(path)
 
     @staticmethod
-    def load_from_file(path='../inmemory_calculus/franek/numeric'):
+    def load_from_file(path, size=20):
         root_path = Path(os.path.abspath(path))
 
-        reactive_unit_distribution = read_h5_data(data_path=root_path.joinpath('R.h5'))
+        reactive_unit_distribution = read_h5_data(data_path=root_path.joinpath('R.h5'))[:size]
         if not isinstance(reactive_unit_distribution, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(reactive_unit_distribution)))
 
         reactive_x_reactive = read_h5_data(root_path.joinpath('RxR.h5'))
         if not isinstance(reactive_x_reactive, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(reactive_x_reactive)))
-
+        reactive_x_reactive = reactive_x_reactive[:size, :size]
         support = read_h5_data(root_path.joinpath('domain.h5'))
         if not isinstance(support, np.ndarray):
             raise ValueError('Expected ? to be numpy array, found {} type'.format(type(support)))
         support: Support = tuple(support)
 
-        stimuli: Stimuli = tuple([*range(1, len(reactive_unit_distribution) + 1)])
+        stimuli: Stimuli = tuple([*range(1, size + 1)])
 
         # VALIDATE loaded data shapes:
         if not len(stimuli) == reactive_unit_distribution.shape[0] == reactive_x_reactive.shape[0] == \
@@ -268,13 +273,13 @@ class QuotientCalculator(Calculator):
 
     @staticmethod
     @lru_cache
-    def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=3):
+    def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=5):
         normalized_and_sorted_fractions = QuotientCalculator.calculate_and_sort_normalized_fractions()
         estimated_sigmas = QuotientCalculator.estimate_quotient_sigmas(quotients=normalized_and_sorted_fractions,
                                                                        calculate_sigma=lambda _: sigma)
         # estimated_sigmas = np.array([.0033]*len(normalized_and_sorted_fractions))
         support_lower_bound = 0.
-        support_upper_bound = 2.
+        support_upper_bound = 2.3
         support_discretization_factor = .001
 
         support = tuple(np.arange(support_lower_bound, support_upper_bound, support_discretization_factor))
@@ -288,9 +293,10 @@ class QuotientCalculator(Calculator):
                                               support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
+        rxr = rxr / np.sum(rxr, axis=0)  # normalize rxr
+
         estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_floats, rxr)
         rxr = calculate_normal_pdfs(stimuli_floats, estimated_rxr_means, estimated_rxr_sigmas)
-        # rxr[rxr < 1e-3] = 0
         quotient2index = {stimuli: index for index, stimuli in enumerate(stimuli)}
 
         return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
@@ -352,8 +358,8 @@ class QuotientCalculator(Calculator):
         return estimated_means, estimated_sigmas
 
     @staticmethod
-    def load_from_file_with_ans() -> tuple[Stimuli, StimuliDensity, Calculator]:
-        return QuotientCalculator.load_from_file(root_path='./inmemory_calculus/quotient',
+    def load_from_file_with_ans(path="./inmemory_calculus/quotient") -> tuple[Stimuli, StimuliDensity, Calculator]:
+        return QuotientCalculator.load_from_file(root_path=path,
                                                  # pdfs_file_name='quotient_discrete_Ri_sigma_5.h5',
                                                  pdfs_file_name='R.h5',
                                                  rxr_file_name='RxR.h5',
@@ -361,8 +367,9 @@ class QuotientCalculator(Calculator):
                                                  stimuli_file_name='nklist.h5')
 
     @staticmethod
-    def load_from_file_with_no_ans() -> tuple[Stimuli, StimuliDensity, Calculator]:
-        return QuotientCalculator.load_from_file(root_path='./inmemory_calculus_no_ans/quotient',
+    def load_from_file_with_no_ans(path="./inmemory_calculus_no_ans/quotient") -> tuple[
+        Stimuli, StimuliDensity, Calculator]:
+        return QuotientCalculator.load_from_file(root_path=path,
                                                  pdfs_file_name='R.h5',
                                                  rxr_file_name='RxR.h5',
                                                  support_file_name='domain.h5',
@@ -419,7 +426,11 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True) -> [tuple, StimuliD
 if __name__ == '__main__':
     # fg(np.array([1, 2, 3]), np.array([1, .2, .3]))
     # s = time.time()
-    a = QuotientCalculator.from_description_with_no_ans()
+    # stim, denstiy, cal, = QuotientCalculator.load_from_file_with_no_ans('../inmemory_calculus_no_ans/quotient')
+    numeric_stimuli_onfly, numeric_stimuli_density_onfly, numeric_calculator_onfly = QuotientCalculator.from_description_with_ans()
+    # stimuli, density, calculator = QuotientCalculator.from_description_with_no_ans()
+    # rxr =calculator.get_rxr()
+    # print()
     # print(time.time()-s)
     # s = time.time()
     # a = QuotientCalculator.from_description_with_ans()

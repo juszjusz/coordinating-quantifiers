@@ -389,7 +389,7 @@ class NewAgent:
 
     @staticmethod
     def is_monotone_new(stimuli_activations: list[bool]):
-        return NewAgent._compute_number_of_inflections(stimuli_activations) == 1
+        return NewAgent._compute_number_of_inflections(stimuli_activations) <= 1
 
     @staticmethod
     def is_convex_new(stimuli_activations: list[bool]):
