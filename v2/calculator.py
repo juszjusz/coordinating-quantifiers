@@ -75,6 +75,14 @@ def filter_distant_values_in_distribution(pdfs, sigmas, means, support_discretiz
         pdfs[i, n:] = 0
 
 
+def filter_distant_values_in_distribution_new(*, pdfs, sigmas, means, support, negligible_distance_in_sigma=5):
+    thresholds = np.repeat(negligible_distance_in_sigma * sigmas, len(support)).reshape(pdfs.shape)
+    means = np.repeat(means, len(support)).reshape(pdfs.shape)
+    supports = np.tile(support, len(means)).reshape(pdfs.shape)
+    target = np.abs(supports - means)
+    pdfs[target > thresholds] = 0
+
+
 def context_factory(stimuli: list[Stimulus], pick_element: Callable[[list[Any]], Any]):
     def new_context() -> StimulusContext:
         s1 = pick_element(stimuli)
@@ -112,14 +120,12 @@ class StimuliDensity:
 class Calculator:
 
     def dot_product(self, i: Stimulus, j: Stimulus):
-        # nie wiem czy to dobra nazwa
         pass
 
-    def dot_product_all(self, i: list[Stimulus]):
-        # nie wiem czy to dobra nazwa
+    def dot_product_all(self, i: [Stimulus]):
         pass
 
-    def activation_from_responses(self, response_over_stimuli: list[float]):
+    def activation_from_responses(self, response_over_stimuli: [float]):
         pass
 
     @staticmethod
@@ -250,12 +256,12 @@ class QuotientCalculator(Calculator):
         i2 = self.quotient2index[r2]
         return self.reactive_x_reactive[i1][i2]
 
-    def dot_product_all(self, rs1: list[QuotientStimulus]):
+    def dot_product_all(self, rs1: [QuotientStimulus]):
         is1 = [self.quotient2index[r1] for r1 in rs1]
         return self.reactive_x_reactive[:, is1]
 
-    def activation_from_responses(self, response_over_stimuli: list[float]):
-        window_size = 5
+    def activation_from_responses(self, response_over_stimuli: [float]) -> [bool]:
+        window_size = 10
         activations = np.array(response_over_stimuli).astype(bool)
         activations = [activations[max(0, i - window_size):min(len(activations), i + window_size)] for i in
                        range(len(activations))]
@@ -269,15 +275,15 @@ class QuotientCalculator(Calculator):
     @staticmethod
     def calculate_and_sort_normalized_fractions() -> tuple[Fraction, ...]:
         fractions = set([Fraction(nom, denom) for denom in range(1, 101) for nom in range(1, denom + 1)])
+        fractions = fractions - {Fraction(1, 1)}
         return tuple(sorted(fractions))
 
     @staticmethod
     @lru_cache
-    def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=5):
+    def from_description_with_no_ans(sigma=1 / 3, negligible_distance_in_sigma=3):
         normalized_and_sorted_fractions = QuotientCalculator.calculate_and_sort_normalized_fractions()
         estimated_sigmas = QuotientCalculator.estimate_quotient_sigmas(quotients=normalized_and_sorted_fractions,
                                                                        calculate_sigma=lambda _: sigma)
-        # estimated_sigmas = np.array([.0033]*len(normalized_and_sorted_fractions))
         support_lower_bound = 0.
         support_upper_bound = 2.3
         support_discretization_factor = .001
@@ -289,21 +295,34 @@ class QuotientCalculator(Calculator):
 
         pdfs = calculate_normal_pdfs(support, stimuli_floats, estimated_sigmas)
 
-        filter_distant_values_in_distribution(pdfs, estimated_sigmas, stimuli_floats, support_discretization_factor,
-                                              support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
+        filter_distant_values_in_distribution(pdfs=pdfs,
+                                              sigmas=estimated_sigmas,
+                                              means=stimuli,
+                                              lower_bound=support_lower_bound,
+                                              upper_bound=support_upper_bound,
+                                              support_discretization_factor=support_discretization_factor,
+                                              negligible_distance_in_sigma=negligible_distance_in_sigma)
 
         rxr = np.dot(pdfs, np.transpose(pdfs))
-        rxr = rxr / np.sum(rxr, axis=0)  # normalize rxr
+        rxr = rxr / np.sum(rxr, axis=0)
+        # rxr = rxr / len(stimuli)
 
-        estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_floats, rxr)
-        rxr = calculate_normal_pdfs(stimuli_floats, estimated_rxr_means, estimated_rxr_sigmas)
+        # normalize rxr
+
+        # estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_floats, rxr)
+        # rxr = calculate_normal_pdfs(stimuli_floats, estimated_rxr_means, estimated_rxr_sigmas)
+        # filter_distant_values_in_distribution_new(pdfs=rxr,
+        #                                           sigmas=estimated_rxr_sigmas,
+        #                                           means=estimated_rxr_means,
+        #                                           support=stimuli_floats,
+        #                                           negligible_distance_in_sigma=3)
         quotient2index = {stimuli: index for index, stimuli in enumerate(stimuli)}
 
         return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
 
     @staticmethod
     @lru_cache
-    def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=5) -> tuple[
+    def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=7) -> tuple[
         Stimuli, StimuliDensity, Calculator]:
 
         normalized_and_sorted_fractions: Stimuli = QuotientCalculator.calculate_and_sort_normalized_fractions()
@@ -320,9 +339,19 @@ class QuotientCalculator(Calculator):
         stimuli = normalized_and_sorted_fractions
         filter_distant_values_in_distribution(pdfs, estimated_sigmas, stimuli, support_discretization_factor,
                                               support_lower_bound, support_upper_bound, negligible_distance_in_sigma)
+        # filter_distant_values_in_distribution_new(pdfs=pdfs,
+        #                                           sigmas=estimated_sigmas,
+        #                                           means=stimuli,
+        #                                           support=support,
+        #                                           negligible_distance_in_sigma=negligible_distance_in_sigma)
+
         rxr = np.dot(pdfs, np.transpose(pdfs))
-        estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_as_float, rxr)
-        rxr = calculate_normal_pdfs(stimuli_as_float, estimated_rxr_means, estimated_rxr_sigmas)
+        rxr = rxr / np.sum(rxr, axis=0)
+        # rxr = rxr / len(stimuli)
+
+        # estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_as_float, rxr)
+        # rxr = calculate_normal_pdfs(stimuli_as_float, estimated_rxr_means, estimated_rxr_sigmas)
+
         quotient2index = {fraction: index for index, fraction in enumerate(normalized_and_sorted_fractions)}
 
         return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
@@ -426,8 +455,13 @@ def load_stimuli_and_calculator(stimuli_type, with_ans=True) -> [tuple, StimuliD
 if __name__ == '__main__':
     # fg(np.array([1, 2, 3]), np.array([1, .2, .3]))
     # s = time.time()
-    # stim, denstiy, cal, = QuotientCalculator.load_from_file_with_no_ans('../inmemory_calculus_no_ans/quotient')
-    numeric_stimuli_onfly, numeric_stimuli_density_onfly, numeric_calculator_onfly = QuotientCalculator.from_description_with_ans()
+
+    rxr5 = read_h5_data(r"C:\Users\juszynski\Desktop\wspace\coordinating-quantifiers\inmemory_calculus\franek\quotient_discrete_Ri_sigma_5.h5")
+    rxr7 = read_h5_data(r"C:\Users\juszynski\Desktop\wspace\coordinating-quantifiers\inmemory_calculus\franek\quotient_discrete_Ri_sigma_7.h5")
+    k = rxr5[100]
+    l = rxr7[100]
+    stim, denstiy, cal, = QuotientCalculator.load_from_file_with_no_ans('../inmemory_calculus_no_ans/quotient')
+    numeric_stimuli_onfly, numeric_stimuli_density_onfly, numeric_calculator_onfly = QuotientCalculator.from_description_with_no_ans()
     # stimuli, density, calculator = QuotientCalculator.from_description_with_no_ans()
     # rxr =calculator.get_rxr()
     # print()

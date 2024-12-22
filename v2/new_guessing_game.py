@@ -34,7 +34,7 @@ def flip_a_coin_random_function(seed: int) -> Callable[[], int]:
 def shuffle_list_random_function(seed: int) -> Callable[[list], None]:
     random_state = np.random.RandomState(seed)
 
-    def shuffle_list(l: list) -> None:
+    def shuffle_list(l: []) -> None:
         random_state.shuffle(l)
 
     return shuffle_list
@@ -43,7 +43,7 @@ def shuffle_list_random_function(seed: int) -> Callable[[list], None]:
 def pick_element_random_function(seed: int) -> Callable[[list], Any]:
     random_state = np.random.RandomState(seed)
 
-    def pick_random_value(l: list) -> Any:
+    def pick_random_value(l: []) -> Any:
         i = random_state.randint(len(l))
         return l[i]
 
@@ -69,12 +69,12 @@ def select_hearer(_: NewAgent, hearer: NewAgent) -> NewAgent:
     return hearer
 
 
-def avg_series(elements: list, history=50) -> list:
+def avg_series(elements: [], history=50) -> []:
     return [np.mean(elements[max(0, i - history):i]) for i in range(1, len(elements))]
 
 
-def recreate_from_history(agents: list[tuple[int, NewAgent]],
-                          stimuli: list[Stimulus],
+def recreate_from_history(agents: [tuple[int, NewAgent]],
+                          stimuli: [Stimulus],
                           calculator: Calculator,
                           game_params: GameParams,
                           snapshot_rate: int):
@@ -281,7 +281,6 @@ if __name__ == '__main__':
     #     states_edges_cnts_normalized.append((bucket, normalized_cnts))
     populations_snapshots = recreate_agents_snapshots_in_parallel(populations=populations, stimuli=stimuli,
                                                                   calculator=calculator, game_params=game_params)
-    print(populations_snapshots)
     # population_snapshots = [
     #     NewAgent.recreate_from_history(agent_id=a.agent_id, calculator=calculator, game_params=game_params,
     #                                    updates_history=a.updates_history) for a in population]
@@ -299,6 +298,7 @@ if __name__ == '__main__':
     monotonicity_snapshots = [
         [[monotonicity for _, _, _, monotonicity, _ in agent_snapshots] for agent_snapshots in population_snapshots]
         for population_snapshots in populations_snapshots]
+    print()
 
     # is_word_monotone = {}
     # for w, meaning in w2meanings.items():

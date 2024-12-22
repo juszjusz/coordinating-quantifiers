@@ -58,10 +58,10 @@ class NewCategory:
         wXr = str([*zip(weights, ru)])
         return f'id: {self.category_id}; wXr: {wXr}'
 
-    def reactive_units(self) -> list[Stimulus]:
+    def reactive_units(self) -> [Stimulus]:
         return self._reactive_units
 
-    def weights(self) -> list[float]:
+    def weights(self) -> [float]:
         return self._weights
 
     def response(self, stimulus: Stimulus, calculator: Calculator) -> float:
@@ -380,11 +380,11 @@ class NewAgent:
         # based on how much the word meaning covers the category
         return sum(coverage) / sum(area)
 
-    def compute_word_meanings(self) -> dict[NewWord, list[bool]]:
+    def compute_word_meanings(self) -> dict[NewWord, [bool]]:
         active_words = self.compute_active_words()
         return self._lxc.compute_word_meanings(active_words, self._calculator)
 
-    def compute_word_pragmatic_meanings(self, stimuli: list[Stimulus]) -> dict[NewWord, list[bool]]:
+    def compute_word_pragmatic_meanings(self, stimuli: [Stimulus]) -> dict[NewWord, [bool]]:
         return self._lxc.compute_word_pragmatic_meanings(stimuli, self._calculator)
 
     @staticmethod
@@ -560,7 +560,7 @@ class LxC:
         category_index = self._categories.get_object_index(category)
         return self._lxc[word_index, category_index]
 
-    def compute_word_meanings(self, active_words: list[NewWord], calculator: Calculator) -> dict[NewWord, list[bool]]:
+    def compute_word_meanings(self, active_words: [NewWord], calculator: Calculator) -> dict[NewWord, [bool]]:
         # [f] = {q : SUM L(f,c)*<c|R_q> > 0} = {q : L(f,c) > 0 and <c|R_q> > 0}
         self.remove_non_responsive_words()
         self.remove_nonactive_categories()
@@ -575,14 +575,13 @@ class LxC:
         word2meanings = {}
         for word_index, categories in non_zero_wXc_connections:
             word, _ = self._words.get_object_by_index(word_index)
-            categories = [self._categories.get_object_by_index(category_index) for _, category_index in categories]
+            categories: [tuple[NewCategory, bool]] = [self._categories.get_object_by_index(category_index) for _, category_index in categories]
             word2meanings[word] = np.sum([category.response_all(calculator) for category, _ in categories], axis=0)
 
         result = {word: calculator.activation_from_responses(responses) for word, responses in word2meanings.items()}
         return result
 
-    def compute_word_pragmatic_meanings(self, stimuli: list[Stimulus], calculator: Calculator) -> dict[
-        NewWord, list[bool]]:
+    def compute_word_pragmatic_meanings(self, stimuli: [Stimulus], calculator: Calculator) -> dict[NewWord, [bool]]:
         # work on active connections only
         self.remove_non_responsive_words()
         self.remove_nonactive_categories()
@@ -610,10 +609,11 @@ class LxC:
         stimuli_response_maximizers = set(stimuli_response_maximizers)
         word2category = list(set((self.get_most_connected_word(categories[i]), i) for i in stimuli_response_maximizers))
         word2category = [(w, category_index) for w, category_index in word2category if w is not None]
-        word2meaning = {}
+        word2meanings = {}
         for word, category_index in word2category:
             active_stimuli = category2stimuli[category_index]
             activations = np.array([False] * len(stimuli))
             activations[active_stimuli] = True
-            word2meaning = {word: activations}
-        return word2meaning
+            word2meanings = {word: activations}
+
+        return {word: calculator.activation_from_responses(responses) for word, responses in word2meanings.items()}
