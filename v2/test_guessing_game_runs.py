@@ -16,7 +16,7 @@ class TestGuessingGameWithNumericStimulus(unittest.TestCase):
 
     def test_result(self):
         game_params = GameParams(**self.params)
-        stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
+        stimuli, stimuli_density, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
         actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
@@ -39,7 +39,7 @@ class TestGuessingGameWithQuotientStimulus(unittest.TestCase):
 
     def test_result(self):
         game_params = GameParams(**self.params)
-        stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
+        stimuli, stimuli_density, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
         actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 

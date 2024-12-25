@@ -83,7 +83,7 @@ def filter_distant_values_in_distribution_new(*, pdfs, sigmas, means, support, n
     pdfs[target > thresholds] = 0
 
 
-def context_factory(stimuli: list[Stimulus], pick_element: Callable[[list[Any]], Any]):
+def context_factory(stimuli: [Stimulus], pick_element: Callable[[list[Any]], Any]):
     def new_context() -> StimulusContext:
         s1 = pick_element(stimuli)
         s2 = pick_element(stimuli)
