@@ -127,12 +127,12 @@ def recreate_from_history(agents: [tuple[int, NewAgent]],
     return snapshots
 
 
-def recreate_agents_snapshots_in_parallel(populations: list[list[NewAgent]], stimuli: list[Stimulus],
-                                          calculator: Calculator,
+def recreate_agents_snapshots_in_parallel(populations: [[NewAgent]], stimuli: [Stimulus], calculator: Calculator,
                                           game_params: GameParams, snapshot_rate=200, processes_num=12):
     flatten_populations = [(run, agent) for run, population in enumerate(populations) for agent in population]
     bucket_size = math.ceil(len(flatten_populations) / processes_num)
     bucketed_agents = [flatten_populations[i:i + bucket_size] for i in range(0, len(flatten_populations), bucket_size)]
+    print(bucketed_agents[0])
     args = [(bucket, stimuli, calculator, game_params, snapshot_rate) for bucket in bucketed_agents]
     with Pool(processes=processes_num) as pool:
         agent_snapshots = pool.starmap(recreate_from_history, args)
@@ -144,19 +144,24 @@ def recreate_agents_snapshots_in_parallel(populations: list[list[NewAgent]], sti
     return snapshots_grouped_by_populations
 
 
-def run_simulations_in_parallel(stimuli: list[Stimulus], calculator: Calculator, game_params: GameParams,
-                                processes_num=8):
+def run_simulations_in_parallel(stimuli: [Stimulus], calculator: Calculator, game_params: GameParams, parallel=False) -> [[NewAgent]]:
     r = RandomState(game_params.seed)
-
-    with Pool(processes=processes_num) as pool:
-        seeds = [(run, r.randint(0, 2 ** 31)) for run in range(game_params.runs)]
-        args = [(seed, stimuli, calculator, game_params, run + 1) for run, seed in seeds]
-        populations = pool.starmap(run_simulation, args)
+    if parallel:
+        processes_num = min(game_params.runs, 8)
+        with Pool(processes=processes_num) as pool:
+            seeds = [(run, r.randint(0, 2 ** 31)) for run in range(game_params.runs)]
+            args = [(seed, stimuli, calculator, game_params, run + 1) for run, seed in seeds]
+            populations: [[NewAgent]] = pool.starmap(run_simulation, args)
+    else:
+        populations = []
+        for run in range(game_params.runs):
+            seed = r.randint(0, 2 ** 31)
+            populations.append(run_simulation(seed, stimuli, calculator, game_params, run + 1))
 
     return populations
 
 
-def run_simulation(seed: int, stimuli: list[Stimulus], calculator: Calculator, game_params: GameParams, run=0):
+def run_simulation(seed: int, stimuli: list[Stimulus], calculator: Calculator, game_params: GameParams, run=0) -> [NewAgent]:
     r_functions = random_functions(seed=seed)
 
     shuffle_list, flip_a_coin, pick_element = next(r_functions)

@@ -5,6 +5,7 @@ from new_guessing_game import run_simulations_in_parallel
 from calculator import load_stimuli_and_calculator
 from ipywidgets import widgets, HBox, VBox
 from IPython.display import display, clear_output
+from domain_objects import GameParams
 
 
 def render_control_panel(simulation_result: Dict):
@@ -96,7 +97,6 @@ def render_control_panel(simulation_result: Dict):
         guessing_game_2 = False
         seed = 100
 
-        from domain_objects import GameParams
         params = GameParams(population_size=population_size,
                             stimulus=stimulus,
                             max_num=max_num,
