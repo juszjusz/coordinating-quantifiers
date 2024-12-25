@@ -3,7 +3,7 @@ import logging
 from copy import copy
 from fractions import Fraction
 from itertools import groupby
-from typing import Callable, Union
+from typing import Callable, Union, Optional
 
 import numpy as np
 from tqdm import tqdm
@@ -21,15 +21,15 @@ logger.addHandler(ch)
 class NewCategory:
     def __init__(self, category_id: int):
         self.category_id = category_id
-        self._weights: list[float] = []
-        self._reactive_units: list[Stimulus] = []
+        self._weights: [float] = []
+        self._reactive_units: [Stimulus] = []
 
     @classmethod
     def init_from_stimulus(cls, stimulus: Stimulus):
         return cls.init_from_stimuli([(.5, stimulus)])
 
     @classmethod
-    def init_from_stimuli(cls, wxr: list[tuple[float, Stimulus]]):
+    def init_from_stimuli(cls, wxr: [tuple[float, Stimulus]]):
         new_instance = cls(0)
         new_instance._weights = [w for w, _ in wxr]
         new_instance._reactive_units = [r for _, r in wxr]
@@ -65,8 +65,8 @@ class NewCategory:
         return self._weights
 
     def response(self, stimulus: Stimulus, calculator: Calculator) -> float:
-        return sum([weight * calculator.dot_product(ru_value, stimulus) for weight, ru_value in
-                    zip(self._weights, self._reactive_units)])
+        response = [calculator.dot_product(ru_value, stimulus) for ru_value in self._reactive_units]
+        return np.sum(np.dot(self._weights, response))
 
     def response_all(self, calculator: Calculator):
         all_stimuli_response = calculator.dot_product_all(self._reactive_units)
@@ -77,7 +77,7 @@ class NewCategory:
         self._weights.append(weight)
         self._reactive_units.append(stimulus)
 
-    def select(self, context: StimulusContext, calculator: Calculator) -> Union[int, None]:
+    def select(self, context: StimulusContext, calculator: Calculator) -> Optional[int]:
         s1, s2 = context
         r1, r2 = self.response(s1, calculator), self.response(s2, calculator)
         if r1 == r2:
@@ -239,7 +239,7 @@ class NewAgent:
     def has_categories(self) -> bool:
         return len(self._lxc.get_responsive_categories()) > 0
 
-    def get_words(self) -> list[NewWord]:
+    def get_words(self) -> [NewWord]:
         return self._lxc.get_responsive_words()
 
     # def get_active_words(self, stimuli: List[Stimulus]) -> List[NewWord]:
@@ -249,28 +249,28 @@ class NewAgent:
     #     active_lexicon = [w for w in active_lexicon if w is not None]
     #     return list(set(active_lexicon))
 
-    def compute_active_words(self) -> list[NewWord]:
+    def compute_active_words(self) -> [NewWord]:
         response_category_maximizers = self.get_most_responsive_category_over_all_stimuli()
         active_lexicon = [self.get_most_connected_word(c) for c in response_category_maximizers]
         active_lexicon = [w for w in active_lexicon if w is not None]
         return list(set(active_lexicon))
 
-    def get_categories(self) -> list[NewCategory]:
+    def get_categories(self) -> [NewCategory]:
         return self._lxc.get_responsive_categories()
 
-    def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Union[NewWord, None]:
+    def get_most_connected_word(self, category: NewCategory, activation_threshold=0) -> Optional[NewWord]:
         return self._lxc.get_most_connected_word(category, activation_threshold)
 
-    def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Union[NewCategory, None]:
+    def get_most_connected_category(self, word: NewWord, activation_threshold=0) -> Optional[NewCategory]:
         return self._lxc.get_most_connected_category(word, activation_threshold)
 
-    def get_most_responsive_category(self, stimulus: Stimulus) -> Union[NewCategory, None]:
+    def get_most_responsive_category(self, stimulus: Stimulus) -> Optional[NewCategory]:
         active_categories = self._lxc.get_responsive_categories()
         responses = [c.response(stimulus, self._calculator) for c in active_categories]
         response_argmax = np.argmax(responses)
         return active_categories[response_argmax]
 
-    def get_most_responsive_category_over_all_stimuli(self) -> list[NewCategory]:
+    def get_most_responsive_category_over_all_stimuli(self) -> [NewCategory]:
         active_categories = self._lxc.get_responsive_categories()
         if len(active_categories) > 0:
             responses = [c.response_all(self._calculator) for c in active_categories]
@@ -279,7 +279,7 @@ class NewAgent:
         else:
             return []
 
-    def knows_word(self, w: NewWord):
+    def knows_word(self, w: NewWord) -> bool:
         active_words = self._lxc.get_responsive_words()
         return w in active_words
 

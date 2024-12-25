@@ -6,7 +6,7 @@ import graphviz
 import networkx as nx
 
 from domain_objects import NewCategory, NewWord, NewAgent, SimpleCounter
-from calculator import Stimulus
+from calculator import Stimulus, StimulusContext
 
 logger = logging.getLogger(__name__)
 logger.setLevel(level=logging.INFO)
@@ -42,7 +42,7 @@ class DiscriminationGameAction(GuessingGameAction):
     def output_nodes(self) -> list[str]:
         return [self.on_no_category, self.on_no_discrimination, self.on_success]
 
-    def __call__(self, agent: NewAgent, context, data_envelope: dict, topic: int) -> str:
+    def __call__(self, agent: NewAgent, context: StimulusContext, data_envelope: dict, topic: int) -> str:
         if not agent.has_categories():
             logger.debug('no category {}({})'.format(agent, agent.agent_id))
             agent.learn_stimulus(context[topic])

@@ -132,7 +132,6 @@ def recreate_agents_snapshots_in_parallel(populations: [[NewAgent]], stimuli: [S
     flatten_populations = [(run, agent) for run, population in enumerate(populations) for agent in population]
     bucket_size = math.ceil(len(flatten_populations) / processes_num)
     bucketed_agents = [flatten_populations[i:i + bucket_size] for i in range(0, len(flatten_populations), bucket_size)]
-    print(bucketed_agents[0])
     args = [(bucket, stimuli, calculator, game_params, snapshot_rate) for bucket in bucketed_agents]
     with Pool(processes=processes_num) as pool:
         agent_snapshots = pool.starmap(recreate_from_history, args)
@@ -144,7 +143,7 @@ def recreate_agents_snapshots_in_parallel(populations: [[NewAgent]], stimuli: [S
     return snapshots_grouped_by_populations
 
 
-def run_simulations_in_parallel(stimuli: [Stimulus], calculator: Calculator, game_params: GameParams, parallel=False) -> [[NewAgent]]:
+def run_simulations_in_parallel(stimuli: [Stimulus], calculator: Calculator, game_params: GameParams, parallel=True) -> [[NewAgent]]:
     r = RandomState(game_params.seed)
     if parallel:
         processes_num = min(game_params.runs, 8)
@@ -161,7 +160,7 @@ def run_simulations_in_parallel(stimuli: [Stimulus], calculator: Calculator, gam
     return populations
 
 
-def run_simulation(seed: int, stimuli: list[Stimulus], calculator: Calculator, game_params: GameParams, run=0) -> [NewAgent]:
+def run_simulation(seed: int, stimuli: [Stimulus], calculator: Calculator, game_params: GameParams, run=0) -> [NewAgent]:
     r_functions = random_functions(seed=seed)
 
     shuffle_list, flip_a_coin, pick_element = next(r_functions)
@@ -275,9 +274,12 @@ if __name__ == '__main__':
     shuffle_list, flip_a_coin, pick_element = next(random_functions(seed=game_params.seed))
 
     stimuli, density, calculator = load_stimuli_and_calculator(game_params.stimulus, with_ans=game_params.with_ans)
-
+    import yappi
+    yappi.set_clock_type("cpu")  # Use set_clock_type("wall") for wall time
+    yappi.start()
     # population = run_simulation(0, stimuli, calculator, game_params)
     populations = run_simulations_in_parallel(stimuli, calculator, game_params)
+    yappi.get_func_stats().print_all()
     # states_edges_cnts_normalized = []
     # for bucket, v in states_edges_cnts.items():
     #     bucket_start, bucket_end = bucket
