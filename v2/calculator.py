@@ -117,13 +117,24 @@ class StimuliDensity:
         return self._support
 
 
+@dataclasses.dataclass
 class Calculator:
+    reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
-    def dot_product(self, i: Stimulus, j: Stimulus):
+    def get_rxr(self):
+        return self.reactive_x_reactive
+
+    def stimuli_index(self, s: Stimulus) -> int:
         pass
 
-    def dot_product_all(self, i: [Stimulus]):
-        pass
+    def dot_product(self, r1: Stimulus, units: [Stimulus]):
+        i1 = self.stimuli_index(r1)
+        indices = [self.stimuli_index(u) for u in units]
+        return self.reactive_x_reactive[indices, i1]
+
+    def dot_product_all(self, rs1: [QuotientStimulus]):
+        is1 = [self.stimuli_index(r1) for r1 in rs1]
+        return self.reactive_x_reactive[:, is1]
 
     def activation_from_responses(self, response_over_stimuli: [float]):
         pass
@@ -133,22 +144,12 @@ class Calculator:
         return tuple(np.arange(lower, upper, discretization_factor))
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class NumericCalculator(Calculator):
     numeric2index: dict[int, int]
-    reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
-    def get_rxr(self):
-        return self.reactive_x_reactive
-
-    def dot_product(self, r1: Stimulus, r2: Stimulus) -> float:
-        i1 = self.numeric2index[r1]
-        i2 = self.numeric2index[r2]
-        return self.reactive_x_reactive[i1][i2]
-
-    def dot_product_all(self, rs1: list[Stimulus]):
-        is1 = [self.numeric2index[r1] for r1 in rs1]
-        return self.reactive_x_reactive[:, is1]
+    def stimuli_index(self, s: Stimulus) -> int:
+        return self.numeric2index[s]
 
     def activation_from_responses(self, response_over_stimuli: list[float]):
         return np.array(response_over_stimuli).astype(bool)
@@ -198,7 +199,8 @@ class NumericCalculator(Calculator):
 
         numeric2index = {v: index for index, v in enumerate(stimuli)}
 
-        return stimuli, StimuliDensity(numeric2index, support, pdfs), NumericCalculator(numeric2index, rxr)
+        return stimuli, StimuliDensity(numeric2index, support, pdfs), NumericCalculator(numeric2index=numeric2index,
+                                                                                        reactive_x_reactive=rxr)
 
     @staticmethod
     def load_from_file_with_ans(path='./inmemory_calculus_ans/numeric'):
@@ -239,26 +241,12 @@ class NumericCalculator(Calculator):
             numeric2index, reactive_x_reactive)
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class QuotientCalculator(Calculator):
     quotient2index: dict[QuotientStimulus, int]
-    reactive_x_reactive: np.ndarray[np.ndarray[float]]
 
-    def get_rxr(self):
-        return self.reactive_x_reactive
-
-    @staticmethod
-    def compute_quotient2index(f: QuotientStimulus):
-        return f.numerator, f.denominator
-
-    def dot_product(self, r1: QuotientStimulus, r2: QuotientStimulus):
-        i1 = self.quotient2index[r1]
-        i2 = self.quotient2index[r2]
-        return self.reactive_x_reactive[i1][i2]
-
-    def dot_product_all(self, rs1: [QuotientStimulus]):
-        is1 = [self.quotient2index[r1] for r1 in rs1]
-        return self.reactive_x_reactive[:, is1]
+    def stimuli_index(self, s: QuotientStimulus) -> int:
+        return self.quotient2index[s]
 
     def activation_from_responses(self, response_over_stimuli: [float]) -> [bool]:
         window_size = 10
@@ -318,7 +306,9 @@ class QuotientCalculator(Calculator):
         #                                           negligible_distance_in_sigma=3)
         quotient2index = {stimuli: index for index, stimuli in enumerate(stimuli)}
 
-        return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
+        calculator = QuotientCalculator(quotient2index=quotient2index, reactive_x_reactive=rxr)
+        density = StimuliDensity(quotient2index, support, pdfs)
+        return stimuli, density, calculator
 
     @staticmethod
     @lru_cache
@@ -354,7 +344,9 @@ class QuotientCalculator(Calculator):
 
         quotient2index = {fraction: index for index, fraction in enumerate(normalized_and_sorted_fractions)}
 
-        return stimuli, StimuliDensity(quotient2index, support, pdfs), QuotientCalculator(quotient2index, rxr)
+        calculator = QuotientCalculator(quotient2index=quotient2index, reactive_x_reactive=rxr)
+        density = StimuliDensity(quotient2index, support, pdfs)
+        return stimuli, density, calculator
 
     @staticmethod
     def estimate_quotient_sigmas(*, quotients: Stimuli, calculate_sigma: Callable[[int], float], sample_size=10_000):
@@ -456,8 +448,10 @@ if __name__ == '__main__':
     # fg(np.array([1, 2, 3]), np.array([1, .2, .3]))
     # s = time.time()
 
-    rxr5 = read_h5_data(r"C:\Users\juszynski\Desktop\wspace\coordinating-quantifiers\inmemory_calculus\franek\quotient_discrete_Ri_sigma_5.h5")
-    rxr7 = read_h5_data(r"C:\Users\juszynski\Desktop\wspace\coordinating-quantifiers\inmemory_calculus\franek\quotient_discrete_Ri_sigma_7.h5")
+    rxr5 = read_h5_data(
+        r"C:\Users\juszynski\Desktop\wspace\coordinating-quantifiers\inmemory_calculus\franek\quotient_discrete_Ri_sigma_5.h5")
+    rxr7 = read_h5_data(
+        r"C:\Users\juszynski\Desktop\wspace\coordinating-quantifiers\inmemory_calculus\franek\quotient_discrete_Ri_sigma_7.h5")
     k = rxr5[100]
     l = rxr7[100]
     stim, denstiy, cal, = QuotientCalculator.load_from_file_with_no_ans('../inmemory_calculus_no_ans/quotient')

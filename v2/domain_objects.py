@@ -65,7 +65,7 @@ class NewCategory:
         return self._weights
 
     def response(self, stimulus: Stimulus, calculator: Calculator) -> float:
-        response = [calculator.dot_product(ru_value, stimulus) for ru_value in self._reactive_units]
+        response = calculator.dot_product(stimulus, self._reactive_units)
         return np.sum(np.dot(self._weights, response))
 
     def response_all(self, calculator: Calculator):
@@ -86,8 +86,7 @@ class NewCategory:
             return np.argmax([r1, r2])
 
     def reinforce(self, stimulus: Stimulus, beta, calculator: Calculator):
-        self._weights = [weight + beta * calculator.dot_product(ru, stimulus) for weight, ru in
-                         zip(self._weights, self._reactive_units)]
+        self._weights = self._weights + beta * calculator.dot_product(stimulus, self._reactive_units)
 
     def decrement_weights(self, alpha):
         self._weights = [weight - alpha * weight for weight in self._weights]

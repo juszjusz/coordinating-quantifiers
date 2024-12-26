@@ -278,7 +278,7 @@ if __name__ == '__main__':
     yappi.set_clock_type("cpu")  # Use set_clock_type("wall") for wall time
     yappi.start()
     # population = run_simulation(0, stimuli, calculator, game_params)
-    populations = run_simulations_in_parallel(stimuli, calculator, game_params)
+    populations = run_simulations_in_parallel(stimuli, calculator, game_params, parallel=False)
     yappi.get_func_stats().print_all()
     # states_edges_cnts_normalized = []
     # for bucket, v in states_edges_cnts.items():

@@ -53,10 +53,10 @@ class TestSnapshot(unittest.TestCase):
                   'discriminative_history_length': 50, 'delta_inc': 0.2, 'delta_dec': 0.2, 'delta_inh': 0.2,
                   'alpha': 0.01,
                   'super_alpha': 0.001, 'beta': 0.2, 'steps': 3000, 'runs': 1, 'guessing_game_2': False,
-                  'seed': 0}
+                  'seed': 0, "with_ans": True}
 
         game_params = GameParams(**params)
-        stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
+        stimuli, stimuli_density, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
         actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
@@ -78,10 +78,10 @@ class TestSnapshot(unittest.TestCase):
                   'discriminative_history_length': 50, 'delta_inc': 0.2, 'delta_dec': 0.2, 'delta_inh': 0.2,
                   'alpha': 0.01,
                   'super_alpha': 0.001, 'beta': 0.2, 'steps': 3000, 'runs': 1, 'guessing_game_2': False,
-                  'seed': 0}
+                  'seed': 0, "with_ans": True}
 
         game_params = GameParams(**params)
-        stimuli, calculator = load_stimuli_and_calculator(game_params.stimulus)
+        stimuli, stimuli_density, calculator = load_stimuli_and_calculator(game_params.stimulus)
 
         actual_population = run_simulation(game_params.seed, stimuli, calculator, game_params)
 
