@@ -85,13 +85,13 @@ def filter_distant_values_in_distribution_new(*, pdfs, sigmas, means, support, n
 
 def context_factory(stimuli: [Stimulus], pick_element: Callable[[list[Any]], Any]):
     def new_context() -> StimulusContext:
-        s1 = pick_element(stimuli)
-        s2 = pick_element(stimuli)
+        i1, s1 = pick_element(stimuli)
+        i2, s2 = pick_element(stimuli)
         while not is_noticeably_different_from(s1, s2):
-            s1 = pick_element(stimuli)
-            s2 = pick_element(stimuli)
+            i1, s1 = pick_element(stimuli)
+            i2, s2 = pick_element(stimuli)
 
-        return s1, s2
+        return i1, i2
 
     return new_context
 
@@ -103,15 +103,12 @@ def read_h5_data(data_path, dataset_key=u'Dataset1'):
 
 @dataclasses.dataclass
 class StimuliDensity:
-    def __init__(self, index_mapping: dict[Stimulus, int], support: Support,
-                 reactive_unit_distribution: np.ndarray[np.ndarray[float]]):
-        self.index_mapping = index_mapping
+    def __init__(self, support: Support, reactive_unit_distribution: np.ndarray[np.ndarray[float]]):
         self._support = support
         self.reactive_unit_distribution = reactive_unit_distribution
 
-    def pdf(self, stimulus: Stimulus) -> np.ndarray[float]:
-        i = self.index_mapping[stimulus]
-        return self.reactive_unit_distribution[i]
+    def pdf(self, stimulus: int) -> np.ndarray[float]:
+        return self.reactive_unit_distribution[stimulus]
 
     def support(self) -> Support:
         return self._support
@@ -124,17 +121,11 @@ class Calculator:
     def get_rxr(self):
         return self.reactive_x_reactive
 
-    def stimuli_index(self, s: Stimulus) -> int:
-        pass
+    def dot_product(self, r1: int, units: [int]):
+        return self.reactive_x_reactive[units, r1]
 
-    def dot_product(self, r1: Stimulus, units: [Stimulus]):
-        i1 = self.stimuli_index(r1)
-        indices = [self.stimuli_index(u) for u in units]
-        return self.reactive_x_reactive[indices, i1]
-
-    def dot_product_all(self, rs1: [QuotientStimulus]):
-        is1 = [self.stimuli_index(r1) for r1 in rs1]
-        return self.reactive_x_reactive[:, is1]
+    def dot_product_all(self, rs1: [int]):
+        return self.reactive_x_reactive[:, rs1]
 
     def activation_from_responses(self, response_over_stimuli: [float]):
         pass
@@ -146,10 +137,6 @@ class Calculator:
 
 @dataclasses.dataclass
 class NumericCalculator(Calculator):
-    numeric2index: dict[int, int]
-
-    def stimuli_index(self, s: Stimulus) -> int:
-        return self.numeric2index[s]
 
     def activation_from_responses(self, response_over_stimuli: list[float]):
         return np.array(response_over_stimuli).astype(bool)
@@ -176,9 +163,7 @@ class NumericCalculator(Calculator):
         rxr = np.dot(pdfs, np.transpose(pdfs))
         rxr = rxr / np.sum(rxr, axis=0)
 
-        numeric2index = {v: index for index, v in enumerate(stimuli)}
-
-        return stimuli, StimuliDensity(numeric2index, support, pdfs), NumericCalculator(numeric2index, rxr)
+        return stimuli, StimuliDensity(support=support, reactive_unit_distribution=pdfs), NumericCalculator(reactive_x_reactive=rxr)
 
     @staticmethod
     def from_description_with_ans(sigma_scalar=.1, negligible_distance_in_sigma=5, stimuli_range=20):
@@ -197,10 +182,7 @@ class NumericCalculator(Calculator):
         rxr = np.dot(pdfs, np.transpose(pdfs))
         rxr = rxr / np.sum(rxr, axis=0)  # normalize rxr
 
-        numeric2index = {v: index for index, v in enumerate(stimuli)}
-
-        return stimuli, StimuliDensity(numeric2index, support, pdfs), NumericCalculator(numeric2index=numeric2index,
-                                                                                        reactive_x_reactive=rxr)
+        return stimuli, StimuliDensity(support=support, reactive_unit_distribution=pdfs), NumericCalculator(reactive_x_reactive=rxr)
 
     @staticmethod
     def load_from_file_with_ans(path='./inmemory_calculus_ans/numeric'):
@@ -243,10 +225,6 @@ class NumericCalculator(Calculator):
 
 @dataclasses.dataclass
 class QuotientCalculator(Calculator):
-    quotient2index: dict[QuotientStimulus, int]
-
-    def stimuli_index(self, s: QuotientStimulus) -> int:
-        return self.quotient2index[s]
 
     def activation_from_responses(self, response_over_stimuli: [float]) -> [bool]:
         window_size = 10
@@ -304,10 +282,9 @@ class QuotientCalculator(Calculator):
         #                                           means=estimated_rxr_means,
         #                                           support=stimuli_floats,
         #                                           negligible_distance_in_sigma=3)
-        quotient2index = {stimuli: index for index, stimuli in enumerate(stimuli)}
 
-        calculator = QuotientCalculator(quotient2index=quotient2index, reactive_x_reactive=rxr)
-        density = StimuliDensity(quotient2index, support, pdfs)
+        calculator = QuotientCalculator(reactive_x_reactive=rxr)
+        density = StimuliDensity(support=support, reactive_unit_distribution=pdfs)
         return stimuli, density, calculator
 
     @staticmethod
@@ -342,10 +319,8 @@ class QuotientCalculator(Calculator):
         # estimated_rxr_means, estimated_rxr_sigmas = QuotientCalculator.estimate_rxr_mu_and_sigma(stimuli_as_float, rxr)
         # rxr = calculate_normal_pdfs(stimuli_as_float, estimated_rxr_means, estimated_rxr_sigmas)
 
-        quotient2index = {fraction: index for index, fraction in enumerate(normalized_and_sorted_fractions)}
-
-        calculator = QuotientCalculator(quotient2index=quotient2index, reactive_x_reactive=rxr)
-        density = StimuliDensity(quotient2index, support, pdfs)
+        calculator = QuotientCalculator(reactive_x_reactive=rxr)
+        density = StimuliDensity(support=support, reactive_unit_distribution=pdfs)
         return stimuli, density, calculator
 
     @staticmethod
