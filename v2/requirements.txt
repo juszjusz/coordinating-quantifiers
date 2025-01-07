@@ -2,3 +2,4 @@ numpy==1.26.0
 bokeh==3.6.2
 tqdm==4.66.1
 seaborn==0.12.2
+jupyterlab==4.3.4
